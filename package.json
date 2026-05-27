@@ -1,0 +1,32 @@
+{
+  "name": "vnova-engine",
+  "version": "0.2.0",
+  "description": "Vue 3 visual novel framework — script-first, Vite-native",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/vnova.d.ts",
+  "exports": {
+    ".": {
+      "types":   "./src/vnova.d.ts",
+      "default": "./src/index.js"
+    },
+    "./vite-plugin": "./vite-plugin/index.js",
+    "./style.css":   "./src/style.css"
+  },
+  "files": ["src", "vite-plugin"],
+  "scripts": {
+    "dev":       "vite",
+    "build:lib": "vite build --config vite.lib.config.js"
+  },
+  "peerDependencies": {
+    "vue":   "^3.4.0",
+    "vite":  "^5.0.0",
+    "pinia": "^3.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite":               "^5.0.0",
+    "vue":                "^3.4.0",
+    "pinia":              "^3.0.0"
+  }
+}
