@@ -524,6 +524,7 @@ export interface UseVNovaSavesOptions {
   saveKey?:   string
   slotCount?: number
   stageRef?:  Ref<HTMLElement | null>
+  store?:     unknown
 }
 
 export interface VNovaSavesHandle {
@@ -533,7 +534,7 @@ export interface VNovaSavesHandle {
   loadSlot:     (slot: number) => boolean
   deleteSlot:   (slot: number) => void
   clearAll:     () => void
-  exportSaves:  () => void
+  exportSaves:  () => Promise<boolean>
   importSaves:  () => Promise<boolean>
   saveToDisk:   () => Promise<boolean>
   loadFromDisk: () => Promise<boolean>
@@ -548,6 +549,7 @@ export interface VNovaSaveModalProps {
   saveKey?:   string
   slotCount?: number
   stageRef?:  Ref<HTMLElement | null>
+  store?:     unknown
   mode?:      'save' | 'load'
   open?:      boolean
 }

@@ -6,9 +6,125 @@ import { ref } from 'vue'
 import { useVNovaStore } from '../core/store.js'
 
 const VERSION = 2
+const FILE_FORMAT = 'vnova-file'
+const FILE_VERSION = 1
+const SIGN_ALGO = 'HMAC-SHA-256'
+const SIGN_SALT = 'vnova-file-signature-v1'
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
 
 function storageKey(saveKey, slot) {
   return `${saveKey}:slot:${slot}`
+}
+
+function _toBase64(bytes) {
+  let out = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    const slice = bytes.subarray(i, i + chunk)
+    out += String.fromCharCode(...slice)
+  }
+  return btoa(out)
+}
+
+function _fromBase64(value) {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+async function _gzip(bytes) {
+  if (typeof CompressionStream !== 'function') {
+    return { compression: 'none', bytes }
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))
+  const buffer = await new Response(stream).arrayBuffer()
+  return { compression: 'gzip', bytes: new Uint8Array(buffer) }
+}
+
+async function _gunzip(bytes, compression) {
+  if (!compression || compression === 'none') return bytes
+  if (compression !== 'gzip') throw new Error(`Unsupported compression: ${compression}`)
+  if (typeof DecompressionStream !== 'function') throw new Error('Gzip decompression not supported')
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+  const buffer = await new Response(stream).arrayBuffer()
+  return new Uint8Array(buffer)
+}
+
+async function _hmacKey(saveKey) {
+  if (!globalThis.crypto?.subtle) throw new Error('WebCrypto subtle API not available')
+  const seed = `${SIGN_SALT}|${saveKey}|${globalThis.location?.origin ?? 'unknown-origin'}`
+  const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(seed))
+  return crypto.subtle.importKey('raw', digest, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+}
+
+function _signatureInput(envelope) {
+  return [
+    envelope.format,
+    envelope.fileVersion,
+    envelope.kind,
+    envelope.saveKey,
+    envelope.compression,
+    envelope.payload,
+  ].join('|')
+}
+
+async function _signEnvelope(envelope, saveKey) {
+  const key = await _hmacKey(saveKey)
+  const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(_signatureInput(envelope)))
+  return _toBase64(new Uint8Array(signature))
+}
+
+async function _verifyEnvelope(envelope) {
+  if (!envelope?.signature || !envelope?.saveKey) return false
+  const key = await _hmacKey(envelope.saveKey)
+  return crypto.subtle.verify(
+    'HMAC',
+    key,
+    _fromBase64(envelope.signature),
+    textEncoder.encode(_signatureInput(envelope))
+  )
+}
+
+async function _packSignedFile({ kind, saveKey, data }) {
+  const raw = textEncoder.encode(JSON.stringify(data))
+  const packed = await _gzip(raw)
+  const envelope = {
+    format: FILE_FORMAT,
+    fileVersion: FILE_VERSION,
+    kind,
+    saveKey,
+    alg: SIGN_ALGO,
+    compression: packed.compression,
+    payload: _toBase64(packed.bytes),
+    createdAt: Date.now(),
+    signature: '',
+  }
+  envelope.signature = await _signEnvelope(envelope, saveKey)
+  return JSON.stringify(envelope)
+}
+
+async function _unpackSignedFile({ text, expectedKind }) {
+  const parsed = JSON.parse(text)
+
+  // Backward compatibility with old plain JSON exports and saves.
+  if (parsed?.format !== FILE_FORMAT) return parsed
+
+  if (parsed?.fileVersion !== FILE_VERSION) throw new Error('Unsupported file version')
+  if (parsed?.kind !== expectedKind) throw new Error(`Invalid file type: expected ${expectedKind}`)
+  if (parsed?.alg !== SIGN_ALGO) throw new Error('Unsupported signature algorithm')
+
+  const ok = await _verifyEnvelope(parsed)
+  if (!ok) throw new Error('Signature verification failed')
+
+  const packed = _fromBase64(parsed.payload)
+  const raw = await _gunzip(packed, parsed.compression)
+  return JSON.parse(textDecoder.decode(raw))
+}
+
+function _readFileText(file) {
+  return file.arrayBuffer().then((buffer) => textDecoder.decode(buffer))
 }
 
 function buildPayload(store, thumbnail = null) {
@@ -34,6 +150,16 @@ function buildPayload(store, thumbnail = null) {
   }
 }
 
+function resolveStageElement(stageRef) {
+  const raw = stageRef?.value ?? stageRef ?? null
+  if (!raw) return null
+  const el = raw?.$el ?? raw
+  if (!(el instanceof HTMLElement)) return null
+  return el.classList?.contains('vnova-stage')
+    ? el
+    : (el.querySelector?.('.vnova-stage') ?? el)
+}
+
 function formatDate(ts) {
   if (!ts) return null
   const d   = new Date(ts)
@@ -44,19 +170,7 @@ function formatDate(ts) {
 
 async function captureThumbnail(stageEl) {
   if (!stageEl) return null
-  try {
-    const h2c = window.html2canvas
-    if (h2c) {
-      const canvas = await h2c(stageEl, {
-        scale: 0.25, useCORS: true, allowTaint: true,
-        logging: false, backgroundColor: null,
-        ignoreElements: (el) =>
-          el.classList?.contains('vnova-dialogue') ||
-          el.classList?.contains('vnova-hud'),
-      })
-      return canvas.toDataURL('image/jpeg', 0.7)
-    }
-    // Fallback: paint background into a small canvas
+  const fallback = async () => {
     const style   = window.getComputedStyle(stageEl)
     const canvas  = document.createElement('canvas')
     canvas.width  = 160
@@ -86,8 +200,27 @@ async function captureThumbnail(stageEl) {
       }
     }
     return canvas.toDataURL('image/jpeg', 0.7)
+  }
+
+  try {
+    const h2c = window.html2canvas
+    if (h2c) {
+      const canvas = await h2c(stageEl, {
+        scale: 0.25, useCORS: true, allowTaint: true,
+        logging: false, backgroundColor: null,
+        ignoreElements: (el) =>
+          el.classList?.contains('vnova-dialogue') ||
+          el.classList?.contains('vnova-hud'),
+      })
+      try {
+        return canvas.toDataURL('image/jpeg', 0.7)
+      } catch {
+        return await fallback()
+      }
+    }
+    return await fallback()
   } catch {
-    return null
+    return await fallback()
   }
 }
 
@@ -117,10 +250,18 @@ export function useVNovaSaves(options = {}) {
     saveKey   = 'vnova',
     slotCount = 8,
     stageRef  = null,
+    store: explicitStore = null,
   } = options
 
-  // Read store directly from Pinia — no engine prop needed
-  const store = useVNovaStore()
+  function resolveStore() {
+    const candidate = explicitStore?.value ?? explicitStore ?? null
+    if (candidate && typeof candidate.loadSnapshot === 'function') return candidate
+    try {
+      return useVNovaStore()
+    } catch {
+      return null
+    }
+  }
 
   // Plain array ref — no readonly wrapper, no computed on top
   const slots = ref(
@@ -144,7 +285,9 @@ export function useVNovaSaves(options = {}) {
     if (saving.value) return false
     saving.value = true
     try {
-      const thumbnail = await captureThumbnail(stageRef?.value ?? null)
+      const store = resolveStore()
+      if (!store) return false
+      const thumbnail = await captureThumbnail(resolveStageElement(stageRef))
       const payload   = buildPayload(store, thumbnail)
       localStorage.setItem(storageKey(saveKey, slot), JSON.stringify(payload))
       _refreshSlot(slot)
@@ -160,6 +303,8 @@ export function useVNovaSaves(options = {}) {
   // ── load ──────────────────────────────────────────────────────────────────
   function loadSlot(slot) {
     try {
+      const store = resolveStore()
+      if (!store) return false
       const raw = localStorage.getItem(storageKey(saveKey, slot))
       if (!raw) return false
       const data = JSON.parse(raw)
@@ -184,34 +329,44 @@ export function useVNovaSaves(options = {}) {
   }
 
   // ── export / import ───────────────────────────────────────────────────────
-  function exportSaves() {
-    const allSlots = {}
-    for (let i = 1; i <= slotCount; i++) {
-      try {
-        const raw = localStorage.getItem(storageKey(saveKey, i))
-        if (raw) allSlots[i] = JSON.parse(raw)
-      } catch {}
+  async function exportSaves() {
+    try {
+      const allSlots = {}
+      for (let i = 1; i <= slotCount; i++) {
+        try {
+          const raw = localStorage.getItem(storageKey(saveKey, i))
+          if (raw) allSlots[i] = JSON.parse(raw)
+        } catch {}
+      }
+      const content = await _packSignedFile({
+        kind: 'bundle',
+        saveKey,
+        data: { saveKey, version: VERSION, slots: allSlots },
+      })
+      const blob = new Blob([content], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `${saveKey}-saves.bundle`,
+      })
+      a.click()
+      URL.revokeObjectURL(url)
+      return true
+    } catch (err) {
+      console.warn('[vnova] exportSaves failed:', err)
+      return false
     }
-    const blob = new Blob(
-      [JSON.stringify({ saveKey, version: VERSION, slots: allSlots }, null, 2)],
-      { type: 'application/json' }
-    )
-    const url = URL.createObjectURL(blob)
-    const a   = Object.assign(document.createElement('a'), { href: url, download: `${saveKey}-saves.json` })
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   function importSaves() {
     return new Promise((resolve) => {
-      const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' })
+      const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.bundle,.json,application/json' })
       input.onchange = (e) => {
         const file = e.target.files?.[0]
         if (!file) { resolve(false); return }
-        const reader = new FileReader()
-        reader.onload = (ev) => {
-          try {
-            const data     = JSON.parse(ev.target.result)
+        _readFileText(file)
+          .then(async (text) => {
+            const data = await _unpackSignedFile({ text, expectedKind: 'bundle' })
             const incoming = data?.slots ?? {}
             for (const [slotStr, payload] of Object.entries(incoming)) {
               const slot = Number(slotStr)
@@ -221,12 +376,12 @@ export function useVNovaSaves(options = {}) {
             }
             _refreshAll()
             resolve(true)
-          } catch (err) {
+          })
+          .catch((err) => {
             console.warn('[vnova] importSaves failed:', err)
             resolve(false)
           }
-        }
-        reader.readAsText(file)
+        )
       }
       input.click()
     })
@@ -234,42 +389,59 @@ export function useVNovaSaves(options = {}) {
 
   // ── on disk ───────────────────────────────────────────────────────────────
   async function saveToDisk() {
-    const thumbnail = await captureThumbnail(stageRef?.value ?? null)
-    const json      = JSON.stringify(buildPayload(store, thumbnail), null, 2)
-    if (window.showSaveFilePicker) {
-      try {
-        const fh       = await window.showSaveFilePicker({ suggestedName: `${saveKey}-save.json`, types: [{ description: 'VNova save', accept: { 'application/json': ['.json'] } }] })
-        const writable = await fh.createWritable()
-        await writable.write(json)
-        await writable.close()
-        return true
-      } catch (e) {
-        if (e.name === 'AbortError') return false
+    try {
+      const store = resolveStore()
+      if (!store) return false
+      const thumbnail = await captureThumbnail(resolveStageElement(stageRef))
+      const content = await _packSignedFile({
+        kind: 'save',
+        saveKey,
+        data: buildPayload(store, thumbnail),
+      })
+      if (window.showSaveFilePicker) {
+        try {
+          const fh = await window.showSaveFilePicker({
+            suggestedName: `${saveKey}-save.save`,
+            types: [{ description: 'VNova signed save', accept: { 'application/octet-stream': ['.save'] } }],
+          })
+          const writable = await fh.createWritable()
+          await writable.write(content)
+          await writable.close()
+          return true
+        } catch (e) {
+          if (e.name === 'AbortError') return false
+        }
       }
+      const blob = new Blob([content], { type: 'application/octet-stream' })
+      const url  = URL.createObjectURL(blob)
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `${saveKey}-save.save`,
+      })
+      a.click()
+      URL.revokeObjectURL(url)
+      return true
+    } catch (e) {
+      console.warn('[vnova] saveToDisk failed:', e)
+      return false
     }
-    const blob = new Blob([json], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = Object.assign(document.createElement('a'), { href: url, download: `${saveKey}-save.json` })
-    a.click()
-    URL.revokeObjectURL(url)
-    return true
   }
 
   function loadFromDisk() {
     return new Promise((resolve) => {
-      const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' })
+      const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.save,.json,application/json' })
       input.onchange = (e) => {
+        const store = resolveStore()
+        if (!store) { resolve(false); return }
         const file = e.target.files?.[0]
         if (!file) { resolve(false); return }
-        const reader = new FileReader()
-        reader.onload = (ev) => {
-          try {
-            const data = JSON.parse(ev.target.result)
+        _readFileText(file)
+          .then(async (text) => {
+            const data = await _unpackSignedFile({ text, expectedKind: 'save' })
             if (data?.snapshot) { store.loadSnapshot(data.snapshot); resolve(true) }
             else resolve(false)
-          } catch { resolve(false) }
-        }
-        reader.readAsText(file)
+          })
+          .catch(() => resolve(false))
       }
       input.click()
     })

@@ -22,6 +22,7 @@ const props = defineProps({
   saveKey:   { type: String,  default:  'vnova' },
   slotCount: { type: Number,  default:  8 },
   stageRef:  { type: Object,  default:  null },
+  store:     { type: Object,  default:  null },
   mode:      { type: String,  default:  'save' },
   open:      { type: Boolean, default:  false },
 })
@@ -32,6 +33,7 @@ const saves = useVNovaSaves({
   saveKey:   props.saveKey,
   slotCount: props.slotCount,
   stageRef:  props.stageRef,
+  store:     props.store,
 })
 
 // Use saves.slots directly in the template — it's a plain ref<array>,
@@ -86,8 +88,9 @@ function handleClearAll() {
 }
 
 async function handleExport() {
-  saves.exportSaves()
-  _notify('Export downloaded')
+  const ok = await saves.exportSaves()
+  if (ok) _notify('Export downloaded')
+  else    _notify('Export failed', 'err')
 }
 
 async function handleImport() {
@@ -167,6 +170,7 @@ async function handleLoadFromDisk() {
             <!-- slot actions -->
             <div v-if="pendingSlot !== meta?.slot" class="vnsm-slot-actions">
               <button
+                v-if="mode !== 'load'"
                 class="vnsm-btn vnsm-btn--icon"
                 title="Save here"
                 :disabled="saving"
@@ -175,7 +179,7 @@ async function handleLoadFromDisk() {
                 💾
               </button>
               <button
-                v-if="meta"
+                v-if="meta && mode !== 'save'"
                 class="vnsm-btn vnsm-btn--icon"
                 title="Load"
                 @click="handleLoad(meta.slot)"

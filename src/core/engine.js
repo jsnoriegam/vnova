@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { createPinia } from 'pinia'
+import { createPinia, getActivePinia } from 'pinia'
 import { useVNovaStore } from './store.js'
 import { createQuestEngine } from './quests.js'
 
@@ -124,7 +124,7 @@ export function createEngine(script, options = {}) {
   const labelIndex    = buildIndex(runtimeScript)
 
   // ── Pinia setup ────────────────────────────────────────────────────────────
-  const _pinia = pinia ?? createPinia()
+  const _pinia = pinia ?? getActivePinia() ?? createPinia()
   const store  = useVNovaStore(_pinia)
 
   store.resetEngine()
