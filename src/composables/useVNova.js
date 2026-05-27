@@ -8,7 +8,7 @@
  *   - auto-save / restore via localStorage
  */
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, unref } from 'vue'
 import { createEngine } from '../core/engine.js'
 
 export function useVNova(script, options = {}) {
@@ -30,7 +30,7 @@ export function useVNova(script, options = {}) {
     store,
     stageArray, speakerName, speakerColor,
     quests, listQuests, getQuest, evaluateQuests, setQuestStatus,
-    advance, choose, back, jump, restart,
+    advance, choose, back, jump, restart, exitMenu,
     getVar, setVar, getSetting, setSetting,
   } = engine
 
@@ -262,7 +262,7 @@ export function useVNova(script, options = {}) {
   }
 
   function handleKeydown(e) {
-    if (!keyboardEnabled) return
+    if (!unref(keyboardEnabled)) return
     if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault(); interact()
     }
@@ -382,6 +382,7 @@ export function useVNova(script, options = {}) {
     back: backWithGuards,
     jump,
     restart: restartWithGuards,
+    exitMenu,
     save,
     load,
     clearSave,

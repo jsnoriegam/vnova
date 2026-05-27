@@ -100,6 +100,10 @@ function triggerBack() {
   stageRef.value?.back?.()
 }
 
+function triggerRestart() {
+  stageRef.value?.restart?.()
+}
+
 function exitToMenu() {
   showTitleScreen.value = true
 }
@@ -149,6 +153,7 @@ function exitToMenu() {
               @load="triggerLoad"
               @open-backlog="showBacklog = true"
               @open-settings="showSettings = true"
+              @restart="triggerRestart"
               @exit-menu="exitToMenu"
             />
           </template>

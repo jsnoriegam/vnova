@@ -9,7 +9,10 @@ const VERSION = 2
 const FILE_FORMAT = 'vnova-file'
 const FILE_VERSION = 1
 const SIGN_ALGO = 'HMAC-SHA-256'
-const SIGN_SALT = 'vnova-file-signature-v1'
+const SIGN_KEY_VERSION = 1
+const SIGN_SALTS = {
+  1: 'vnova-file-signature-v1',
+}
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 
@@ -52,9 +55,11 @@ async function _gunzip(bytes, compression) {
   return new Uint8Array(buffer)
 }
 
-async function _hmacKey(saveKey) {
+async function _hmacKey(saveKey, keyVersion = SIGN_KEY_VERSION) {
   if (!globalThis.crypto?.subtle) throw new Error('WebCrypto subtle API not available')
-  const seed = `${SIGN_SALT}|${saveKey}|${globalThis.location?.origin ?? 'unknown-origin'}`
+  const salt = SIGN_SALTS[keyVersion]
+  if (!salt) throw new Error(`Unsupported signature key version: ${keyVersion}`)
+  const seed = `${salt}|${saveKey}|${globalThis.location?.origin ?? 'unknown-origin'}`
   const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(seed))
   return crypto.subtle.importKey('raw', digest, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
 }
@@ -71,14 +76,15 @@ function _signatureInput(envelope) {
 }
 
 async function _signEnvelope(envelope, saveKey) {
-  const key = await _hmacKey(saveKey)
+  const key = await _hmacKey(saveKey, envelope.keyVersion)
   const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(_signatureInput(envelope)))
   return _toBase64(new Uint8Array(signature))
 }
 
 async function _verifyEnvelope(envelope) {
   if (!envelope?.signature || !envelope?.saveKey) return false
-  const key = await _hmacKey(envelope.saveKey)
+  const keyVersion = Number.isInteger(envelope?.keyVersion) ? envelope.keyVersion : 1
+  const key = await _hmacKey(envelope.saveKey, keyVersion)
   return crypto.subtle.verify(
     'HMAC',
     key,
@@ -93,6 +99,7 @@ async function _packSignedFile({ kind, saveKey, data }) {
   const envelope = {
     format: FILE_FORMAT,
     fileVersion: FILE_VERSION,
+    keyVersion: SIGN_KEY_VERSION,
     kind,
     saveKey,
     alg: SIGN_ALGO,
@@ -264,9 +271,18 @@ export function useVNovaSaves(options = {}) {
   }
 
   // Plain array ref — no readonly wrapper, no computed on top
+  const lastFileError = ref(null)
   const slots = ref(
     Array.from({ length: slotCount }, (_, i) => readSlotMeta(saveKey, i + 1))
   )
+
+  function _setFileError(code, message) {
+    lastFileError.value = { code, message }
+  }
+
+  function _clearFileError() {
+    lastFileError.value = null
+  }
 
   function _refreshSlot(slot) {
     slots.value[slot - 1] = readSlotMeta(saveKey, slot)
@@ -280,6 +296,7 @@ export function useVNovaSaves(options = {}) {
 
   // ── save ─────────────────────────────────────────────────────────────────
   const saving = ref(false)
+    const hasSave = computed(() => slots.value.some(Boolean))
 
   async function saveSlot(slot) {
     if (saving.value) return false
@@ -331,6 +348,7 @@ export function useVNovaSaves(options = {}) {
   // ── export / import ───────────────────────────────────────────────────────
   async function exportSaves() {
     try {
+      _clearFileError()
       const allSlots = {}
       for (let i = 1; i <= slotCount; i++) {
         try {
@@ -354,6 +372,7 @@ export function useVNovaSaves(options = {}) {
       return true
     } catch (err) {
       console.warn('[vnova] exportSaves failed:', err)
+      _setFileError('export-failed', 'Could not generate export bundle')
       return false
     }
   }
@@ -362,8 +381,9 @@ export function useVNovaSaves(options = {}) {
     return new Promise((resolve) => {
       const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.bundle,.json,application/json' })
       input.onchange = (e) => {
+        _clearFileError()
         const file = e.target.files?.[0]
-        if (!file) { resolve(false); return }
+        if (!file) { _setFileError('cancelled', 'No file selected'); resolve(false); return }
         _readFileText(file)
           .then(async (text) => {
             const data = await _unpackSignedFile({ text, expectedKind: 'bundle' })
@@ -375,10 +395,21 @@ export function useVNovaSaves(options = {}) {
               localStorage.setItem(storageKey(saveKey, slot), JSON.stringify(payload))
             }
             _refreshAll()
+            _clearFileError()
             resolve(true)
           })
           .catch((err) => {
             console.warn('[vnova] importSaves failed:', err)
+            const msg = String(err?.message ?? '')
+            if (msg.includes('Signature verification failed')) {
+              _setFileError('invalid-signature', 'Bundle signature is invalid')
+            } else if (msg.includes('Unsupported file version')) {
+              _setFileError('unsupported-version', 'Bundle version is not supported')
+            } else if (msg.includes('Invalid file type')) {
+              _setFileError('invalid-type', 'This file is not a bundle export')
+            } else {
+              _setFileError('invalid-file', 'Bundle is corrupted or unreadable')
+            }
             resolve(false)
           }
         )
@@ -390,6 +421,7 @@ export function useVNovaSaves(options = {}) {
   // ── on disk ───────────────────────────────────────────────────────────────
   async function saveToDisk() {
     try {
+      _clearFileError()
       const store = resolveStore()
       if (!store) return false
       const thumbnail = await captureThumbnail(resolveStageElement(stageRef))
@@ -423,6 +455,7 @@ export function useVNovaSaves(options = {}) {
       return true
     } catch (e) {
       console.warn('[vnova] saveToDisk failed:', e)
+      _setFileError('save-failed', 'Could not write save file')
       return false
     }
   }
@@ -431,17 +464,36 @@ export function useVNovaSaves(options = {}) {
     return new Promise((resolve) => {
       const input  = Object.assign(document.createElement('input'), { type: 'file', accept: '.save,.json,application/json' })
       input.onchange = (e) => {
+        _clearFileError()
         const store = resolveStore()
-        if (!store) { resolve(false); return }
+        if (!store) { _setFileError('store-missing', 'Store unavailable'); resolve(false); return }
         const file = e.target.files?.[0]
-        if (!file) { resolve(false); return }
+        if (!file) { _setFileError('cancelled', 'No file selected'); resolve(false); return }
         _readFileText(file)
           .then(async (text) => {
             const data = await _unpackSignedFile({ text, expectedKind: 'save' })
-            if (data?.snapshot) { store.loadSnapshot(data.snapshot); resolve(true) }
-            else resolve(false)
+            if (data?.snapshot) {
+              store.loadSnapshot(data.snapshot)
+              _clearFileError()
+              resolve(true)
+            } else {
+              _setFileError('invalid-file', 'Save file has no snapshot data')
+              resolve(false)
+            }
           })
-          .catch(() => resolve(false))
+          .catch((err) => {
+            const msg = String(err?.message ?? '')
+            if (msg.includes('Signature verification failed')) {
+              _setFileError('invalid-signature', 'Save signature is invalid')
+            } else if (msg.includes('Unsupported file version')) {
+              _setFileError('unsupported-version', 'Save version is not supported')
+            } else if (msg.includes('Invalid file type')) {
+              _setFileError('invalid-type', 'This file is not a save file')
+            } else {
+              _setFileError('invalid-file', 'Save is corrupted or unreadable')
+            }
+            resolve(false)
+          })
       }
       input.click()
     })
@@ -449,6 +501,7 @@ export function useVNovaSaves(options = {}) {
 
   return {
     slots,
+      hasSave,
     saving,
     saveSlot,
     loadSlot,
@@ -458,6 +511,7 @@ export function useVNovaSaves(options = {}) {
     importSaves,
     saveToDisk,
     loadFromDisk,
+    lastFileError,
     refresh: _refreshAll,
   }
 }

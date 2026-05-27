@@ -38,7 +38,7 @@ const saves = useVNovaSaves({
 
 // Use saves.slots directly in the template — it's a plain ref<array>,
 // no computed wrapper needed (that was causing the recursive update cycle).
-const { slots, saving } = saves
+const { slots, saving, lastFileError } = saves
 
 // ── interaction ─────────────────────────────────────────────────────────────
 const pendingSlot    = ref(null)   // slot awaiting overwrite confirmation
@@ -49,6 +49,12 @@ function _notify(message, type = 'ok') {
   notification.value = { message, type }
   if (_notifTimer) clearTimeout(_notifTimer)
   _notifTimer = setTimeout(() => { notification.value = null }, 2600)
+}
+
+function _fileErrorMessage(fallback) {
+  const err = lastFileError.value
+  if (!err) return fallback
+  return `${err.message} [${err.code}]`
 }
 
 async function handleSave(slot) {
@@ -90,24 +96,25 @@ function handleClearAll() {
 async function handleExport() {
   const ok = await saves.exportSaves()
   if (ok) _notify('Export downloaded')
-  else    _notify('Export failed', 'err')
+  else    _notify(_fileErrorMessage('Export failed'), 'err')
 }
 
 async function handleImport() {
   const ok = await saves.importSaves()
   if (ok) _notify('Saves imported')
-  else    _notify('Import cancelled', 'err')
+  else    _notify(_fileErrorMessage('Import cancelled'), 'err')
 }
 
 async function handleSaveToDisk() {
   const ok = await saves.saveToDisk()
   if (ok) _notify('File saved')
+  else    _notify(_fileErrorMessage('Save failed'), 'err')
 }
 
 async function handleLoadFromDisk() {
   const ok = await saves.loadFromDisk()
   if (ok) { _notify('File loaded'); emit('close') }
-  else    { _notify('Load cancelled or failed', 'err') }
+  else    { _notify(_fileErrorMessage('Load cancelled or failed'), 'err') }
 }
 </script>
 

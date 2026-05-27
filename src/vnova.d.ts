@@ -494,6 +494,12 @@ export interface VNovaStageExposed {
   save():       true | undefined
   load():       boolean
   clearSave():  void
+  openSave():   void
+  openLoad():   void
+  closeSave():  void
+  saveOpen:     Ref<boolean>
+  saveMode:     Ref<'save' | 'load'>
+  exitMenu():   void
   canBack:      ComputedRef<boolean>
   hasSave:      Ref<boolean>
   history:      ComputedRef<ScriptStep[]>
@@ -530,6 +536,7 @@ export interface UseVNovaSavesOptions {
 export interface VNovaSavesHandle {
   slots:        Ref<(SlotMeta | null)[]>
   saving:       Ref<boolean>
+  lastFileError: Ref<{ code: string; message: string } | null>
   saveSlot:     (slot: number) => Promise<boolean>
   loadSlot:     (slot: number) => boolean
   deleteSlot:   (slot: number) => void
@@ -568,7 +575,7 @@ export declare const VNovaTitleScreen: DefineComponent<Record<string, never>>
 export declare const VNovaHud: DefineComponent<
   { canBack?: boolean; audioLog?: string },
   Record<string, never>,
-  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-settings': []; 'exit-menu': [] }
+  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-settings': []; restart: []; 'exit-menu': [] }
 >
 export declare const VNovaSettingsModal: DefineComponent<Record<string, never>>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>

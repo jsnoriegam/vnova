@@ -366,6 +366,10 @@ export function createEngine(script, options = {}) {
     _applyStep(runtimeScript[0])
   }
 
+  function exitMenu() {
+    _finishSession('exit-menu')
+  }
+
   function getVar(key)          { return store.vars[key] }
   function setVar(key, value)   { store.setVar({ key, value }) }
   function getSetting(key)      { return store.settings?.[key] }
@@ -393,6 +397,7 @@ export function createEngine(script, options = {}) {
     back,
     jump,
     restart,
+    exitMenu,
     getVar,
     setVar,
     getSetting,

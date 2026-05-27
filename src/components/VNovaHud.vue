@@ -4,7 +4,7 @@ const props = defineProps({
   audioLog: { type: String,  default: '' },
 })
 
-const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'open-settings', 'exit-menu'])
+const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'open-settings', 'restart', 'exit-menu'])
 </script>
 
 <template>
@@ -15,6 +15,7 @@ const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'ope
       <button class="hud-link" @click="emit('open-save')">Save</button>
       <button class="hud-link" @click="emit('open-load')">Load</button>
       <button class="hud-link" @click="emit('open-settings')">Settings</button>
+      <button class="hud-link" @click="emit('restart')">Restart</button>
       <button class="hud-link danger" @click="emit('exit-menu')">Quit</button>
     </nav>
 

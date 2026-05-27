@@ -18,19 +18,20 @@
  *   back                    — on backtracking command
  *
  * Slots:
- *   #overlay({ canBack, hasSave, history, back, save, load })
- *                          — absolute-positioned overlay (UI, menus, etc.)
- *   #sprite({ char, pos })  — custom sprite renderer per character
+ *   #overlay({ canBack, hasSave, history, back, save, load, restart, openSave, openLoad, closeSave, exitMenu })
+ *   #sprite({ char, pos })
  *
  * Exposed (use ref on the component):
  *   interact, choose, back, jump, restart, save, load, clearSave,
+ *   openSave, openLoad, closeSave, saveOpen, saveMode, exitMenu,
  *   canBack, hasSave, history,
  *   listQuests, getQuest, evaluateQuests, setQuestStatus,
  *   getVar, setVar, state
  */
 
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useVNova } from '../composables/useVNova.js'
+import { useVNovaSaves } from '../composables/useVNovaSaves.js'
 
 const props = defineProps({
   script:     { type: Array,  required: true },
@@ -40,9 +41,12 @@ const props = defineProps({
 
 const emit = defineEmits(['end', 'choice', 'advance', 'back'])
 
+const keyboardEnabled = computed(() => props.options?.keyboardEnabled ?? true)
+
 const vn = useVNova(props.script, {
   characters: props.characters,
   ...props.options,
+  keyboardEnabled,
   onEnd:  (payload) => emit('end', payload),
   onAudio: (evt) => props.options?.onAudio?.(evt),
 })
@@ -51,14 +55,23 @@ const {
   state, stageArray, speakerName, speakerColor,
   displayedText, textComplete, bgLayers, bgLayerStyle, imageTransitioning,
   imageStyle, interact, choose, back, jump,
-  restart, save, load, clearSave,
+  restart, exitMenu, save, load, clearSave,
   listQuests, getQuest, evaluateQuests, setQuestStatus,
   getVar, setVar, getSetting, setSetting,
 } = vn
 
 const canBack = computed(() => Array.isArray(state.backStack) && state.backStack.length > 0)
 const history = computed(() => (Array.isArray(state.history) ? state.history : []))
-const hasSave = ref(false)
+const saveSlots = useVNovaSaves({
+  saveKey: props.options?.saveKey,
+  slotCount: props.options?.slotCount ?? 8,
+  store: state,
+})
+
+const hasSave = saveSlots.hasSave
+const saveOpen = ref(false)
+const saveMode = ref('save')
+
 const dialogueTextSize = computed(() => {
   const size = state.settings?.textSize ?? 'medium'
   if (size === 'large') return '1.5rem'
@@ -66,35 +79,31 @@ const dialogueTextSize = computed(() => {
   return '1rem'
 })
 
-function refreshHasSave() {
-  const saveKey = props.options?.saveKey
-  if (!saveKey) {
-    hasSave.value = false
-    return
-  }
-  hasSave.value = Boolean(localStorage.getItem(saveKey))
-}
-
 function handleSave() {
-  const ok = save()
-  refreshHasSave()
-  return ok
+  return save()
 }
 
 function handleLoad() {
-  refreshHasSave()
-  if (!hasSave.value) return false
   return load()
 }
 
 function handleClearSave() {
   clearSave()
-  refreshHasSave()
 }
 
-onMounted(() => {
-  refreshHasSave()
-})
+function openSave() {
+  saveMode.value = 'save'
+  saveOpen.value = true
+}
+
+function openLoad() {
+  saveMode.value = 'load'
+  saveOpen.value = true
+}
+
+function closeSave() {
+  saveOpen.value = false
+}
 
 function handleChoose(option) {
   emit('choice', option)
@@ -111,6 +120,10 @@ function handleBack() {
   return back()
 }
 
+function handleExitMenu() {
+  exitMenu()
+}
+
 defineExpose({
   interact,
   choose,
@@ -120,6 +133,12 @@ defineExpose({
   save: handleSave,
   load: handleLoad,
   clearSave: handleClearSave,
+  openSave,
+  openLoad,
+  closeSave,
+  saveOpen,
+  saveMode,
+  exitMenu: handleExitMenu,
   canBack,
   hasSave,
   history,
@@ -142,25 +161,19 @@ defineExpose({
     @click="handleInteract"
     @touchend.prevent="handleInteract"
   >
-
-    <!-- ── BACKGROUND ─────────────────────────────────────────────────────── -->
-    <!-- Two layers alternate on each scene change, enabling true crossfade.    -->
-    <!-- The active layer sits on top (z-index 1); the outgoing layer stays     -->
-    <!-- below (z-index 0) until the transition completes.                      -->
     <template v-for="layer in bgLayers" :key="layer.key">
       <div
         v-if="layer.visible"
         class="vnova-bg"
         :class="[
           `vnova-bg--${layer.transition}`,
-          { 'vnova-bg--active':   layer.active },
+          { 'vnova-bg--active': layer.active },
           { 'vnova-bg--entering': layer.entering },
         ]"
         :style="bgLayerStyle(layer)"
       />
     </template>
 
-    <!-- ── IMAGE LAYER ────────────────────────────────────────────────────── -->
     <div
       class="vnova-image"
       :class="{ 'vnova-image--transitioning': imageTransitioning }"
@@ -168,7 +181,6 @@ defineExpose({
       aria-hidden="true"
     />
 
-    <!-- ── SPRITES ────────────────────────────────────────────────────────── -->
     <div class="vnova-sprites" aria-hidden="true">
       <transition-group name="vnova-sprite">
         <div
@@ -177,10 +189,9 @@ defineExpose({
           :class="[
             'vnova-sprite',
             `vnova-sprite--${char.position}`,
-            { 'vnova-sprite--dim': speakerName && characters[char.id]?.name !== speakerName }
+            { 'vnova-sprite--dim': speakerName && characters[char.id]?.name !== speakerName },
           ]"
         >
-          <!-- default slot renders nothing — users provide real sprites via slot -->
           <slot name="sprite" :char="char" :pos="char.position">
             <img
               v-if="char.sprite"
@@ -188,7 +199,6 @@ defineExpose({
               :src="char.sprite"
               :alt="characters[char.id]?.name ?? char.id"
             >
-            <!-- fallback: emoji avatar when no sprite is mapped -->
             <span v-else class="vnova-sprite__fallback">
               {{ characters[char.id]?.avatar ?? '👤' }}
             </span>
@@ -197,7 +207,6 @@ defineExpose({
       </transition-group>
     </div>
 
-    <!-- ── DIALOGUE BOX ───────────────────────────────────────────────────── -->
     <template v-if="!state.awaitingChoice && !state.ended">
       <div
         class="vnova-dialog"
@@ -205,7 +214,6 @@ defineExpose({
         aria-live="polite"
         aria-label="Dialogue"
       >
-        <!-- nameplate -->
         <div
           v-if="speakerName"
           class="vnova-nameplate"
@@ -214,10 +222,8 @@ defineExpose({
           {{ speakerName }}
         </div>
 
-        <!-- text -->
         <p class="vnova-text" :class="{ 'vnova-text--think': state.current?.type === 'think' }">{{ displayedText }}</p>
 
-        <!-- advance hint -->
         <span
           v-if="textComplete"
           class="vnova-hint"
@@ -226,7 +232,6 @@ defineExpose({
       </div>
     </template>
 
-    <!-- ── CHOICES ────────────────────────────────────────────────────────── -->
     <div
       v-if="state.awaitingChoice && state.current"
       class="vnova-choices"
@@ -246,14 +251,12 @@ defineExpose({
       </button>
     </div>
 
-    <!-- ── END SCREEN ─────────────────────────────────────────────────────── -->
     <div v-if="state.ended" class="vnova-end">
       <slot name="end">
         <span class="vnova-end__text">— End —</span>
       </slot>
     </div>
 
-    <!-- ── USER OVERLAY ───────────────────────────────────────────────────── -->
     <div class="vnova-overlay" @click.stop>
       <slot
         name="overlay"
@@ -263,14 +266,17 @@ defineExpose({
         :back="handleBack"
         :save="handleSave"
         :load="handleLoad"
+        :open-save="openSave"
+        :open-load="openLoad"
+        :close-save="closeSave"
+        :restart="restart"
+        :exitMenu="handleExitMenu"
       />
     </div>
-
   </div>
 </template>
 
 <style scoped>
-/* ── Container ── */
 .vnova-stage {
   position: relative;
   width: 100%;
@@ -282,17 +288,6 @@ defineExpose({
   background: var(--vnova-stage-bg, #000);
 }
 
-/* ── Background layers ── */
-/*
- * Two .vnova-bg divs are stacked. The active layer (z-index 1) shows the
- * current background; the outgoing layer (z-index 0) stays put beneath it
- * until the transition finishes, then is removed from the DOM.
- *
- * Transition flow:
- *   1. Incoming layer added with `entering` class  → starts at opacity 0 (or offset)
- *   2. `entering` removed after one rAF double-tick → CSS transition fires to final state
- *   3. After BG_DURATION_MS the outgoing layer gets `visible = false`
- */
 .vnova-bg {
   position: absolute;
   inset: 0;
@@ -301,47 +296,17 @@ defineExpose({
   z-index: 0;
 }
 
-/* Active layer always on top */
 .vnova-bg--active { z-index: 1; }
-
-/* ── fade ── */
-.vnova-bg--fade {
-  transition: opacity var(--vnova-bg-duration, 400ms) ease;
-}
+.vnova-bg--fade { transition: opacity var(--vnova-bg-duration, 400ms) ease; }
 .vnova-bg--fade.vnova-bg--entering { opacity: 0; }
-
-/* ── dissolve (slightly slower cross-blend) ── */
-.vnova-bg--dissolve {
-  transition: opacity var(--vnova-bg-duration, 400ms) linear;
-}
+.vnova-bg--dissolve { transition: opacity var(--vnova-bg-duration, 400ms) linear; }
 .vnova-bg--dissolve.vnova-bg--entering { opacity: 0; }
-
-/* ── slide-left: new scene enters from the right ── */
-.vnova-bg--slide-left {
-  transition:
-    opacity  var(--vnova-bg-duration, 400ms) ease,
-    transform var(--vnova-bg-duration, 400ms) ease;
-}
-.vnova-bg--slide-left.vnova-bg--entering {
-  opacity: 0;
-  transform: translateX(6%);
-}
-
-/* ── slide-right: new scene enters from the left ── */
-.vnova-bg--slide-right {
-  transition:
-    opacity  var(--vnova-bg-duration, 400ms) ease,
-    transform var(--vnova-bg-duration, 400ms) ease;
-}
-.vnova-bg--slide-right.vnova-bg--entering {
-  opacity: 0;
-  transform: translateX(-6%);
-}
-
-/* ── cut: no transition class needed — layer is just swapped instantly ── */
+.vnova-bg--slide-left { transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease; }
+.vnova-bg--slide-left.vnova-bg--entering { opacity: 0; transform: translateX(6%); }
+.vnova-bg--slide-right { transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease; }
+.vnova-bg--slide-right.vnova-bg--entering { opacity: 0; transform: translateX(-6%); }
 .vnova-bg--cut { transition: none; }
 
-/* ── Image layer ── */
 .vnova-image {
   position: absolute;
   inset: 0;
@@ -355,7 +320,6 @@ defineExpose({
 
 .vnova-image--transitioning { opacity: 1; }
 
-/* ── Sprites layer ── */
 .vnova-sprites {
   position: absolute;
   inset: 0;
@@ -394,13 +358,11 @@ defineExpose({
   filter: drop-shadow(0 8px 20px rgba(0,0,0,.6));
 }
 
-/* ── Sprite transitions ── */
 .vnova-sprite-enter-active,
 .vnova-sprite-leave-active { transition: opacity 300ms ease, transform 300ms ease; }
 .vnova-sprite-enter-from   { opacity: 0; transform: translateY(20px); }
 .vnova-sprite-leave-to     { opacity: 0; transform: translateY(20px); }
 
-/* ── Dialogue box ── */
 .vnova-dialog {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -415,7 +377,6 @@ defineExpose({
   z-index: 3;
 }
 
-/* ── Nameplate ── */
 .vnova-nameplate {
   display: inline-block;
   align-self: flex-start;
@@ -429,7 +390,6 @@ defineExpose({
   background: rgba(255,255,255,.06);
 }
 
-/* ── Dialogue text ── */
 .vnova-text {
   margin: 0;
   font-size: var(--vnova-text-size, 0.95rem);
@@ -443,7 +403,6 @@ defineExpose({
   color: var(--vnova-think-color, #d9d1e8);
 }
 
-/* ── Advance hint ── */
 .vnova-hint {
   position: absolute;
   bottom: 1rem; right: 1.25rem;
@@ -454,10 +413,9 @@ defineExpose({
 
 @keyframes vnova-blink {
   0%, 100% { opacity: .35; }
-  50%       { opacity: 1;   }
+  50%      { opacity: 1;   }
 }
 
-/* ── Choices ── */
 .vnova-choices {
   position: absolute;
   inset: 0;
@@ -503,7 +461,6 @@ defineExpose({
 
 .vnova-choice-btn:active { transform: translateY(0); }
 
-/* ── End screen ── */
 .vnova-end {
   position: absolute;
   inset: 0;
@@ -520,7 +477,6 @@ defineExpose({
   letter-spacing: 0.3em;
 }
 
-/* ── User overlay ── */
 .vnova-overlay {
   position: absolute;
   inset: 0;
