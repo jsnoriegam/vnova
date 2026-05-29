@@ -2,13 +2,14 @@
 const props = defineProps({
   canBack:  { type: Boolean, default: true },
   audioLog: { type: String,  default: '' },
+  visible:  { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'open-settings', 'restart', 'exit-menu'])
 </script>
 
 <template>
-  <div class="hud">
+  <div v-if="props.visible" class="hud">
     <nav class="hud-strip" aria-label="Visual novel controls">
       <button class="hud-link" :disabled="!props.canBack" @click="emit('back')">Back</button>
       <button class="hud-link" @click="emit('open-backlog')">Log</button>
@@ -28,6 +29,7 @@ const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'ope
   position: absolute;
   left: 50%;
   bottom: 10px;
+  z-index: 12;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;

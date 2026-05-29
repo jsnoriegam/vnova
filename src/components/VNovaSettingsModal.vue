@@ -109,7 +109,7 @@ function onTextSizeSelect(size) {
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(4px);
-  z-index: 20;
+  z-index: 40;
   display: flex;
   justify-content: center;
   align-items: center;

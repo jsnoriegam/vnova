@@ -11,16 +11,19 @@
  *   expressions     — map of expression name → sprite URL (optional)
  */
 
+import hanaDefaultSprite from '../assets/hana_default.png'
+import kenjiDefaultSprite from '../assets/kenji_default.png'
+
 export const characters = {
   hana: {
     name:          'Hana',
     color:         '#e879b0',
     avatar:        '👩',
-    defaultSprite: null,
+    defaultSprite: hanaDefaultSprite,
     expressions:   {
-      neutral:     null,
-      happy:       null,
-      sad:         null,
+      neutral:     hanaDefaultSprite,
+      happy:       hanaDefaultSprite,
+      sad:         hanaDefaultSprite,
     },
   },
 
@@ -28,12 +31,14 @@ export const characters = {
     name:          'Kenji',
     color:         '#79b0e8',
     avatar:        '🧑',
-    defaultSprite: null,
+    defaultSprite: kenjiDefaultSprite,
     expressions:   {
-      neutral:     null,
-      concerned:   null,
-      happy:       null,
-      thoughtful:  null,
+      neutral:     kenjiDefaultSprite,
+      concerned:   kenjiDefaultSprite,
+      happy:       kenjiDefaultSprite,
+      thoughtful:  kenjiDefaultSprite,
     },
   },
 }
+
+export default characters

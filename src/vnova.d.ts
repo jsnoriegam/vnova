@@ -9,14 +9,25 @@
  *   QS (QUEST_STATUS)
  */
 
-import type { Ref, ComputedRef, CSSProperties, DefineComponent } from 'vue'
-import type { Store } from 'pinia'
+import type { Ref, ComputedRef, CSSProperties, DefineComponent, Plugin, App as VueApp, Component } from 'vue'
+import type { Store, Pinia } from 'pinia'
 
 // ─── Primitive aliases ────────────────────────────────────────────────────────
 
 type Milliseconds = number
 type CssColor     = string
 type Url          = string
+
+export interface CreateVNovaAppOptions {
+  props?: Record<string, unknown>
+  pinia?: Pinia
+  plugins?: Array<Plugin | [Plugin, ...unknown[]]>
+}
+
+export declare function createVNovaApp(
+  rootComponent: Component,
+  options?: CreateVNovaAppOptions,
+): VueApp
 
 // ─── Script step types ────────────────────────────────────────────────────────
 
@@ -133,6 +144,17 @@ export interface SfxStep {
   volume?: number
 }
 
+export interface VideoStep {
+  type: 'video'
+  id?: string | null
+  track?: string | null
+  src?: Url | null
+  volume?: number
+  loop?: boolean
+  muted?: boolean
+  stop?: boolean
+}
+
 export interface WaitStep {
   type: 'wait'
   ms: Milliseconds
@@ -152,7 +174,7 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | JumpStep
-  | BgmStep   | SfxStep   | WaitStep
+  | BgmStep   | SfxStep   | VideoStep | WaitStep
   | EndStep   | CallStep
 
 // ─── Character registry ───────────────────────────────────────────────────────
@@ -300,13 +322,24 @@ export interface AudioEvent {
   loop:   boolean
 }
 
+export interface VideoEvent {
+  action: 'play' | 'stop'
+  track: Url | null
+  volume: number
+  loop: boolean
+  muted: boolean
+}
+
 // ─── createEngine options ─────────────────────────────────────────────────────
 
 export interface CreateEngineOptions {
   characters?:       CharacterRegistry
   assets?:           AssetRegistry
   quests?:           QuestDefinition[]
+  /** When true, engine is created without applying the first script step until start()/restart(). */
+  deferStart?:       boolean
   onAudio?:          (event: AudioEvent) => void
+  onVideo?:          (event: VideoEvent) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
   autoAdvanceDelay?: Milliseconds
   /** External Pinia instance. When omitted, a fresh one is created. */
@@ -332,6 +365,7 @@ export interface EngineHandle {
   choose(option: ChoiceOption): void
   back():         boolean
   jump(target: string): void
+  start():        void
   restart():      void
   getVar(key: string): unknown
   setVar(key: string, value: unknown): void
@@ -387,6 +421,7 @@ export interface VNovaComposable {
   choose(option: ChoiceOption): void
   back():             boolean
   jump(target: string): void
+  start():            void
   restart():          void
   save():             true | undefined
   load():             boolean
@@ -484,6 +519,56 @@ export interface VNovaStageEmits {
   back:    []
 }
 
+export interface VNovaRuntimeContext {
+  state: ComputedRef<VNovaState | null>
+  canBack: ComputedRef<boolean>
+  hasSave: ComputedRef<boolean>
+  history: ComputedRef<ScriptStep[]>
+  audioLog: Ref<string>
+  ui: {
+    titleOpen: Ref<boolean>
+    settingsOpen: Ref<boolean>
+    backlogOpen: Ref<boolean>
+    saveOpen: Ref<boolean>
+    saveMode: Ref<'save' | 'load'>
+  }
+  actions: {
+    newGame(): void
+    loadGame(): void
+    back(): void
+    restart(): void
+    exitMenu(): void
+    openSave(): void
+    openLoad(): void
+    openBacklog(): void
+    openSettings(): void
+    closeAllModals(): void
+    setSetting(key: keyof EngineSettings, value: unknown): void
+  }
+  registerStageApi(api: Partial<VNovaStageExposed> | null): void
+}
+
+export interface VNovaRuntimeResolverInput {
+  componentName: string
+  vnode: unknown
+  runtime: VNovaRuntimeContext
+  stage: VNovaStageExposed | null
+  config: Record<string, unknown>
+}
+
+export interface VNovaRuntimeResolverResult {
+  props?: Record<string, unknown>
+  listeners?: Record<string, (...args: unknown[]) => void>
+}
+
+export interface VNovaRuntimeProps {
+  script: ScriptStep[]
+  characters?: CharacterRegistry
+  assets?: AssetRegistry
+  config?: Record<string, unknown>
+  componentResolvers?: Record<string, (input: VNovaRuntimeResolverInput) => VNovaRuntimeResolverResult | null | undefined>
+}
+
 /** Methods/state exposed via `ref` on VNovaStage. */
 export interface VNovaStageExposed {
   interact():   void
@@ -570,6 +655,8 @@ export interface VNovaSaveModalEmits {
 
 export declare const VNovaSaveModal: DefineComponent<VNovaSaveModalProps, Record<string, never>, VNovaSaveModalEmits>
 
+export declare const VNOVA_RUNTIME_CONTEXT_KEY: 'vnova-runtime'
+export declare const VNovaRuntime: DefineComponent<VNovaRuntimeProps>
 export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStageExposed, VNovaStageEmits>
 export declare const VNovaTitleScreen: DefineComponent<Record<string, never>>
 export declare const VNovaHud: DefineComponent<

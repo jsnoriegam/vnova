@@ -1,120 +1,151 @@
 /**
  * docs-example/src/story/script.js
  *
- * Complete demo script for vnova-engine.
- * Shows every step type in action.
+ * Showcase script for vnova-engine.
+ * Covers: scene, image, show/hide, say/think/narrate,
+ * choices with set/inc, call, wait, jump, bgm/sfx/video and end.
  */
 
 export default [
-
-  // ── SCENE 1: night city ───────────────────────────────────────────────────
-  { type: 'label', id: 'start' },
-
   {
-    type: 'scene',
-    src: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1200&q=80',
-    transition: 'fade',
-  },
+    type: 'label',
+    id: 'start',
+    steps: [
+      { type: 'scene', id: 'control-room', transition: 'fade' },
+      { type: 'bgm', id: 'pulse', volume: 0.6, loop: true },
+      { type: 'video', id: 'ui-loop', muted: true, loop: true },
 
-  { type: 'bgm', track: 'calm', volume: 0.6, loop: true },
+      { type: 'narrate', text: 'Year 2147. The city runs on memory and borrowed time.' },
+      { type: 'show', character: 'hana', position: 'left', expression: 'neutral' },
+      { type: 'show', character: 'kenji', position: 'right', expression: 'concerned' },
 
-  { type: 'narrate', text: 'The city never truly sleeps. Even at 2 a.m., the lights pulse like a second heartbeat.' },
+      { type: 'say', character: 'kenji', text: 'Signal lock is unstable. We have one chance to transmit.' },
+      { type: 'think', character: 'hana', text: 'One chance. One call. One timeline I can still save.' },
 
-  { type: 'show', character: 'hana', position: 'left', expression: 'neutral' },
-
-  { type: 'think', character: 'hana', text: '…I can\'t sleep again. This is the third night in a row.' },
-
-  { type: 'show', character: 'kenji', position: 'right', expression: 'concerned' },
-
-  { type: 'say', character: 'kenji', text: 'Hana? I heard you come out here. You okay?' },
-
-  { type: 'say', character: 'hana', text: 'I was just thinking. About everything that happened.' },
-
-  { type: 'say', character: 'kenji', text: 'We can talk about it. Or we don\'t have to. I\'ll just stand here.' },
-
-  {
-    type: 'choice',
-    prompt: 'What does Hana say?',
-    options: [
-      { label: '"Thank you, Kenji. I appreciate that."', jump: 'route-warm'   },
-      { label: '"I\'d rather be alone right now."',       jump: 'route-cold'   },
-      { label: '"Tell me something — anything."',         jump: 'route-story'  },
+      {
+        type: 'choice',
+        prompt: 'Choose your opening move:',
+        options: [
+          {
+            label: 'Calm the team and proceed carefully',
+            jump: 'route-steady',
+            set: { approach: 'steady' },
+            inc: { trust: 2, risk: -1 },
+          },
+          {
+            label: 'Rush the upload before the jammer adapts',
+            jump: 'route-risky',
+            set: { approach: 'risky' },
+            inc: { trust: -1, risk: 3 },
+          },
+          {
+            label: 'Run diagnostics and gather more data',
+            jump: 'route-analyst',
+            set: { approach: 'analyst' },
+            inc: { trust: 1, risk: 0 },
+          },
+        ],
+      },
     ],
   },
 
-  // ── ROUTE: warm ───────────────────────────────────────────────────────────
-  { type: 'label', id: 'route-warm' },
-
-  { type: 'say', character: 'hana', text: 'Thank you, Kenji. I appreciate that.' },
-
-  { type: 'say', character: 'kenji', text: 'Always.', expression: 'happy' },
-
-  { type: 'sfx', track: 'chime' },
-
-  { type: 'narrate', text: 'They stood in comfortable silence as the city hummed below them.' },
-
-  { type: 'jump', target: 'epilogue' },
-
-  // ── ROUTE: cold ───────────────────────────────────────────────────────────
-  { type: 'label', id: 'route-cold' },
-
-  { type: 'say', character: 'hana', text: 'I\'d rather be alone right now.' },
-
-  { type: 'hide', character: 'kenji' },
-
-  { type: 'say', character: 'hana', text: 'Some things can only be sorted out in solitude.' },
-
-  { type: 'narrate', text: 'Kenji nodded quietly and went back inside, leaving Hana with the city and her thoughts.' },
-
   {
-    type: 'call',
-    fn: (state) => { state.vars.chose_solitude = true },
+    type: 'label',
+    id: 'route-steady',
+    steps: [
+      { type: 'sfx', id: 'confirm' },
+      { type: 'say', character: 'hana', text: 'Breathe. We do this clean, step by step.' },
+      { type: 'say', character: 'kenji', text: 'Copy that. Synchronizing channels now.', expression: 'happy' },
+      { type: 'wait', ms: 500 },
+      { type: 'jump', target: 'checkpoint' },
+    ],
   },
 
-  { type: 'jump', target: 'epilogue' },
-
-  // ── ROUTE: story ──────────────────────────────────────────────────────────
-  { type: 'label', id: 'route-story' },
-
-  { type: 'say', character: 'hana', text: 'Tell me something — anything. I just need to hear a voice.' },
-
   {
-    type: 'scene',
-    src: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=1200&q=80',
-    transition: 'dissolve',
+    type: 'label',
+    id: 'route-risky',
+    steps: [
+      { type: 'sfx', id: 'alarm' },
+      { type: 'say', character: 'hana', text: 'No time. Push full bandwidth now.' },
+      { type: 'say', character: 'kenji', text: 'That could fry the relay.', expression: 'concerned' },
+      { type: 'call', fn: (state) => { state.vars.overheat = true } },
+      { type: 'jump', target: 'checkpoint' },
+    ],
   },
 
-  { type: 'say', character: 'kenji', text: 'Okay. Did you know the light from those city windows left those buildings before we were born?', expression: 'thoughtful' },
-
-  { type: 'say', character: 'hana', text: 'That\'s… not true at all. Light travels fast.' },
-
-  { type: 'say', character: 'kenji', text: 'I know. I just wanted to make you smile.' },
-
-  { type: 'wait', ms: 600 },
-
-  { type: 'say', character: 'hana', text: '…You\'re an idiot.', expression: 'happy' },
-
-  { type: 'narrate', text: 'But she was smiling.' },
-
-  { type: 'jump', target: 'epilogue' },
-
-  // ── EPILOGUE ──────────────────────────────────────────────────────────────
-  { type: 'label', id: 'epilogue' },
-
   {
-    type: 'scene',
-    src: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1200&q=80',
-    transition: 'fade',
+    type: 'label',
+    id: 'route-analyst',
+    steps: [
+      { type: 'image', id: 'diagnostic-overlay', transition: 'dissolve', fit: 'both' },
+      { type: 'narrate', text: 'Diagnostic layer projected: packet loss, relay drift, hostile pings.' },
+      { type: 'say', character: 'hana', text: 'Pattern found. We can route around the jammer.' },
+      { type: 'say', character: 'kenji', text: 'Nice catch.', expression: 'happy' },
+      { type: 'image', src: null, transition: 'fade' },
+      { type: 'jump', target: 'checkpoint' },
+    ],
   },
 
-  { type: 'bgm', track: 'dawn', volume: 0.5, loop: true },
+  {
+    type: 'label',
+    id: 'checkpoint',
+    steps: [
+      {
+        type: 'call',
+        fn: (state) => {
+          const trust = Number(state.vars.trust ?? 0)
+          const risk = Number(state.vars.risk ?? 0)
+          state.vars.tone = trust >= risk ? 'hopeful' : 'tense'
+        },
+      },
+      { type: 'scene', id: 'tower-roof', transition: 'slide-left' },
+      { type: 'bgm', id: 'glow', volume: 0.5, loop: true },
+      { type: 'video', stop: true },
 
-  { type: 'narrate', text: 'Dawn arrived slowly, as it always does — indifferent to the small dramas below.' },
+      { type: 'narrate', text: 'The relay tower wakes. Neon rain cuts across the skyline.' },
+      {
+        type: 'choice',
+        prompt: 'Final broadcast mode:',
+        options: [
+          { label: 'Open channel: tell the whole truth', jump: 'ending-open', inc: { trust: 1 } },
+          { label: 'Encrypted channel: protect the team first', jump: 'ending-shield', inc: { risk: -1 } },
+        ],
+      },
+    ],
+  },
 
-  { type: 'say', character: 'hana', text: 'Same time tomorrow?' },
+  {
+    type: 'label',
+    id: 'ending-open',
+    steps: [
+      { type: 'say', character: 'hana', text: 'No more secrets. We transmit everything.' },
+      { type: 'sfx', id: 'uplink' },
+      { type: 'hide', character: 'kenji' },
+      { type: 'narrate', text: 'A million screens flicker alive across the city.' },
+      { type: 'jump', target: 'epilogue' },
+    ],
+  },
 
-  { type: 'say', character: 'kenji', text: 'I\'ll be here.' },
+  {
+    type: 'label',
+    id: 'ending-shield',
+    steps: [
+      { type: 'say', character: 'hana', text: 'We keep identities sealed. Data out, names protected.' },
+      { type: 'say', character: 'kenji', text: 'Then we both live to fight tomorrow.', expression: 'thoughtful' },
+      { type: 'sfx', id: 'confirm' },
+      { type: 'jump', target: 'epilogue' },
+    ],
+  },
 
-  { type: 'narrate', text: 'Some promises are small. That doesn\'t make them less real.' },
-
+  {
+    type: 'label',
+    id: 'epilogue',
+    steps: [
+      { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
+      { type: 'narrate', text: 'By sunrise, the city is different. Not healed, but awake.' },
+      { type: 'say', character: 'hana', text: 'Same mission tomorrow?' },
+      { type: 'say', character: 'kenji', text: 'Always.' },
+      { type: 'end' },
+    ],
+  },
 ]

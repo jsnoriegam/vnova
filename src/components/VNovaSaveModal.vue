@@ -245,7 +245,7 @@ async function handleLoadFromDisk() {
 .vnsm-backdrop {
   position:        fixed;
   inset:           0;
-  z-index:         9999;
+  z-index:         50;
   background:      rgba(0,0,0,.72);
   display:         flex;
   align-items:     center;

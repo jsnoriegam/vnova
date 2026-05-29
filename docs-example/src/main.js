@@ -1,14 +1,6 @@
-import { createApp } from 'vue'
-import { createStore } from 'vuex'
-import { vnovaModule } from 'vnova-engine'
+import { createVNovaApp } from 'vnova-engine'
 import App from './App.vue'
+import '../../src/vnova.css'
 
-const store = createStore({
-  modules: {
-    vnova: vnovaModule
-  }
-})
-
-createApp(App)
-  .use(store)
+createVNovaApp(App)
   .mount('#app')

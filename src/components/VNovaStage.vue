@@ -49,6 +49,7 @@ const vn = useVNova(props.script, {
   keyboardEnabled,
   onEnd:  (payload) => emit('end', payload),
   onAudio: (evt) => props.options?.onAudio?.(evt),
+  onVideo: (evt) => props.options?.onVideo?.(evt),
 })
 
 const {
@@ -56,6 +57,7 @@ const {
   displayedText, textComplete, bgLayers, bgLayerStyle, imageTransitioning,
   imageStyle, interact, choose, back, jump,
   restart, exitMenu, save, load, clearSave,
+  resumeTypewriter,
   listQuests, getQuest, evaluateQuests, setQuestStatus,
   getVar, setVar, getSetting, setSetting,
 } = vn
@@ -150,6 +152,7 @@ defineExpose({
   setVar,
   getSetting,
   setSetting,
+  resumeTypewriter,
   state,
 })
 </script>
@@ -270,7 +273,7 @@ defineExpose({
         :open-load="openLoad"
         :close-save="closeSave"
         :restart="restart"
-        :exitMenu="handleExitMenu"
+        :exit-menu="handleExitMenu"
       />
     </div>
   </div>

@@ -11,7 +11,7 @@
       "default": "./src/index.js"
     },
     "./vite-plugin": "./vite-plugin/index.js",
-    "./style.css":   "./src/style.css"
+    "./style.css":   "./src/vnova.css"
   },
   "files": ["src", "vite-plugin"],
   "scripts": {

@@ -21,6 +21,7 @@ import { createQuestEngine } from './quests.js'
  *   jump       — unconditional jump to a label
  *   bgm        — play / stop background music (stub)
  *   sfx        — play a sound effect (stub)
+ *   video      — play / stop a video track (host app controlled)
  *   wait       — pause for N milliseconds before auto-advancing
  *   end        — stop the current session and return control to the initial menu
  *   call       — invoke a user-defined function (side effects, flags, etc.)
@@ -111,8 +112,10 @@ export function createEngine(script, options = {}) {
     assets           = {},
     quests           = [],
     onAudio          = noop,
+    onVideo          = noop,
     onEnd            = noop,
     autoAdvanceDelay = 0,
+    deferStart       = false,
     // Accept an externally-provided Pinia instance, or create a fresh one.
     pinia            = null,
   } = options
@@ -189,9 +192,14 @@ export function createEngine(script, options = {}) {
     onAudio({ type: 'bgm', track: null, volume: 0, loop: false })
   }
 
+  function _stopVideo() {
+    onVideo({ action: 'stop', track: null, volume: 0, loop: false, muted: false })
+  }
+
   function _finishSession(reason = 'end') {
     _clearAuto()
     _stopBgm()
+    _stopVideo()
     _clearSceneLayers()
     store.setCurrent(null)
     store.setAwaitingChoice(false)
@@ -219,6 +227,33 @@ export function createEngine(script, options = {}) {
       const trackId = step.track ?? step.id ?? null
       const track   = step.src ?? resolveAsset('sounds', trackId, trackId)
       onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', step.volume ?? 1) })
+      _moveTo(store.cursor + 1)
+      return
+    }
+
+    if (step.type === 'video') {
+      const shouldStop = step.stop === true
+      if (shouldStop) {
+        _stopVideo()
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      const trackId = step.track ?? step.id ?? null
+      const track = step.src ?? resolveAsset('videos', trackId, trackId)
+      if (!track) {
+        _stopVideo()
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      onVideo({
+        action: 'play',
+        track,
+        volume: step.volume ?? 1,
+        loop: step.loop ?? false,
+        muted: step.muted ?? false,
+      })
       _moveTo(store.cursor + 1)
       return
     }
@@ -360,10 +395,17 @@ export function createEngine(script, options = {}) {
 
   function restart() {
     _clearAuto()
+    _stopBgm()
+    _stopVideo()
     store.resetEngine()
     store.setCharacters(characters)
     questEngine.reset()
     _applyStep(runtimeScript[0])
+  }
+
+  function start() {
+    if (store.current || store.awaitingChoice || store.ended) return
+    _applyStep(runtimeScript[store.cursor] ?? runtimeScript[0])
   }
 
   function exitMenu() {
@@ -376,7 +418,7 @@ export function createEngine(script, options = {}) {
   function setSetting(key, value) { store.setSetting({ key, value }) }
 
   // boot
-  _applyStep(runtimeScript[0])
+  if (!deferStart) _applyStep(runtimeScript[0])
 
   return {
     // Expose the raw Pinia store so useVNova and advanced users can subscribe
@@ -397,6 +439,7 @@ export function createEngine(script, options = {}) {
     back,
     jump,
     restart,
+    start,
     exitMenu,
     getVar,
     setVar,

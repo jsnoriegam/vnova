@@ -2,7 +2,7 @@
  * vnova-engine — composables/useVNovaSaves.js
  */
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useVNovaStore } from '../core/store.js'
 
 const VERSION = 2
@@ -296,7 +296,7 @@ export function useVNovaSaves(options = {}) {
 
   // ── save ─────────────────────────────────────────────────────────────────
   const saving = ref(false)
-    const hasSave = computed(() => slots.value.some(Boolean))
+  const hasSave = computed(() => slots.value.some(Boolean))
 
   async function saveSlot(slot) {
     if (saving.value) return false

@@ -19,18 +19,20 @@ export function useVNova(script, options = {}) {
     typewriterEnabled = true,
     keyboardEnabled   = true,
     saveKey           = null,
+    deferStart        = false,
     onAudio           = () => {},
+    onVideo           = () => {},
     onEnd             = () => {},
     pinia             = null,
   } = options
 
   // ── engine ──────────────────────────────────────────────────────────────────
-  const engine = createEngine(script, { characters, assets, onAudio, onEnd, pinia })
+  const engine = createEngine(script, { characters, assets, deferStart, onAudio, onVideo, onEnd, pinia })
   const {
     store,
     stageArray, speakerName, speakerColor,
     quests, listQuests, getQuest, evaluateQuests, setQuestStatus,
-    advance, choose, back, jump, restart, exitMenu,
+    advance, choose, back, jump, restart, start, exitMenu,
     getVar, setVar, getSetting, setSetting,
   } = engine
 
@@ -65,7 +67,7 @@ export function useVNova(script, options = {}) {
     return Math.max(1, Number.isFinite(s) ? s : typewriterSpeed)
   }
 
-  function _runTypewriter(fullText) {
+  function _runTypewriter(fullText, startIndex = 0, initialText = '') {
     _clearTw()
     _clearAutoContinue()
     if (!typewriterEnabled || !fullText) {
@@ -75,9 +77,17 @@ export function useVNova(script, options = {}) {
     }
     // Spread to correctly iterate Unicode codepoints (emoji, CJK, etc.)
     const chars = [...fullText]
-    displayedText.value = ''
+    const safeStart = Math.max(0, Math.min(Number(startIndex) || 0, chars.length))
+    displayedText.value = safeStart > 0 ? (initialText ?? '') : ''
+
+    if (safeStart >= chars.length) {
+      displayedText.value = fullText
+      textComplete.value = true
+      return
+    }
+
     textComplete.value  = false
-    let i = 0
+    let i = safeStart
 
     function tick() {
       displayedText.value += chars[i]
@@ -92,6 +102,22 @@ export function useVNova(script, options = {}) {
     }
 
     _twTimer = setTimeout(tick, _currentSpeed())
+  }
+
+  function resumeTypewriter() {
+    const step = store.current
+    if (_twTimer !== null || textComplete.value) return
+    if (step?.type !== 'say' && step?.type !== 'think' && step?.type !== 'narrate') return
+
+    const fullText = step.text ?? ''
+    if (!typewriterEnabled || !fullText) {
+      displayedText.value = fullText
+      textComplete.value = true
+      return
+    }
+
+    const alreadyRendered = [...(displayedText.value ?? '')].length
+    _runTypewriter(fullText, alreadyRendered, displayedText.value ?? '')
   }
 
   function skipTypewriter() {
@@ -382,6 +408,7 @@ export function useVNova(script, options = {}) {
     back: backWithGuards,
     jump,
     restart: restartWithGuards,
+    start,
     exitMenu,
     save,
     load,
@@ -395,6 +422,7 @@ export function useVNova(script, options = {}) {
     getSetting,
     setSetting,
     skipTypewriter,
+    resumeTypewriter,
     engine,
   }
 }

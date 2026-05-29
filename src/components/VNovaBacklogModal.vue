@@ -20,28 +20,40 @@ const emit = defineEmits(['close'])
         <div class="modal-body backlog-body">
           <div v-if="props.history.length === 0" class="no-history">No dialogue has been spoken yet.</div>
 
-          <div
-            v-for="(item, index) in props.history"
-            :key="index"
-            class="history-item"
-            :class="{ 'choice-made': item.type === '_choice_made' }"
-          >
-            <template v-if="item.type === 'say'">
-              <strong :style="{ color: props.characters[item.character]?.color ?? '#fff' }">
-                {{ props.characters[item.character]?.name ?? item.character }}
-              </strong>
-              <p>{{ item.text }}</p>
-            </template>
+            <template v-for="(item, index) in props.history" :key="index">
+              <div
+                v-if="item.type === 'say' || item.type === 'think'"
+                class="history-item"
+              >
+                <strong :style="{ color: props.characters[item.character]?.color ?? '#fff' }">
+                  {{ props.characters[item.character]?.name ?? item.character }}
+                </strong>
+                <p :class="{ narration: item.type === 'think' }">{{ item.text }}</p>
+              </div>
 
-            <template v-else-if="item.type === 'narrate'">
-              <p class="narration">{{ item.text }}</p>
-            </template>
+              <div
+                v-else-if="item.type === 'narrate'"
+                class="history-item"
+              >
+                <p class="narration">{{ item.text }}</p>
+              </div>
 
-            <template v-else-if="item.type === '_choice_made'">
-              <span class="choice-tag">Selected Choice:</span>
-              <p class="choice-text">{{ item.label }}</p>
+              <div
+                v-else-if="item.type === 'choice'"
+                class="history-item choice-made"
+              >
+                <span class="choice-tag">Choice Prompt:</span>
+                <p class="choice-text">{{ item.prompt || 'Choose an option' }}</p>
+              </div>
+
+              <div
+                v-else-if="item.type === '_choice_made'"
+                class="history-item choice-made"
+              >
+                <span class="choice-tag">Selected Choice:</span>
+                <p class="choice-text">{{ item.label }}</p>
+              </div>
             </template>
-          </div>
         </div>
       </div>
     </div>
@@ -54,7 +66,7 @@ const emit = defineEmits(['close'])
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(4px);
-  z-index: 20;
+  z-index: 40;
   display: flex;
   justify-content: center;
   align-items: center;

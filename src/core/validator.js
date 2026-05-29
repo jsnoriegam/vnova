@@ -9,7 +9,7 @@ import { expandNestedLabels } from './engine.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
-  'choice', 'jump', 'bgm', 'sfx', 'wait', 'call', 'image', 'end',
+  'choice', 'jump', 'bgm', 'sfx', 'video', 'wait', 'call', 'image', 'end',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
@@ -96,6 +96,17 @@ export function validateScript(script, characters = {}) {
 
       if (step.fit && !VALID_IMAGE_FIT.has(step.fit))
         warnings.push(`${at} unknown fit "${step.fit}" (expected: width|height|both or x|y aliases)`)
+    }
+
+    if (step.type === 'video') {
+      const hasId = step.id !== undefined && step.id !== null
+      const hasSrc = step.src !== undefined && step.src !== null
+
+      if (hasId && hasSrc)
+        errors.push(`${at} video step must use either id or src, not both`)
+
+      if (!step.stop && !hasId && !hasSrc && !step.track)
+        warnings.push(`${at} video step has no source — it will stop active playback`)
     }
 
     if (step.type === 'jump') {

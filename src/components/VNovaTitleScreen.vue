@@ -35,7 +35,7 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
 .title-screen {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   justify-content: center;
   align-items: center;
