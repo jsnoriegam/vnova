@@ -7,26 +7,32 @@
   "types": "./src/vnova.d.ts",
   "exports": {
     ".": {
-      "types":   "./src/vnova.d.ts",
+      "types": "./src/vnova.d.ts",
       "default": "./src/index.js"
     },
     "./vite-plugin": "./vite-plugin/index.js",
-    "./style.css":   "./src/vnova.css"
+    "./style.css": "./src/vnova.css"
   },
-  "files": ["src", "vite-plugin"],
+  "files": [
+    "src",
+    "vite-plugin"
+  ],
   "scripts": {
-    "dev":       "vite",
+    "dev": "vite",
     "build:lib": "vite build --config vite.lib.config.js"
   },
   "peerDependencies": {
-    "vue":   "^3.4.0",
-    "vite":  "^5.0.0",
-    "pinia": "^3.0.0"
+    "pinia": "^3.0.0",
+    "vite": "^5.0.0",
+    "vue": "^3.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
-    "vite":               "^5.0.0",
-    "vue":                "^3.4.0",
-    "pinia":              "^3.0.0"
+    "pinia": "^3.0.0",
+    "vite": "^5.0.0",
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "simple-notify": "^1.0.6"
   }
 }

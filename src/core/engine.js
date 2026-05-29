@@ -22,6 +22,7 @@ import { createQuestEngine } from './quests.js'
  *   bgm        — play / stop background music (stub)
  *   sfx        — play a sound effect (stub)
  *   video      — play / stop a video track (host app controlled)
+ *   notify     — push a UI notification event (host app controlled)
  *   wait       — pause for N milliseconds before auto-advancing
  *   end        — stop the current session and return control to the initial menu
  *   call       — invoke a user-defined function (side effects, flags, etc.)
@@ -113,6 +114,7 @@ export function createEngine(script, options = {}) {
     quests           = [],
     onAudio          = noop,
     onVideo          = noop,
+    onNotify         = noop,
     onEnd            = noop,
     autoAdvanceDelay = 0,
     deferStart       = false,
@@ -253,6 +255,16 @@ export function createEngine(script, options = {}) {
         volume: step.volume ?? 1,
         loop: step.loop ?? false,
         muted: step.muted ?? false,
+      })
+      _moveTo(store.cursor + 1)
+      return
+    }
+
+    if (step.type === 'notify') {
+      onNotify({
+        status: step.status ?? 'info',
+        title: step.title ?? '',
+        text: step.text ?? '',
       })
       _moveTo(store.cursor + 1)
       return

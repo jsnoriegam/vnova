@@ -3,6 +3,7 @@ const props = defineProps({
   canBack:  { type: Boolean, default: true },
   audioLog: { type: String,  default: '' },
   visible:  { type: Boolean, default: true },
+  showBacklog: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'open-settings', 'restart', 'exit-menu'])
@@ -12,7 +13,7 @@ const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'ope
   <div v-if="props.visible" class="hud">
     <nav class="hud-strip" aria-label="Visual novel controls">
       <button class="hud-link" :disabled="!props.canBack" @click="emit('back')">Back</button>
-      <button class="hud-link" @click="emit('open-backlog')">Log</button>
+      <button v-if="props.showBacklog" class="hud-link" @click="emit('open-backlog')">Log</button>
       <button class="hud-link" @click="emit('open-save')">Save</button>
       <button class="hud-link" @click="emit('open-load')">Load</button>
       <button class="hud-link" @click="emit('open-settings')">Settings</button>

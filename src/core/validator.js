@@ -9,7 +9,7 @@ import { expandNestedLabels } from './engine.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
-  'choice', 'jump', 'bgm', 'sfx', 'video', 'wait', 'call', 'image', 'end',
+  'choice', 'jump', 'bgm', 'sfx', 'video', 'wait', 'call', 'image', 'notify', 'end',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
@@ -134,6 +134,13 @@ export function validateScript(script, characters = {}) {
     if (step.type === 'wait') {
       if (typeof step.ms !== 'number' || step.ms < 0)
         errors.push(`${at} wait step requires a non-negative ms field`)
+    }
+
+    if (step.type === 'notify') {
+      if (!step.text && !step.title)
+        warnings.push(`${at} notify step has neither title nor text`)
+      if (step.status && !['success', 'error', 'warning', 'info'].includes(step.status))
+        warnings.push(`${at} unknown notify status "${step.status}"`)
     }
 
     if (step.type === 'call') {

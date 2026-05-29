@@ -160,6 +160,13 @@ export interface WaitStep {
   ms: Milliseconds
 }
 
+export interface NotifyStep {
+  type: 'notify'
+  status?: 'success' | 'error' | 'warning' | 'info'
+  title?: string
+  text?: string
+}
+
 export interface EndStep {
   type: 'end'
 }
@@ -174,7 +181,7 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | JumpStep
-  | BgmStep   | SfxStep   | VideoStep | WaitStep
+  | BgmStep   | SfxStep   | VideoStep | WaitStep | NotifyStep
   | EndStep   | CallStep
 
 // ─── Character registry ───────────────────────────────────────────────────────
@@ -330,6 +337,12 @@ export interface VideoEvent {
   muted: boolean
 }
 
+export interface NotifyEvent {
+  status?: 'success' | 'error' | 'warning' | 'info'
+  title?: string
+  text?: string
+}
+
 // ─── createEngine options ─────────────────────────────────────────────────────
 
 export interface CreateEngineOptions {
@@ -340,6 +353,7 @@ export interface CreateEngineOptions {
   deferStart?:       boolean
   onAudio?:          (event: AudioEvent) => void
   onVideo?:          (event: VideoEvent) => void
+  onNotify?:         (event: NotifyEvent) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
   autoAdvanceDelay?: Milliseconds
   /** External Pinia instance. When omitted, a fresh one is created. */
@@ -660,7 +674,7 @@ export declare const VNovaRuntime: DefineComponent<VNovaRuntimeProps>
 export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStageExposed, VNovaStageEmits>
 export declare const VNovaTitleScreen: DefineComponent<Record<string, never>>
 export declare const VNovaHud: DefineComponent<
-  { canBack?: boolean; audioLog?: string },
+  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean },
   Record<string, never>,
   { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-settings': []; restart: []; 'exit-menu': [] }
 >

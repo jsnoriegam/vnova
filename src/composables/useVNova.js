@@ -22,12 +22,13 @@ export function useVNova(script, options = {}) {
     deferStart        = false,
     onAudio           = () => {},
     onVideo           = () => {},
+    onNotify          = () => {},
     onEnd             = () => {},
     pinia             = null,
   } = options
 
   // ── engine ──────────────────────────────────────────────────────────────────
-  const engine = createEngine(script, { characters, assets, deferStart, onAudio, onVideo, onEnd, pinia })
+  const engine = createEngine(script, { characters, assets, deferStart, onAudio, onVideo, onNotify, onEnd, pinia })
   const {
     store,
     stageArray, speakerName, speakerColor,

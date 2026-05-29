@@ -19,6 +19,7 @@ import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
+import { showNotify } from '../utils/notify.js'
 
 export const VNOVA_RUNTIME_CONTEXT_KEY = 'vnova-runtime'
 
@@ -112,6 +113,9 @@ export default defineComponent({
     const saveOpen = ref(false)
     const saveMode = ref('save')
     const audioLog = ref('')
+    const hasBacklogRenderer = ref(false)
+    const hasSettingsRenderer = ref(false)
+    const hasSaveRenderer = ref(false)
     const pendingStageActions = []
 
     const activeStage = computed(() => customStageApi.value || builtInStageRef.value)
@@ -203,22 +207,40 @@ export default defineComponent({
     }
 
     function handleOpenSave() {
+      if (!hasSaveRenderer.value) {
+        notifyMissingComponent('VNovaSaveModal')
+        return
+      }
       saveMode.value = 'save'
       saveOpen.value = true
       callStage('openSave')
     }
 
     function handleOpenLoad() {
+      if (!hasSaveRenderer.value) {
+        notifyMissingComponent('VNovaSaveModal')
+        return
+      }
       saveMode.value = 'load'
       saveOpen.value = true
       callStage('openLoad')
     }
 
     function handleOpenBacklog() {
+      if (!hasBacklogRenderer.value) {
+        if (import.meta.env?.DEV) {
+          console.warn('[vnova] open-backlog requested but no VNovaBacklogModal is rendered in VNovaRuntime slot.')
+        }
+        return
+      }
       backlogOpen.value = true
     }
 
     function handleOpenSettings() {
+      if (!hasSettingsRenderer.value) {
+        notifyMissingComponent('VNovaSettingsModal')
+        return
+      }
       settingsOpen.value = true
     }
 
@@ -260,6 +282,20 @@ export default defineComponent({
       if (forward) forward(event)
     }
 
+    function handleNotify(event = {}) {
+      showNotify(event)
+      const forward = asFunction(props.config?.onNotify)
+      if (forward) forward(event)
+    }
+
+    function notifyMissingComponent(componentName) {
+      handleNotify({
+        status: 'error',
+        title: 'Missing Runtime Component',
+        text: `${componentName} is required in VNovaRuntime slot for this action.`,
+      })
+    }
+
     const stageOptions = computed(() => ({
       assets: props.assets,
       saveKey: saveKey.value,
@@ -268,6 +304,7 @@ export default defineComponent({
       ...(props.config?.stage || {}),
       onAudio: handleAudio,
       onVideo: asFunction(props.config?.onVideo) || (() => {}),
+      onNotify: handleNotify,
     }))
 
     const runtimeContext = {
@@ -338,6 +375,7 @@ export default defineComponent({
             canBack: canBack.value,
             audioLog: audioLog.value,
             visible: !titleOpen.value,
+            showBacklog: hasBacklogRenderer.value,
           },
           listeners: {
             onBack: handleBack,
@@ -473,8 +511,20 @@ export default defineComponent({
       return cloneVNode(vnode, patch)
     }
 
+    function containsComponent(vnode, componentRef, names) {
+      if (!isVNode(vnode) || vnode.type === Comment) return false
+      if (matchesComponent(vnode, componentRef, names)) return true
+      if (vnode.type === Fragment && Array.isArray(vnode.children)) {
+        return vnode.children.some((child) => containsComponent(child, componentRef, names))
+      }
+      return false
+    }
+
     return () => {
       const nodes = slots.default ? slots.default() : []
+      hasBacklogRenderer.value = nodes.some((node) => containsComponent(node, VNovaBacklogModal, BUILTIN_NAMES.backlog))
+      hasSettingsRenderer.value = nodes.some((node) => containsComponent(node, VNovaSettingsModal, BUILTIN_NAMES.settings))
+      hasSaveRenderer.value = nodes.some((node) => containsComponent(node, VNovaSaveModal, BUILTIN_NAMES.save))
       return h(
         'div',
         { class: 'vnova-runtime' },

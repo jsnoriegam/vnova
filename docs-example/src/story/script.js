@@ -20,6 +20,12 @@ export default [
       { type: 'show', character: 'kenji', position: 'right', expression: 'concerned' },
 
       { type: 'say', character: 'kenji', text: 'Signal lock is unstable. We have one chance to transmit.' },
+      {
+        type: 'notify',
+        status: 'warning',
+        title: 'SYS// PRIORITY ALERT',
+        text: 'Relay integrity at 39%. Tactical decision required.',
+      },
       { type: 'think', character: 'hana', text: 'One chance. One call. One timeline I can still save.' },
 
       {
@@ -54,6 +60,12 @@ export default [
     id: 'route-steady',
     steps: [
       { type: 'sfx', id: 'confirm' },
+      {
+        type: 'notify',
+        status: 'success',
+        title: 'SYS// STABILIZATION',
+        text: 'Team sync +12%. Noise floor reduced.',
+      },
       { type: 'say', character: 'hana', text: 'Breathe. We do this clean, step by step.' },
       { type: 'say', character: 'kenji', text: 'Copy that. Synchronizing channels now.', expression: 'happy' },
       { type: 'wait', ms: 500 },
@@ -66,6 +78,12 @@ export default [
     id: 'route-risky',
     steps: [
       { type: 'sfx', id: 'alarm' },
+      {
+        type: 'notify',
+        status: 'error',
+        title: 'SYS// THERMAL SURGE',
+        text: 'Relay core entering unsafe envelope.',
+      },
       { type: 'say', character: 'hana', text: 'No time. Push full bandwidth now.' },
       { type: 'say', character: 'kenji', text: 'That could fry the relay.', expression: 'concerned' },
       { type: 'call', fn: (state) => { state.vars.overheat = true } },
@@ -78,6 +96,12 @@ export default [
     id: 'route-analyst',
     steps: [
       { type: 'image', id: 'diagnostic-overlay', transition: 'dissolve', fit: 'both' },
+      {
+        type: 'notify',
+        status: 'info',
+        title: 'SYS// DIAGNOSTICS ONLINE',
+        text: 'Threat map and packet telemetry synced.',
+      },
       { type: 'narrate', text: 'Diagnostic layer projected: packet loss, relay drift, hostile pings.' },
       { type: 'say', character: 'hana', text: 'Pattern found. We can route around the jammer.' },
       { type: 'say', character: 'kenji', text: 'Nice catch.', expression: 'happy' },
@@ -119,6 +143,12 @@ export default [
     id: 'ending-open',
     steps: [
       { type: 'say', character: 'hana', text: 'No more secrets. We transmit everything.' },
+      {
+        type: 'notify',
+        status: 'success',
+        title: 'SYS// UPLINK MODE: OPEN',
+        text: 'Global channel established. Identity shielding disabled.',
+      },
       { type: 'sfx', id: 'uplink' },
       { type: 'hide', character: 'kenji' },
       { type: 'narrate', text: 'A million screens flicker alive across the city.' },
@@ -131,6 +161,12 @@ export default [
     id: 'ending-shield',
     steps: [
       { type: 'say', character: 'hana', text: 'We keep identities sealed. Data out, names protected.' },
+      {
+        type: 'notify',
+        status: 'info',
+        title: 'SYS// UPLINK MODE: ENCRYPTED',
+        text: 'Protected channel locked. Source identities masked.',
+      },
       { type: 'say', character: 'kenji', text: 'Then we both live to fight tomorrow.', expression: 'thoughtful' },
       { type: 'sfx', id: 'confirm' },
       { type: 'jump', target: 'epilogue' },
