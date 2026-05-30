@@ -146,6 +146,7 @@ function buildPayload(store, thumbnail = null) {
       background:     store.background,
       image:          store.image,
       bgm:            store.bgm,
+      particles:      store.particles,
       vars:           store.vars,
       quests:         store.quests,
       awaitingChoice: store.awaitingChoice,

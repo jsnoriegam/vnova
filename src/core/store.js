@@ -29,6 +29,7 @@ export const useVNovaStore = defineStore('vnova', {
     background:     defaultBackground(),
     image:          defaultImage(),
     bgm:            null,
+    particles:      null,
     vars:           {},
     quests:         {},
     awaitingChoice: false,
@@ -66,6 +67,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.background     = defaultBackground()
       this.image          = defaultImage()
       this.bgm            = null
+      this.particles      = null
       this.vars           = {}
       this.quests         = {}
       this.awaitingChoice = false
@@ -82,6 +84,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.background     = snapshot.background     ?? defaultBackground()
       this.image          = snapshot.image          ?? defaultImage()
       this.bgm            = snapshot.bgm            ?? null
+      this.particles      = snapshot.particles      ?? null
       this.vars           = snapshot.vars           ?? {}
       this.quests         = snapshot.quests         ?? {}
       this.awaitingChoice = Boolean(snapshot.awaitingChoice)
@@ -101,6 +104,7 @@ export const useVNovaStore = defineStore('vnova', {
     setBackground(bg)           { this.background = bg },
     setImage(img)               { this.image = img },
     setBgm(track)               { this.bgm = track },
+    setParticles(particles)     { this.particles = particles },
     setCharacters(characters)   { this.characters = characters },
 
     showCharacter({ character, data }) {

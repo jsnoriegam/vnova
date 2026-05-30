@@ -1,8 +1,9 @@
 <script setup>
 const props = defineProps({
-  canBack:  { type: Boolean, default: true },
-  audioLog: { type: String,  default: '' },
-  visible:  { type: Boolean, default: true },
+  canBack: { type: Boolean, default: true },
+  audioLog: { type: String, default: '' },
+  showAudioLog: { type: Boolean, default: false },
+  visible: { type: Boolean, default: true },
   showBacklog: { type: Boolean, default: true },
 })
 
@@ -21,8 +22,6 @@ const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'ope
       <button class="vnova-hud-link danger" @click="emit('exit-menu')">Quit</button>
     </nav>
 
-    <p v-if="props.audioLog" class="vnova-hud-audio">{{ props.audioLog }}</p>
+    <p v-if="props.audioLog && props.showAudioLog" class="vnova-hud-audio">{{ props.audioLog }}</p>
   </div>
 </template>
-
-

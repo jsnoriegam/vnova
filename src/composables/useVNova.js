@@ -13,20 +13,20 @@ import { createEngine } from '../core/engine.js'
 
 export function useVNova(script, options = {}) {
   const {
-    characters        = {},
-    assets            = {},
-    particles         = {},
-    typewriterSpeed   = 30,
+    characters = {},
+    assets = {},
+    particles = {},
+    typewriterSpeed = 30,
     typewriterEnabled = true,
-    keyboardEnabled   = true,
-    saveKey           = null,
-    deferStart        = false,
-    onAudio           = () => {},
-    onParticles       = () => {},
-    onVideo           = () => {},
-    onNotify          = () => {},
-    onEnd             = () => {},
-    pinia             = null,
+    keyboardEnabled = true,
+    saveKey = null,
+    deferStart = false,
+    onAudio = () => { },
+    onParticles = () => { },
+    onVideo = () => { },
+    onNotify = () => { },
+    onEnd = () => { },
+    pinia = null,
   } = options
 
   // ── engine ──────────────────────────────────────────────────────────────────
@@ -50,11 +50,11 @@ export function useVNova(script, options = {}) {
   //
   // Speed is read on every tick, so changing settings.typewriterSpeed
   // mid-sentence takes effect immediately on the next character.
-  const displayedText      = ref('')
-  const textComplete       = ref(false)
-  let   _twTimer           = null
-  let   _autoContinueTimer = null
-  let   _suspendCurrentAuto = false
+  const displayedText = ref('')
+  const textComplete = ref(false)
+  let _twTimer = null
+  let _autoContinueTimer = null
+  let _suspendCurrentAuto = false
 
   function _clearTw() {
     if (_twTimer !== null) { clearTimeout(_twTimer); _twTimer = null }
@@ -75,7 +75,7 @@ export function useVNova(script, options = {}) {
     _clearAutoContinue()
     if (!typewriterEnabled || !fullText) {
       displayedText.value = fullText ?? ''
-      textComplete.value  = true
+      textComplete.value = true
       return
     }
     // Spread to correctly iterate Unicode codepoints (emoji, CJK, etc.)
@@ -89,7 +89,7 @@ export function useVNova(script, options = {}) {
       return
     }
 
-    textComplete.value  = false
+    textComplete.value = false
     let i = safeStart
 
     function tick() {
@@ -128,15 +128,15 @@ export function useVNova(script, options = {}) {
     if (step?.type === 'say' || step?.type === 'think' || step?.type === 'narrate') {
       _clearTw()
       displayedText.value = step.text ?? ''
-      textComplete.value  = true
+      textComplete.value = true
     }
   }
 
   function _getCurrentAutoContinueDelay(step) {
     if (!step) return null
     const raw = step.advance ?? step.continue
-    if (raw === true)  return 0
-    if (!raw)          return null
+    if (raw === true) return 0
+    if (!raw) return null
     const numeric = Number(raw)
     return Number.isFinite(numeric) ? Math.max(0, numeric) : null
   }
@@ -185,13 +185,13 @@ export function useVNova(script, options = {}) {
   const BG_DURATION_MS = 400
 
   const bgLayers = ref([
-    { key: 'a', src: null, color: null, transition: 'cut', active: true,  visible: false, entering: false },
+    { key: 'a', src: null, color: null, transition: 'cut', active: true, visible: false, entering: false },
     { key: 'b', src: null, color: null, transition: 'cut', active: false, visible: false, entering: false },
   ])
 
   let _bgTransitionTimer = null
 
-  function _activeBgLayer()   { return bgLayers.value.find(l => l.active)  }
+  function _activeBgLayer() { return bgLayers.value.find(l => l.active) }
   function _inactiveBgLayer() { return bgLayers.value.find(l => !l.active) }
 
   watch(
@@ -202,13 +202,13 @@ export function useVNova(script, options = {}) {
       if (bg.transition === 'cut') {
         // Instant swap — update active layer, hide inactive
         const active = _activeBgLayer()
-        active.src        = bg.src
-        active.color      = bg.color
+        active.src = bg.src
+        active.color = bg.color
         active.transition = 'cut'
-        active.visible    = !!(bg.src || bg.color)
-        active.entering   = false
+        active.visible = !!(bg.src || bg.color)
+        active.entering = false
         const inactive = _inactiveBgLayer()
-        inactive.visible  = false
+        inactive.visible = false
         inactive.entering = false
         return
       }
@@ -219,7 +219,7 @@ export function useVNova(script, options = {}) {
         _bgTransitionTimer = null
         // Settle any in-progress transition before starting a new one
         const prev = _inactiveBgLayer()
-        prev.visible  = false
+        prev.visible = false
         prev.entering = false
       }
 
@@ -227,11 +227,11 @@ export function useVNova(script, options = {}) {
       const incoming = _inactiveBgLayer()
 
       // Incoming layer gets the new background and starts off-screen/transparent
-      incoming.src        = bg.src
-      incoming.color      = bg.color
+      incoming.src = bg.src
+      incoming.color = bg.color
       incoming.transition = bg.transition
-      incoming.visible    = true
-      incoming.entering   = true   // triggers CSS: opacity 0 / translated
+      incoming.visible = true
+      incoming.entering = true   // triggers CSS: opacity 0 / translated
 
       // Flip which layer is "active" (on top) — Vue reacts, CSS transition fires
       outgoing.active = false
@@ -246,7 +246,7 @@ export function useVNova(script, options = {}) {
 
       // After the transition completes, hide the outgoing layer
       _bgTransitionTimer = setTimeout(() => {
-        outgoing.visible  = false
+        outgoing.visible = false
         outgoing.entering = false
         _bgTransitionTimer = null
       }, BG_DURATION_MS)
@@ -255,7 +255,7 @@ export function useVNova(script, options = {}) {
   )
 
   function bgLayerStyle(layer) {
-    if (layer.src)   return { backgroundImage: `url(${layer.src})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    if (layer.src) return { backgroundImage: `url(${layer.src})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     if (layer.color) return { background: layer.color }
     return {}
   }
@@ -317,19 +317,20 @@ export function useVNova(script, options = {}) {
     const payload = {
       version: 2,
       snapshot: {
-        cursor:         store.cursor,
-        current:        store.current,
-        stage:          store.stage,
-        background:     store.background,
-        image:          store.image,
-        bgm:            store.bgm,
-        vars:           store.vars,
-        quests:         store.quests,
+        cursor: store.cursor,
+        current: store.current,
+        stage: store.stage,
+        background: store.background,
+        image: store.image,
+        bgm: store.bgm,
+        particles: store.particles,
+        vars: store.vars,
+        quests: store.quests,
         awaitingChoice: store.awaitingChoice,
-        ended:          store.ended,
-        history:        store.history,
-        backStack:      store.backStack,
-        settings:       store.settings,
+        ended: store.ended,
+        history: store.history,
+        backStack: store.backStack,
+        settings: store.settings,
       },
     }
     localStorage.setItem(saveKey, JSON.stringify(payload))
@@ -383,12 +384,12 @@ export function useVNova(script, options = {}) {
     const image = store.image
     if (!image?.src) return {}
     let backgroundSize = 'contain'
-    if (image.fit === 'width')  backgroundSize = '100% auto'
+    if (image.fit === 'width') backgroundSize = '100% auto'
     if (image.fit === 'height') backgroundSize = 'auto 100%'
     return {
-      backgroundImage:    `url(${image.src})`,
+      backgroundImage: `url(${image.src})`,
       backgroundSize,
-      backgroundRepeat:   'no-repeat',
+      backgroundRepeat: 'no-repeat',
       backgroundPosition: 'center',
     }
   })

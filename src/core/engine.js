@@ -37,7 +37,7 @@ const noop = () => {}
 
 const TRACKED_STATE_KEYS = [
   'cursor', 'current', 'stage', 'background', 'image',
-  'bgm', 'vars', 'quests', 'awaitingChoice', 'ended', 'history',
+  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'history',
 ]
 
 function cloneDeep(value) {
@@ -231,6 +231,7 @@ export function createEngine(script, options = {}) {
   }
 
   function _stopParticles() {
+    store.setParticles(null)
     onParticles({ action: 'stop', id: null, config: null })
   }
 
@@ -293,7 +294,9 @@ export function createEngine(script, options = {}) {
         return
       }
 
-      onParticles({ action: 'play', id: particleId, config: cloneDeep(config) })
+      const particleEvent = { action: 'play', id: particleId, config: cloneDeep(config) }
+      store.setParticles(particleEvent)
+      onParticles(particleEvent)
       _moveTo(store.cursor + 1)
       return
     }

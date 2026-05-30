@@ -61,7 +61,10 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
   letter-spacing: 0.15em;
   background: linear-gradient(135deg, #e9d5ff 0%, #a855f7 50%, #6366f1 100%);
   -webkit-background-clip: text;
+  -moz-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+  -moz-text-fill-color: transparent;
   filter: drop-shadow(0 2px 8px rgba(168, 85, 247, 0.3));
   margin-bottom: 0.5rem;
 }

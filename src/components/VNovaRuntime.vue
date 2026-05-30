@@ -22,7 +22,7 @@ import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
 import { useVNovaAudio } from '../composables/useVNovaAudio.js'
-import 'particles.js/particles.js'
+import '../utils/particles.js'
 import { showNotify } from '../utils/notify.js'
 
 export const VNOVA_RUNTIME_CONTEXT_KEY = 'vnova-runtime'
@@ -105,50 +105,12 @@ function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]'
 }
 
-function safeDeepExtend(destination, source) {
-  const target = destination && typeof destination === 'object' ? destination : {}
-  if (!source || typeof source !== 'object') return target
-
-  Object.keys(source).forEach((property) => {
-    const incoming = source[property]
-    if (isPlainObject(incoming)) {
-      const base = isPlainObject(target[property]) ? target[property] : {}
-      target[property] = safeDeepExtend(base, incoming)
-      return
-    }
-    if (Array.isArray(incoming)) {
-      target[property] = incoming.slice()
-      return
-    }
-    target[property] = incoming
-  })
-
-  return target
-}
-
-function ensureParticlesDeepExtendPatched() {
-  if (typeof Object.deepExtend !== 'function') {
-    Object.deepExtend = safeDeepExtend
-    return
-  }
-
-  // particles.js v2 ships a legacy implementation using arguments.callee.
-  const impl = String(Object.deepExtend)
-  if (impl.includes('arguments.callee')) {
-    Object.deepExtend = safeDeepExtend
-  }
-}
-
-function ensureParticlesDomList() {
-  if (typeof window === 'undefined') return []
-  if (!Array.isArray(window.pJSDom)) window.pJSDom = []
-  return window.pJSDom
-}
-
 function destroyParticlesByContainer(containerId) {
   if (typeof window === 'undefined') return
 
-  const domList = ensureParticlesDomList()
+  const domList = window.pJSDom
+  if (!Array.isArray(domList)) return
+
   const index = domList.findIndex((entry) => {
     const hostId = entry?.pJS?.canvas?.el?.parentNode?.id
     return hostId === containerId
@@ -156,12 +118,7 @@ function destroyParticlesByContainer(containerId) {
   if (index < 0) return
 
   const target = domList[index]
-  try { target?.pJS?.fn?.vendors?.destroypJS?.() } catch {}
-
-  // particles.js internals may mutate `window.pJSDom` during destroy.
-  const liveDomList = ensureParticlesDomList()
-  const liveIndex = liveDomList.indexOf(target)
-  if (liveIndex >= 0) liveDomList.splice(liveIndex, 1)
+  try { target?.pJS?.fn?.vendors?.destroypJS?.() } catch { }
 }
 
 export default defineComponent({
@@ -383,10 +340,20 @@ export default defineComponent({
       stopBuiltInParticles()
       await nextTick()
       if (typeof window.particlesJS !== 'function') return
-      ensureParticlesDeepExtendPatched()
-      ensureParticlesDomList()
       window.particlesJS(particlesContainerId, cloneJson(preset))
     }
+
+    watch(
+      () => stageState.value?.particles,
+      (particles, previousParticles) => {
+        if (!particles) {
+          if (previousParticles) handleParticles({ action: 'stop', id: null, config: null })
+          return
+        }
+        handleParticles(particles)
+      },
+      { immediate: true, deep: true }
+    )
 
     function handleParticles(event = {}) {
       const forward = asFunction(props.config?.onParticles)
@@ -420,7 +387,7 @@ export default defineComponent({
       ...(props.config?.stage || {}),
       onAudio: handleAudio,
       onParticles: handleParticles,
-      onVideo: asFunction(props.config?.onVideo) || (() => {}),
+      onVideo: asFunction(props.config?.onVideo) || (() => { }),
       onNotify: handleNotify,
     }))
 
@@ -659,4 +626,3 @@ export default defineComponent({
   },
 })
 </script>
-
