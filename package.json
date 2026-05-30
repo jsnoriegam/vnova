@@ -33,6 +33,7 @@
     "vue": "^3.4.0"
   },
   "dependencies": {
+    "particles.js": "^2.0.0",
     "simple-notify": "^1.0.6"
   }
 }

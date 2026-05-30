@@ -12,7 +12,8 @@ export default [
     id: 'start',
     steps: [
       { type: 'scene', id: 'control-room', transition: 'fade' },
-      { type: 'bgm', id: 'pulse', volume: 0.6, loop: true },
+      { type: 'particles', id: 'stars' },
+      { type: 'bgm', id: 'grid', volume: 0.6, loop: true },
       { type: 'video', id: 'ui-loop', muted: true, loop: true },
 
       { type: 'narrate', text: 'Year 2147. The city runs on memory and borrowed time.' },
@@ -123,6 +124,7 @@ export default [
         },
       },
       { type: 'scene', id: 'tower-roof', transition: 'slide-left' },
+      { type: 'particles', id: 'leaves' },
       { type: 'bgm', id: 'glow', volume: 0.5, loop: true },
       { type: 'video', stop: true },
 
@@ -177,6 +179,7 @@ export default [
     type: 'label',
     id: 'epilogue',
     steps: [
+      { type: 'particles', stop: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
       { type: 'narrate', text: 'By sunrise, the city is different. Not healed, but awake.' },
       { type: 'say', character: 'hana', text: 'Same mission tomorrow?' },

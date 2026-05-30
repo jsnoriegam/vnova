@@ -11,8 +11,8 @@
  *   expressions     — map of expression name → sprite URL (optional)
  */
 
-import hanaDefaultSprite from '../assets/hana_default.png'
-import kenjiDefaultSprite from '../assets/kenji_default.png'
+import hanaDefaultSprite from '../assets/characters/hana_default.png'
+import kenjiDefaultSprite from '../assets/characters/kenji_default.png'
 
 export const characters = {
   hana: {

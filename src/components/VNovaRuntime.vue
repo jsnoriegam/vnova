@@ -7,6 +7,8 @@ import {
   defineComponent,
   h,
   isVNode,
+  nextTick,
+  onUnmounted,
   provide,
   ref,
   useSlots,
@@ -19,6 +21,8 @@ import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
+import { useVNovaAudio } from '../composables/useVNovaAudio.js'
+import 'particles.js/particles.js'
 import { showNotify } from '../utils/notify.js'
 
 export const VNOVA_RUNTIME_CONTEXT_KEY = 'vnova-runtime'
@@ -92,17 +96,88 @@ function maybeUnref(value) {
   return value
 }
 
+function cloneJson(value) {
+  if (value === null || value === undefined) return value
+  return JSON.parse(JSON.stringify(value))
+}
+
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function safeDeepExtend(destination, source) {
+  const target = destination && typeof destination === 'object' ? destination : {}
+  if (!source || typeof source !== 'object') return target
+
+  Object.keys(source).forEach((property) => {
+    const incoming = source[property]
+    if (isPlainObject(incoming)) {
+      const base = isPlainObject(target[property]) ? target[property] : {}
+      target[property] = safeDeepExtend(base, incoming)
+      return
+    }
+    if (Array.isArray(incoming)) {
+      target[property] = incoming.slice()
+      return
+    }
+    target[property] = incoming
+  })
+
+  return target
+}
+
+function ensureParticlesDeepExtendPatched() {
+  if (typeof Object.deepExtend !== 'function') {
+    Object.deepExtend = safeDeepExtend
+    return
+  }
+
+  // particles.js v2 ships a legacy implementation using arguments.callee.
+  const impl = String(Object.deepExtend)
+  if (impl.includes('arguments.callee')) {
+    Object.deepExtend = safeDeepExtend
+  }
+}
+
+function ensureParticlesDomList() {
+  if (typeof window === 'undefined') return []
+  if (!Array.isArray(window.pJSDom)) window.pJSDom = []
+  return window.pJSDom
+}
+
+function destroyParticlesByContainer(containerId) {
+  if (typeof window === 'undefined') return
+
+  const domList = ensureParticlesDomList()
+  const index = domList.findIndex((entry) => {
+    const hostId = entry?.pJS?.canvas?.el?.parentNode?.id
+    return hostId === containerId
+  })
+  if (index < 0) return
+
+  const target = domList[index]
+  try { target?.pJS?.fn?.vendors?.destroypJS?.() } catch {}
+
+  // particles.js internals may mutate `window.pJSDom` during destroy.
+  const liveDomList = ensureParticlesDomList()
+  const liveIndex = liveDomList.indexOf(target)
+  if (liveIndex >= 0) liveDomList.splice(liveIndex, 1)
+}
+
 export default defineComponent({
   name: 'VNovaRuntime',
   props: {
     script: { type: Array, required: true },
     characters: { type: Object, default: () => ({}) },
     assets: { type: Object, default: () => ({}) },
+    particles: { type: Object, default: () => ({}) },
     config: { type: Object, default: () => ({}) },
     componentResolvers: { type: Object, default: () => ({}) },
   },
   setup(props) {
     const slots = useSlots()
+    const builtInAudio = useVNovaAudio({ bgmVolume: 1, sfxVolume: 1 })
+    const particlesContainerId = `vnova-particles-${Math.random().toString(36).slice(2, 10)}`
 
     const builtInStageRef = ref(null)
     const customStageApi = ref(null)
@@ -278,14 +353,54 @@ export default defineComponent({
         const track = event.track || 'none'
         audioLog.value = `SFX: ${track}`
       }
+
       const forward = asFunction(props.config?.onAudio)
-      if (forward) forward(event)
+      if (forward) {
+        forward(event)
+        return
+      }
+
+      // Built-in player is the default; users can replace it with config.onAudio.
+      if (props.config?.audioPlayer !== false) builtInAudio.onAudio(event)
     }
 
     function handleNotify(event = {}) {
       showNotify(event)
       const forward = asFunction(props.config?.onNotify)
       if (forward) forward(event)
+    }
+
+    function stopBuiltInParticles() {
+      destroyParticlesByContainer(particlesContainerId)
+    }
+
+    async function playBuiltInParticles(preset) {
+      if (!preset || typeof window === 'undefined') {
+        stopBuiltInParticles()
+        return
+      }
+
+      stopBuiltInParticles()
+      await nextTick()
+      if (typeof window.particlesJS !== 'function') return
+      ensureParticlesDeepExtendPatched()
+      ensureParticlesDomList()
+      window.particlesJS(particlesContainerId, cloneJson(preset))
+    }
+
+    function handleParticles(event = {}) {
+      const forward = asFunction(props.config?.onParticles)
+      if (forward) {
+        forward(event)
+        return
+      }
+
+      if (event.action === 'stop') {
+        stopBuiltInParticles()
+        return
+      }
+
+      playBuiltInParticles(event.config)
     }
 
     function notifyMissingComponent(componentName) {
@@ -298,11 +413,13 @@ export default defineComponent({
 
     const stageOptions = computed(() => ({
       assets: props.assets,
+      particles: props.particles,
       saveKey: saveKey.value,
       slotCount: slotCount.value,
       deferStart: titleOpen.value,
       ...(props.config?.stage || {}),
       onAudio: handleAudio,
+      onParticles: handleParticles,
       onVideo: asFunction(props.config?.onVideo) || (() => {}),
       onNotify: handleNotify,
     }))
@@ -339,6 +456,11 @@ export default defineComponent({
     }
 
     provide(VNOVA_RUNTIME_CONTEXT_KEY, runtimeContext)
+
+    onUnmounted(() => {
+      stopBuiltInParticles()
+      builtInAudio.stopAll()
+    })
 
     function builtInDefinitionFor(vnode) {
       if (matchesComponent(vnode, VNovaStage, BUILTIN_NAMES.stage)) {
@@ -528,18 +650,13 @@ export default defineComponent({
       return h(
         'div',
         { class: 'vnova-runtime' },
-        nodes.map(resolveVNode)
+        [
+          h('div', { id: particlesContainerId, class: 'vnova-runtime-particles', 'aria-hidden': 'true' }),
+          ...nodes.map(resolveVNode),
+        ]
       )
     }
   },
 })
 </script>
 
-<style scoped>
-.vnova-runtime {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-</style>

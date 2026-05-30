@@ -15,12 +15,14 @@ export function useVNova(script, options = {}) {
   const {
     characters        = {},
     assets            = {},
+    particles         = {},
     typewriterSpeed   = 30,
     typewriterEnabled = true,
     keyboardEnabled   = true,
     saveKey           = null,
     deferStart        = false,
     onAudio           = () => {},
+    onParticles       = () => {},
     onVideo           = () => {},
     onNotify          = () => {},
     onEnd             = () => {},
@@ -28,7 +30,7 @@ export function useVNova(script, options = {}) {
   } = options
 
   // ── engine ──────────────────────────────────────────────────────────────────
-  const engine = createEngine(script, { characters, assets, deferStart, onAudio, onVideo, onNotify, onEnd, pinia })
+  const engine = createEngine(script, { characters, assets, particles, deferStart, onAudio, onParticles, onVideo, onNotify, onEnd, pinia })
   const {
     store,
     stageArray, speakerName, speakerColor,

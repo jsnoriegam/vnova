@@ -1,3 +1,14 @@
+/* ============================================================
+   VNova — Global Stylesheet
+   Importar una sola vez en el punto de entrada de la app:
+     import 'vnova/vnova.css'
+
+   Las custom properties definidas en :root pueden ser
+   sobreescritas desde el CSS del autor para tematizar el engine
+   sin modificar los componentes.
+   ============================================================ */
+
+/* ── Reset ──────────────────────────────────────────────── */
 html,
 body,
 #app {
@@ -7,4 +18,243 @@ body,
   padding: 0;
   overflow: hidden;
   background: #050308;
+}
+
+/* ── Design Tokens ──────────────────────────────────────── */
+:root {
+  /* Paleta */
+  --vnova-color-primary:       #a855f7;
+  --vnova-color-secondary:     #6366f1;
+  --vnova-color-text:          #e9d5ff;
+  --vnova-color-muted:         #9ca3af;
+  --vnova-color-dim:           #6b7280;
+  --vnova-color-surface:       rgba(20, 15, 30, 0.9);
+  --vnova-color-danger:        #c0392b;
+  --vnova-color-accent:        #4a6cf7;
+
+  /* Tipografía */
+  --vnova-font-body:           'Georgia', serif;
+  --vnova-font-ui:             'Outfit', system-ui, sans-serif;
+  --vnova-font-title:          'Cinzel', serif;
+
+  /* Stage */
+  --vnova-stage-bg:            #000;
+  --vnova-bg-duration:         400ms;
+  --vnova-sprite-bottom:       0px;
+
+  /* Diálogo */
+  --vnova-dialog-height:       18%;
+  --vnova-dialog-padding:      0.8rem 1.2rem 0.95rem;
+  --vnova-dialog-bg:           rgba(0, 0, 0, 0.56);
+  --vnova-dialog-border:       rgba(255, 255, 255, .12);
+  --vnova-text-size:           1.15rem;
+  --vnova-text-line-height:    1.55;
+  --vnova-text-color:          #f0eaf8;
+  --vnova-think-color:         #d9d1e8;
+  --vnova-nameplate-size:      0.8rem;
+  --vnova-nameplate-color:     #fff;
+
+  /* Choices */
+  --vnova-choices-bg:          rgba(0, 0, 0, .65);
+  --vnova-choice-size:         0.95rem;
+  --vnova-choice-color:        #f0eaf8;
+  --vnova-choice-bg:           rgba(255, 255, 255, .08);
+  --vnova-choice-border:       rgba(255, 255, 255, .2);
+  --vnova-choice-bg-hover:     rgba(255, 255, 255, .18);
+  --vnova-choice-radius:       6px;
+
+  /* Modales */
+  --vnova-modal-bg:            rgba(20, 15, 30, 0.9);
+  --vnova-modal-border:        rgba(168, 85, 247, 0.25);
+  --vnova-modal-radius:        12px;
+  --vnova-modal-shadow:        0 10px 40px rgba(0, 0, 0, 0.5);
+  --vnova-modal-max-width:     500px;
+  --vnova-modal-max-height:    80vh;
+
+  /* Z-index — escala pública */
+  --vnova-z-bg:                0;
+  --vnova-z-sprites:           1;
+  --vnova-z-particles:         2;
+  --vnova-z-dialog:            3;
+  --vnova-z-choices:           4;
+  --vnova-z-end:               5;
+  --vnova-z-overlay:           6;
+  --vnova-z-hud:               12;
+  --vnova-z-title:             20;
+  --vnova-z-modal:             40;
+  --vnova-z-save:              50;
+}
+
+/* ── Runtime container ──────────────────────────────────── */
+.vnova-runtime {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.vnova-runtime-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--vnova-z-particles);
+}
+
+/* ── Modal — overlay de fondo ───────────────────────────── */
+.vnova-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: var(--vnova-z-modal);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ── Modal — panel de cristal ───────────────────────────── */
+.vnova-glass-modal {
+  background: var(--vnova-modal-bg);
+  border: 1px solid var(--vnova-modal-border);
+  border-radius: var(--vnova-modal-radius);
+  width: 90%;
+  max-width: var(--vnova-modal-max-width);
+  box-shadow: var(--vnova-modal-shadow);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  max-height: var(--vnova-modal-max-height);
+}
+
+/* Modificador de ancho para el backlog */
+.vnova-glass-modal.vnova-backlog-modal {
+  max-width: 600px;
+}
+
+/* ── Modal — cabecera ───────────────────────────────────── */
+.vnova-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vnova-modal-header h2 {
+  font-family: var(--vnova-font-title);
+  font-size: 1.25rem;
+  color: var(--vnova-color-text);
+  margin: 0;
+}
+
+/* ── Modal — botón cerrar ───────────────────────────────── */
+.vnova-close-btn {
+  background: none;
+  border: none;
+  color: var(--vnova-color-dim);
+  font-size: 1.75rem;
+  cursor: pointer;
+  transition: color 150ms;
+  line-height: 1;
+  padding: 0;
+}
+
+.vnova-close-btn:hover {
+  color: #fff;
+}
+
+/* ── Modal — cuerpo con scroll ──────────────────────────── */
+.vnova-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+/* ── HUD ─────────────────────────────────────────────────── */
+.vnova-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: var(--vnova-z-hud);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.vnova-hud-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(14, 10, 24, 0.78);
+  border: 1px solid rgba(240, 234, 248, 0.2);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(7px);
+  pointer-events: auto;
+}
+
+.vnova-hud-link {
+  background: transparent;
+  border: 0;
+  color: rgba(245, 239, 252, 0.88);
+  font-size: 0.95rem;
+  font-family: var(--vnova-font-ui);
+  padding: 0.18rem 0.55rem;
+  cursor: pointer;
+  transition: color 180ms ease;
+  line-height: 1;
+}
+
+.vnova-hud-link + .vnova-hud-link {
+  border-left: 1px solid rgba(240, 234, 248, 0.2);
+}
+
+.vnova-hud-link:hover:not(:disabled) {
+  color: #ffffff;
+}
+
+.vnova-hud-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vnova-hud-link.danger:hover {
+  color: #ffb3b3;
+}
+
+.vnova-hud-audio {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(233, 213, 255, 0.72);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* ── Transiciones globales ───────────────────────────────── */
+
+/* vnova-slide-up — modales (BacklogModal, SettingsModal…) */
+.vnova-slide-up-enter-active,
+.vnova-slide-up-leave-active {
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.vnova-slide-up-enter-from,
+.vnova-slide-up-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+/* vnova-fade — pantalla de título */
+.vnova-fade-enter-active,
+.vnova-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.vnova-fade-enter-from,
+.vnova-fade-leave-to {
+  opacity: 0;
 }

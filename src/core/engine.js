@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { createPinia, getActivePinia } from 'pinia'
 import { useVNovaStore } from './store.js'
 import { createQuestEngine } from './quests.js'
+import { PARTICLE_PRESETS } from './particles.js'
 
 /**
  * vnova-engine — core/engine.js
@@ -19,7 +20,7 @@ import { createQuestEngine } from './quests.js'
  *   narrate    — unattributed narration (no nameplate)
  *   choice     — branch: presents options, each with a label + jump target
  *   jump       — unconditional jump to a label
- *   bgm        — play / stop background music (stub)
+ *   bgm        — play background music, or stop with `{ stop: true }` (stub)
  *   sfx        — play a sound effect (stub)
  *   video      — play / stop a video track (host app controlled)
  *   notify     — push a UI notification event (host app controlled)
@@ -49,6 +50,31 @@ function normalizeImageFit(value) {
   if (value === 'x' || value === 'width')   return 'width'
   if (value === 'y' || value === 'height')  return 'height'
   return 'both'
+}
+
+function isAbsoluteAssetUrl(value) {
+  return (
+    value.startsWith('/')
+    || value.startsWith('http://')
+    || value.startsWith('https://')
+    || value.startsWith('data:')
+    || value.startsWith('blob:')
+    || value.startsWith('file:')
+  )
+}
+
+function normalizeAssetUrl(value) {
+  if (typeof value !== 'string') return value
+  const raw = value.trim()
+  if (!raw || isAbsoluteAssetUrl(raw)) return raw
+
+  // Vite-friendly fallback: treat relative author paths as files under /src.
+  if (raw.startsWith('./') || raw.startsWith('../')) {
+    const stripped = raw.replace(/^(?:\.\.\/|\.\/)+/, '')
+    return `/src/${stripped}`
+  }
+
+  return raw
 }
 
 function snapshotTrackedState(store) {
@@ -111,8 +137,10 @@ export function createEngine(script, options = {}) {
   const {
     characters       = {},
     assets           = {},
+    particles        = {},
     quests           = [],
     onAudio          = noop,
+    onParticles      = noop,
     onVideo          = noop,
     onNotify         = noop,
     onEnd            = noop,
@@ -127,6 +155,8 @@ export function createEngine(script, options = {}) {
 
   const runtimeScript = expandNestedLabels(script)
   const labelIndex    = buildIndex(runtimeScript)
+  const particleRegistry = { ...PARTICLE_PRESETS, ...(particles ?? {}) }
+  let _bgmBaseVolume  = 1
 
   // ── Pinia setup ────────────────────────────────────────────────────────────
   const _pinia = pinia ?? getActivePinia() ?? createPinia()
@@ -138,7 +168,8 @@ export function createEngine(script, options = {}) {
   // ── asset resolver ────────────────────────────────────────────────────────
   function resolveAsset(group, key, fallback = null) {
     if (!key) return fallback
-    return (assets?.[group] ?? {})[key] ?? fallback
+    const resolved = (assets?.[group] ?? {})[key] ?? fallback
+    return normalizeAssetUrl(resolved)
   }
 
   // ── quest engine ───────────────────────────────────────────────────────────
@@ -190,6 +221,7 @@ export function createEngine(script, options = {}) {
   }
 
   function _stopBgm() {
+    _bgmBaseVolume = 1
     store.setBgm(null)
     onAudio({ type: 'bgm', track: null, volume: 0, loop: false })
   }
@@ -198,9 +230,14 @@ export function createEngine(script, options = {}) {
     onVideo({ action: 'stop', track: null, volume: 0, loop: false, muted: false })
   }
 
+  function _stopParticles() {
+    onParticles({ action: 'stop', id: null, config: null })
+  }
+
   function _finishSession(reason = 'end') {
     _clearAuto()
     _stopBgm()
+    _stopParticles()
     _stopVideo()
     _clearSceneLayers()
     store.setCurrent(null)
@@ -217,18 +254,46 @@ export function createEngine(script, options = {}) {
     if (step.type === 'call')  { (step.fn ?? noop)(store); _moveTo(store.cursor + 1); return }
 
     if (step.type === 'bgm') {
+      if (step.stop === true) {
+        _stopBgm()
+        _moveTo(store.cursor + 1)
+        return
+      }
+
       const trackId = step.track ?? step.id ?? null
-      const track   = step.src ?? resolveAsset('music', trackId, trackId)
+      const track   = normalizeAssetUrl(step.src ?? resolveAsset('music', trackId, trackId))
+      _bgmBaseVolume = Number.isFinite(Number(step.volume ?? 1)) ? Number(step.volume ?? 1) : 1
       store.setBgm(track)
-      onAudio({ type: 'bgm', track, volume: _effectiveVolume('bgm', step.volume ?? 1), loop: step.loop ?? true })
+      onAudio({ type: 'bgm', track, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: step.loop ?? true })
       _moveTo(store.cursor + 1)
       return
     }
 
     if (step.type === 'sfx') {
       const trackId = step.track ?? step.id ?? null
-      const track   = step.src ?? resolveAsset('sounds', trackId, trackId)
+      const track   = normalizeAssetUrl(step.src ?? resolveAsset('sounds', trackId, trackId))
       onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', step.volume ?? 1) })
+      _moveTo(store.cursor + 1)
+      return
+    }
+
+    if (step.type === 'particles') {
+      const shouldStop = step.stop === true || step.id === null
+      if (shouldStop) {
+        _stopParticles()
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      const particleId = step.id ?? null
+      const config = step.config ?? (particleId ? particleRegistry[particleId] ?? null : null)
+      if (!config) {
+        _stopParticles()
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      onParticles({ action: 'play', id: particleId, config: cloneDeep(config) })
       _moveTo(store.cursor + 1)
       return
     }
@@ -242,7 +307,7 @@ export function createEngine(script, options = {}) {
       }
 
       const trackId = step.track ?? step.id ?? null
-      const track = step.src ?? resolveAsset('videos', trackId, trackId)
+      const track = normalizeAssetUrl(step.src ?? resolveAsset('videos', trackId, trackId))
       if (!track) {
         _stopVideo()
         _moveTo(store.cursor + 1)
@@ -272,7 +337,7 @@ export function createEngine(script, options = {}) {
 
     if (step.type === 'scene') {
       const sceneId  = step.id ?? step.scene ?? null
-      const sceneSrc = step.src ?? resolveAsset('scenes', sceneId, null)
+      const sceneSrc = normalizeAssetUrl(step.src ?? resolveAsset('scenes', sceneId, null))
       // Only stop BGM when explicitly requested — music continues across scenes by default
       if (step.stopMusic) _stopBgm()
       _clearSceneLayers()
@@ -293,7 +358,9 @@ export function createEngine(script, options = {}) {
       if (hasId && hasSrc)
         throw new Error('[vnova] image step must provide either "id" or "src", but not both')
       const imageId  = hasId ? step.id : null
-      const imageSrc = hasSrc ? step.src : (imageId ? resolveAsset('images', imageId, imageId) : null)
+      const imageSrc = hasSrc
+        ? normalizeAssetUrl(step.src)
+        : (imageId ? resolveAsset('images', imageId, imageId) : null)
       store.setImage({ src: imageSrc, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
       _moveTo(store.cursor + 1)
       return
@@ -302,14 +369,14 @@ export function createEngine(script, options = {}) {
     if (step.type === 'show') {
       const characterDef   = characters[step.character] ?? {}
       const variant        = step.variant ?? step.expression ?? 'default'
-      const spriteFromReg  = characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null
+      const spriteFromReg  = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
       store.showCharacter({
         character: step.character,
         data: {
           id:         step.character,
           position:   step.position   ?? 'center',
           expression: variant,
-          sprite:     step.sprite     ?? spriteFromReg,
+          sprite:     normalizeAssetUrl(step.sprite ?? spriteFromReg),
         },
       })
       _moveTo(store.cursor + 1)
@@ -408,6 +475,7 @@ export function createEngine(script, options = {}) {
   function restart() {
     _clearAuto()
     _stopBgm()
+    _stopParticles()
     _stopVideo()
     store.resetEngine()
     store.setCharacters(characters)
@@ -427,7 +495,19 @@ export function createEngine(script, options = {}) {
   function getVar(key)          { return store.vars[key] }
   function setVar(key, value)   { store.setVar({ key, value }) }
   function getSetting(key)      { return store.settings?.[key] }
-  function setSetting(key, value) { store.setSetting({ key, value }) }
+  function setSetting(key, value) {
+    store.setSetting({ key, value })
+
+    // Re-apply active BGM volume immediately so runtime sliders affect current track.
+    if (key === 'bgmVolume' && store.bgm) {
+      onAudio({
+        type: 'bgm',
+        track: store.bgm,
+        volume: _effectiveVolume('bgm', _bgmBaseVolume),
+        loop: true,
+      })
+    }
+  }
 
   // boot
   if (!deferStart) _applyStep(runtimeScript[0])

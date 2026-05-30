@@ -49,6 +49,7 @@ const vn = useVNova(props.script, {
   keyboardEnabled,
   onEnd:  (payload) => emit('end', payload),
   onAudio: (evt) => props.options?.onAudio?.(evt),
+  onParticles: (evt) => props.options?.onParticles?.(evt),
   onVideo: (evt) => props.options?.onVideo?.(evt),
 })
 

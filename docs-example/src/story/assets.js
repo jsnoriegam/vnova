@@ -5,8 +5,9 @@ export const assets = {
     'sunrise': 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1400&q=80',
   },
   music: {
-    pulse: '/audio/music/pulse.ogg',
-    glow: '/audio/music/glow.ogg',
+    grid: '../assets/bgm/Savfk - The Grid.mp3',
+    pulse: '../assets/bgm/pulse.ogg',
+    glow: '../assets/bgm/glow.ogg',
   },
   sounds: {
     confirm: '/audio/sfx/confirm.ogg',

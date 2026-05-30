@@ -1,17 +1,35 @@
 # vnova-engine
 
-Framework de novela visual para Vue 3, orientado al código. Define tu historia como un array de objetos JavaScript e integra el motor directamente en tu proyecto Vite.
+Framework de novela visual para Vue 3, script-first y Vite-native.
+
+## Regla de Producto: No-Code First
+
+El objetivo de vnova es que una persona con conocimientos minimos o nulos de programacion pueda publicar una novela funcional editando solo configuracion y contenido.
+
+- Ruta principal: editar story/script.js, story/assets.js, story/characters.js y config.
+- Ruta avanzada: agregar hooks o componentes custom solo cuando realmente se necesite.
+
+Guia completa: docs/no-code-first.md
 
 ---
 
-## Instalación
+## Que incluye hoy
+
+- Motor de script con labels, branching, variables y quests.
+- Componentes listos para usar: VNovaRuntime, VNovaStage, VNovaTitleScreen, VNovaHud, VNovaSettingsModal, VNovaSaveModal, VNovaBacklogModal.
+- Composables: useVNova, useVNovaAudio, useVNovaSaves.
+- Plugin de Vite para validacion de scripts en build.
+- Tipos TypeScript completos en src/vnova.d.ts.
+
+---
+
+## Instalacion
 
 ```bash
-# en tu proyecto Vite + Vue 3
-npm install vnova-engine
+yarn add vnova-engine
 ```
 
-### vite.config.js
+## Configuracion de Vite
 
 ```js
 import { defineConfig } from 'vite'
@@ -22,8 +40,8 @@ export default defineConfig({
   plugins: [
     vue(),
     vnovaPlugin({
-      validateOnBuild: true, // valida scripts en `vite build`
-      warnOnly: false,       // true = errores de validación no rompen el build
+      validateOnBuild: true,
+      warnOnly: false,
     }),
   ],
 })
@@ -31,437 +49,238 @@ export default defineConfig({
 
 ---
 
-## Uso básico
+## Quick Start No-Code (recomendado)
+
+Este flujo esta pensado para autores: sin escribir logica custom.
 
 ```vue
 <script setup>
-import { VNovaStage } from 'vnova-engine'
+import {
+  VNovaRuntime,
+  VNovaTitleScreen,
+  VNovaStage,
+  VNovaHud,
+  VNovaBacklogModal,
+  VNovaSettingsModal,
+  VNovaSaveModal,
+} from 'vnova-engine'
+
 import script from './story/script.js'
-import { characters } from './story/characters.js'
+import assets from './story/assets.js'
+import characters from './story/characters.js'
+import config from './story/config.js'
 </script>
 
 <template>
-  <div style="width:100vw;height:100vh">
-    <VNovaStage :script="script" :characters="characters" />
-  </div>
+  <VNovaRuntime :script="script" :assets="assets" :characters="characters" :config="config">
+    <VNovaTitleScreen />
+    <VNovaStage />
+    <VNovaHud />
+    <VNovaBacklogModal />
+    <VNovaSettingsModal />
+    <VNovaSaveModal />
+  </VNovaRuntime>
 </template>
 ```
 
+Notas importantes:
+- VNovaRuntime ya incluye reproductor de audio por defecto.
+- Si no pasas hooks, bgm/sfx funcionan con el player interno.
+- El autor solo necesita editar archivos de story/config para una VN funcional.
+
 ---
 
-## El Script
+## Estructura sugerida de story
 
-El script es un **array plano de objetos**. El motor lo recorre en orden; los pasos de control (`jump`, `choice`) pueden redirigir el cursor.
-
-### Tipos de paso
-
-#### `label` — ancla de salto
-```js
-{ type: 'label', id: 'mi-escena' }
+```text
+src/story/
+  script.js
+  assets.js
+  characters.js
+  config.js
 ```
-No se renderiza. Marca una posición a la que se puede saltar.
 
----
+### assets.js (declarativo)
 
-#### `scene` — cambiar fondo
 ```js
-{
-  type: 'scene',
-  id: 'campus_day',                  // recomendado: id en assets.scenes
-  src: '/backgrounds/ciudad.webp',   // opcional: URL directa (override)
-  color: '#1a1a2e',                  // alternativa: color sólido CSS
-  transition: 'fade',                // 'fade' | 'dissolve' | 'cut' | 'slide-left' | 'slide-right'
+export default {
+  scenes: {
+    intro: '/assets/scenes/intro.jpg',
+  },
+  music: {
+    main: '/assets/music/main.ogg',
+  },
+  sounds: {
+    click: '/assets/sfx/click.ogg',
+  },
+  images: {
+    overlay: '/assets/images/overlay.png',
+  },
+  videos: {
+    loop: '/assets/video/loop.mp4',
+  },
 }
 ```
 
-`scene` resuelve `id` contra `options.assets.scenes[id]`. Si envías `src`, tiene prioridad.
+### characters.js (declarativo)
 
----
-
-#### `show` — mostrar personaje en escena
 ```js
-{
-  type: 'show',
-  character: 'hana',          // id del personaje en el registry
-  position: 'left',           // 'left' | 'center' | 'right' | 'left-far' | 'right-far'
-  expression: 'happy',        // nombre de expresión (opcional)
-  sprite: '/sprites/hana_happy.webp', // sobreescribe el sprite del registry (opcional)
-}
-```
-
----
-
-#### `hide` — ocultar personaje
-```js
-{ type: 'hide', character: 'hana' }  // omite character para limpiar toda la escena
-```
-
----
-
-#### `say` — diálogo de un personaje
-```js
-{
-  type: 'say',
-  character: 'hana',
-  text: 'No puedo dormir.',
-  expression: 'sad',          // actualiza la expresión mostrada (opcional)
-  voice: '/audio/hana_01.ogg' // archivo de voz (stub — ver onAudio)
-}
-```
-
----
-
-#### `narrate` — narración sin atribución
-```js
-{ type: 'narrate', text: 'La ciudad nunca duerme del todo.' }
-```
-
----
-
-#### `choice` — bifurcación interactiva
-```js
-{
-  type: 'choice',
-  prompt: '¿Qué decides?',        // texto sobre las opciones (opcional)
-  options: [
-    { label: 'Hablar con Kenji', jump: 'ruta-a' },
-    {
-      label: 'Quedarte sola',
-      jump: 'ruta-b',
-      set: { chose_alone: true, route: 'alone' },
-      inc: { affinityKenji: -1, stress: 2 },
+export default {
+  hana: {
+    name: 'Hana',
+    color: '#e879b0',
+    avatar: 'H',
+    defaultSprite: '/assets/chars/hana/default.png',
+    sprites: {
+      neutral: '/assets/chars/hana/neutral.png',
+      happy: '/assets/chars/hana/happy.png',
     },
-    { label: 'Continuar',        /* sin jump = avanza al siguiente paso */ },
-  ],
-}
-```
-
-Cada opción puede tener:
-- `jump` — id de label al que saltar
-- `set` — objeto de variables a escribir en `state.vars` al elegir
-- `inc` — objeto de incrementos numéricos sobre `state.vars` (admite valores positivos y negativos)
-
-`set` y `inc` aceptan múltiples variables en una sola opción.
-
----
-
-#### `jump` — salto incondicional
-```js
-{ type: 'jump', target: 'epilogo' }
-```
-
----
-
-#### `bgm` — música de fondo
-```js
-{ type: 'bgm', id: 'calm', volume: 0.7, loop: true }
-{ type: 'bgm', track: 'calm', volume: 0.7, loop: true } // alias legacy
-{ type: 'bgm', src: '/audio/music/calm.ogg', volume: 0.7, loop: true } // URL directa
-{ type: 'bgm', id: null } // detener música
-```
-`bgm` resuelve primero `src`, luego `id`/`track` contra `options.assets.music`.
-El motor llama a `options.onAudio({ type: 'bgm', track, volume, loop })`.  
-Conecta tu librería de audio (Howler.js, Tone.js…) en ese callback.
-
----
-
-#### `sfx` — efecto de sonido
-```js
-{ type: 'sfx', id: 'door_slam', volume: 1.0 }
-{ type: 'sfx', track: 'door_slam', volume: 1.0 } // alias legacy
-{ type: 'sfx', src: '/audio/sfx/door_slam.ogg', volume: 1.0 } // URL directa
-```
-
-`sfx` resuelve primero `src`, luego `id`/`track` contra `options.assets.sounds`.
-
----
-
-#### `wait` — pausa automática
-```js
-{ type: 'wait', ms: 1500 }
-```
-El motor avanza solo tras `ms` milisegundos. No requiere clic del usuario.
-
----
-
-#### `call` — efecto lateral en JavaScript
-```js
-{
-  type: 'call',
-  fn: (state) => {
-    state.vars.visited_rooftop = true
-    if (state.vars.chose_alone) console.log('tomó la ruta solitaria')
   },
 }
 ```
-`fn` recibe el estado reactivo completo. Es sincrónica.
 
 ---
 
-## Motor de quests
+## DSL soportado (script steps)
 
-Puedes registrar quests al crear el motor/composable con `options.quests`.
+Tipos de paso soportados actualmente:
 
-Estados disponibles:
+- label
+- scene
+- image
+- show
+- hide
+- say
+- think
+- narrate
+- choice
+- jump
+- bgm
+- sfx
+- video
+- notify
+- wait
+- call
+- end
+
+Mini ejemplo:
 
 ```js
-import { QS } from 'vnova-engine'
-```
-
-Definicion de quest (estilo recomendado):
-
-```js
-const quests = [
+export default [
+  { type: 'label', id: 'start' },
+  { type: 'scene', id: 'intro', transition: 'fade' },
+  { type: 'bgm', id: 'main', volume: 0.6, loop: true },
+  { type: 'say', character: 'hana', text: 'Comenzamos.' },
   {
-    id: 'buy_phone',
-    title: 'Get a Phone',
-    description: 'The emergency card Hayes gave her has a $200 limit. She needs a prepaid phone to receive coded notifications.',
-    category: 'main',
-    initialStatus: QS.ACTIVE,
-    failIf: null,
-    doneIf: (store) => store.flags.boughtPhone === true,
-    reward: (store) => { store.charisma = (store.charisma ?? 0) + 1 },
-    penalty: (store) => { store.charisma = (store.charisma ?? 0) - 1 },
+    type: 'choice',
+    prompt: 'Que hacemos?',
+    options: [
+      { label: 'Seguir', jump: 'route-a', set: { mood: 'calm' } },
+      { label: 'Salir', jump: 'end' },
+    ],
   },
+  { type: 'label', id: 'route-a' },
+  { type: 'narrate', text: 'La historia continua.' },
+  { type: 'end' },
 ]
 ```
 
-Integracion:
-
-```js
-const vn = useVNova(script, {
-  characters,
-  quests,
-})
-
-// helpers disponibles
-vn.quests.value
-vn.listQuests()
-vn.getQuest('buy_phone')
-vn.setQuestStatus('buy_phone', QS.COMPLETED)
-vn.evaluateQuests()
-```
-
-Notas:
-- `doneIf` y `failIf` se evalúan despues de cada movimiento del jugador.
-- `store.flags` y `store.vars` apuntan a `state.vars` del motor.
-- Tambien puedes leer/escribir variables con acceso directo, por ejemplo `store.charisma`.
-
 ---
 
-## Registry de personajes
+## Audio y video
+
+Comportamiento por defecto con VNovaRuntime:
+
+- bgm y sfx se reproducen con el player interno (useVNovaAudio integrado).
+- video y notify se enrutan por callbacks de runtime.
+
+Override opcional:
 
 ```js
-// story/characters.js
-export const characters = {
-  hana: {
-    name:          'Hana',
-    color:         '#e879b0',   // color del nameplate
-    avatar:        '👩',        // emoji fallback si no hay sprite
-    defaultSprite: '/sprites/hana.webp',
-    expressions: {
-      neutral: '/sprites/hana_neutral.webp',
-      happy:   '/sprites/hana_happy.webp',
-    },
+const config = {
+  onAudio: (event) => {
+    // Reemplaza el player interno
   },
+  onVideo: (event) => {},
+  onNotify: (event) => {},
+  audioPlayer: false, // opcional: desactiva player interno si no usas onAudio
 }
 ```
 
 ---
 
-## Registry de assets
+## APIs publicas
 
-```js
-// story/assets.js
-export default {
-  scenes: {
-    campus_day: '/assets/scenes/campus_day.jpg',
-    campus_night: '/assets/scenes/campus_night.jpg',
-  },
-  music: {
-    day: '/assets/music/day.ogg',
-    tension: '/assets/music/tension.ogg',
-  },
-  sounds: {
-    gunshot: '/assets/sounds/gunshot.ogg',
-    heartbeat: '/assets/sounds/heartbeat.ogg',
-  },
-}
-```
+Exportado desde src/index.js:
 
-Uso:
-
-```js
-const vn = useVNova(script, {
-  characters,
-  assets,
-})
-```
+- createEngine
+- expandNestedLabels
+- createVNovaApp
+- useVNovaStore
+- createQuestEngine
+- QS
+- validateScript
+- useVNova
+- useVNovaAudio
+- useVNovaSaves
+- VNovaRuntime
+- VNovaStage
+- VNovaTitleScreen
+- VNovaHud
+- VNovaSettingsModal
+- VNovaSaveModal
+- VNovaBacklogModal
 
 ---
 
-## Composable `useVNova`
+## useVNova (modo integrador)
 
-Para control total desde tu propio componente, sin usar `VNovaStage`:
+Para UIs custom, useVNova expone estado y acciones del motor.
 
-```js
-import { useVNova } from 'vnova-engine'
+Retorno principal:
 
-const {
-  state,           // estado reactivo completo
-  stageArray,      // computed: personajes en escena como array
-  speakerName,     // computed: nombre del hablante actual
-  speakerColor,    // computed: color del hablante actual
-  displayedText,   // computed: texto con typewriter aplicado
-  textComplete,    // ref<boolean>: el typewriter terminó
-  backgroundStyle, // computed: objeto de estilo para el fondo
-  bgTransitioning, // ref<boolean>: durante la transición de fondo
-
-  interact,        // clic principal: salta typewriter → avanza
-  choose(option),  // resolver una elección
-  jump(labelId),   // salto programático
-  restart(),
-  save(),          // guarda en localStorage (requiere saveKey en options)
-  load(),          // restaura desde localStorage (si existe)
-  clearSave(),
-  getVar(key),
-  setVar(key, val),
-} = useVNova(script, {
-  characters,
-  assets,
-  typewriterSpeed:   30,    // ms por carácter
-  typewriterEnabled: true,
-  keyboardEnabled:   true,  // Space / Enter / ArrowRight = interact
-  saveKey:           'mi-vn',
-  autoAdvanceDelay:  0,     // ms; 0 = solo manual
-  onAudio: ({ type, track, volume, loop }) => { /* … */ },
-  onEnd:   () => { /* … */ },
-})
-```
+- state, store
+- stageArray, speakerName, speakerColor
+- displayedText, textComplete
+- bgLayers, bgLayerStyle, imageTransitioning, imageStyle
+- interact, choose, back, jump, restart, start, exitMenu
+- save, load, clearSave
+- getVar, setVar, getSetting, setSetting
+- listQuests, getQuest, evaluateQuests, setQuestStatus
+- skipTypewriter, resumeTypewriter
+- engine
 
 ---
 
-## Slots de `VNovaStage`
+## VNovaStage slots
 
-### `#overlay`
-Contenedor absoluto sobre toda la escena. Los clics no se propagan al stage.  
-Recibe props por defecto del core para evitar boilerplate en la app:
+Slots disponibles:
 
-- `canBack`
-- `hasSave`
-- `history`
-- `back()`
-- `save()`
-- `load()`
-
-```vue
-<VNovaStage ...>
-  <template #overlay="ui">
-    <VNovaHud
-      :can-back="ui.canBack"
-      :has-save="ui.hasSave"
-      @back="ui.back"
-      @save="ui.save"
-      @load="ui.load"
-    />
-  </template>
-</VNovaStage>
-```
-
-Si no necesitas comportamiento custom, no hace falta escribir `computed` ni handlers manuales para back/save/load.
-
-### `#sprite({ char, pos })`
-Reemplaza el sprite por defecto (emoji fallback). `char` tiene `{ id, position, expression, sprite }`.
-
-```vue
-<VNovaStage ...>
-  <template #sprite="{ char }">
-    <img :src="`/sprites/${char.id}_${char.expression}.webp`" />
-  </template>
-</VNovaStage>
-```
-
-### `#end`
-Reemplaza la pantalla de fin por defecto.
+- overlay: can-back, has-save, history, back, save, load, open-save, open-load, close-save, restart, exit-menu
+- sprite: char, pos
+- end
 
 ---
 
-## CSS Custom Properties
-
-Todos los valores visuales son sobreescribibles con CSS variables en el elemento padre de `VNovaStage`:
-
-| Variable                    | Default                    | Descripción              |
-|-----------------------------|----------------------------|--------------------------|
-| `--vnova-font-body`         | `'Georgia', serif`         | Fuente general           |
-| `--vnova-stage-bg`          | `#000`                     | Color de fondo del stage |
-| `--vnova-bg-duration`       | `400ms`                    | Duración de transiciones |
-| `--vnova-dialog-bg`         | `rgba(0,0,0,0.82)`         | Fondo del cuadro         |
-| `--vnova-dialog-border`     | `rgba(255,255,255,.12)`    | Borde superior del cuadro|
-| `--vnova-dialog-height`     | `30%`                      | Altura mínima del cuadro |
-| `--vnova-dialog-padding`    | `1.25rem 1.75rem 1.5rem`   | Padding del cuadro       |
-| `--vnova-text-size`         | `1rem`                     | Tamaño del texto         |
-| `--vnova-text-line-height`  | `1.75`                     | Interlineado             |
-| `--vnova-text-color`        | `#f0eaf8`                  | Color del texto          |
-| `--vnova-nameplate-color`   | `#fff`                     | Color del nameplate      |
-| `--vnova-nameplate-size`    | `0.8rem`                   | Tamaño del nameplate     |
-| `--vnova-sprite-bottom`     | `140px`                    | Offset vertical sprites  |
-| `--vnova-choice-bg`         | `rgba(255,255,255,.08)`    | Fondo botones de elección|
-| `--vnova-choice-bg-hover`   | `rgba(255,255,255,.18)`    | Fondo hover elección     |
-| `--vnova-choice-border`     | `rgba(255,255,255,.2)`     | Borde botones elección   |
-| `--vnova-choice-color`      | `#f0eaf8`                  | Texto botones elección   |
-| `--vnova-choice-radius`     | `6px`                      | Border radius elección   |
-| `--vnova-choices-bg`        | `rgba(0,0,0,.65)`          | Overlay de elecciones    |
-
----
-
-## Validador
+## Validacion de script
 
 ```js
 import { validateScript } from 'vnova-engine'
 
 const warnings = validateScript(script, characters)
-// lanza Error en errores críticos
-// devuelve string[] de advertencias
 ```
 
-Úsalo en tests unitarios o en CI:
-
-```js
-// vitest / jest
-import { describe, it, expect } from 'vitest'
-import { validateScript } from 'vnova-engine'
-import script from '../src/story/script.js'
-import { characters } from '../src/story/characters.js'
-
-describe('script', () => {
-  it('should pass validation', () => {
-    expect(() => validateScript(script, characters)).not.toThrow()
-  })
-})
-```
+- Lanza Error en errores estructurales criticos.
+- Devuelve arreglo de warnings para problemas no bloqueantes.
 
 ---
 
-## Estructura del proyecto
+## Comandos de este repo
 
+```bash
+yarn dev
+yarn build:lib
 ```
-vnova-engine/
-├── src/
-│   ├── core/
-│   │   ├── engine.js        ← máquina de estados (sin deps Vue)
-│   │   └── validator.js     ← validador de scripts
-│   ├── composables/
-│   │   └── useVNova.js      ← integración Vue 3 (typewriter, teclado, save)
-│   ├── components/
-│   │   └── VNovaStage.vue   ← componente drop-in
-│   └── index.js             ← exports públicos
-├── vite-plugin/
-│   └── index.js             ← plugin Vite (alias, validación en build)
-└── docs-example/
-    └── src/
-        ├── App.vue
-        ├── main.js
-        └── story/
-            ├── script.js
-            └── characters.js
-```
+
+- dev usa docs-example como root de Vite.
+- build:lib genera dist/vnova.es.js y dist/vnova.umd.js.

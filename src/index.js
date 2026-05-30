@@ -3,6 +3,7 @@
  */
 
 export { createEngine, expandNestedLabels } from './core/engine.js'
+export { PARTICLE_PRESETS }                from './core/particles.js'
 export { createVNovaApp }                  from './createVNovaApp.js'
 export { useVNovaStore }                    from './core/store.js'
 export { createQuestEngine, QUEST_STATUS as QS } from './core/quests.js'

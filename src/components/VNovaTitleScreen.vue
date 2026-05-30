@@ -11,7 +11,7 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
 </script>
 
 <template>
-  <transition name="fade">
+  <transition name="vnova-fade">
     <div v-if="props.visible" class="title-screen">
       <div class="title-card">
         <h1 class="game-logo">{{ props.title }}</h1>
@@ -127,13 +127,4 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
   color: #6b7280;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.5s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 </style>

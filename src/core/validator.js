@@ -9,7 +9,7 @@ import { expandNestedLabels } from './engine.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
-  'choice', 'jump', 'bgm', 'sfx', 'video', 'wait', 'call', 'image', 'notify', 'end',
+  'choice', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])

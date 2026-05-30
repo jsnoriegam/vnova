@@ -155,6 +155,13 @@ export interface VideoStep {
   stop?: boolean
 }
 
+export interface ParticlesStep {
+  type: 'particles'
+  id?: string | null
+  stop?: boolean
+  config?: Record<string, unknown>
+}
+
 export interface WaitStep {
   type: 'wait'
   ms: Milliseconds
@@ -181,7 +188,7 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | JumpStep
-  | BgmStep   | SfxStep   | VideoStep | WaitStep | NotifyStep
+  | BgmStep   | SfxStep   | VideoStep | ParticlesStep | WaitStep | NotifyStep
   | EndStep   | CallStep
 
 // ─── Character registry ───────────────────────────────────────────────────────
@@ -209,6 +216,11 @@ export interface AssetRegistry {
   images?: Record<string, Url>
   videos?: Record<string, Url>
 }
+
+export type ParticlePreset = Record<string, unknown>
+export type ParticleRegistry = Record<string, ParticlePreset>
+
+export declare const PARTICLE_PRESETS: ParticleRegistry
 
 // ─── Engine state ─────────────────────────────────────────────────────────────
 
@@ -337,6 +349,12 @@ export interface VideoEvent {
   muted: boolean
 }
 
+export interface ParticlesEvent {
+  action: 'play' | 'stop'
+  id: string | null
+  config: ParticlePreset | null
+}
+
 export interface NotifyEvent {
   status?: 'success' | 'error' | 'warning' | 'info'
   title?: string
@@ -348,10 +366,12 @@ export interface NotifyEvent {
 export interface CreateEngineOptions {
   characters?:       CharacterRegistry
   assets?:           AssetRegistry
+  particles?:        ParticleRegistry
   quests?:           QuestDefinition[]
   /** When true, engine is created without applying the first script step until start()/restart(). */
   deferStart?:       boolean
   onAudio?:          (event: AudioEvent) => void
+  onParticles?:      (event: ParticlesEvent) => void
   onVideo?:          (event: VideoEvent) => void
   onNotify?:         (event: NotifyEvent) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
@@ -562,12 +582,33 @@ export interface VNovaRuntimeContext {
   registerStageApi(api: Partial<VNovaStageExposed> | null): void
 }
 
+export interface VNovaRuntimeConfig {
+  title?: string
+  subtitle?: string
+  meta?: string
+  saveKey?: string
+  slotCount?: number
+  startLabel?: string
+  stage?: UseVNovaOptions
+  /**
+   * Replaces built-in audio playback when provided.
+   * If omitted, VNovaRuntime plays audio using its internal player.
+   */
+  onAudio?: (event: AudioEvent) => void
+  onParticles?: (event: ParticlesEvent) => void
+  onVideo?: (event: VideoEvent) => void
+  onNotify?: (event: NotifyEvent) => void
+  /** Set false to disable built-in audio when no onAudio override is provided. */
+  audioPlayer?: false
+  [key: string]: unknown
+}
+
 export interface VNovaRuntimeResolverInput {
   componentName: string
   vnode: unknown
   runtime: VNovaRuntimeContext
   stage: VNovaStageExposed | null
-  config: Record<string, unknown>
+  config: VNovaRuntimeConfig
 }
 
 export interface VNovaRuntimeResolverResult {
@@ -579,7 +620,8 @@ export interface VNovaRuntimeProps {
   script: ScriptStep[]
   characters?: CharacterRegistry
   assets?: AssetRegistry
-  config?: Record<string, unknown>
+  particles?: ParticleRegistry
+  config?: VNovaRuntimeConfig
   componentResolvers?: Record<string, (input: VNovaRuntimeResolverInput) => VNovaRuntimeResolverResult | null | undefined>
 }
 

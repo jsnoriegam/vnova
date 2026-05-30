@@ -8,13 +8,14 @@ import VNovaTitleScreen from '../../src/components/VNovaTitleScreen.vue'
 import VNovaStage from '../../src/components/VNovaStage.vue'
 
 import assets from './story/assets.js'
+import particles from './story/particles.js'
 import script from './story/script.js'
 import characters from './story/characters.js'
 import config from './story/config.js'
 </script>
 
 <template>
-  <VNovaRuntime :script="script" :characters="characters" :assets="assets" :config="config">
+  <VNovaRuntime :script="script" :characters="characters" :assets="assets" :particles="particles" :config="config">
     <!-- The order of these components is important, as they are rendered in the order they are declared. -->
     <VNovaTitleScreen />
     <VNovaStage />
