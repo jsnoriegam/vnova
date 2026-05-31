@@ -21,6 +21,45 @@
  *   </VNovaTopHud>
  */
 
+/**
+ * Resuelve clases CSS personalizadas del autor.
+ *
+ * Soporta:
+ * - String con múltiples clases separadas por espacios o comas
+ * - Array de strings
+ * - Objeto con clases como keys (ya implementado)
+ *
+ * Valida que los datos sean correctos antes de aplicar.
+ */
+function resolveCustomClasses() {
+  let classes = {}
+  if(props.customClass) {
+    if(typeof props.customClass === 'object' && !Array.isArray(props.customClass)) {
+      // Objeto con clases como keys (ej: { 'my-class': true })
+      return props.customClass
+    } else if(typeof props.customClass === 'string') {
+      // String con clases separadas por espacios o comas
+      const trimmed = props.customClass.trim()
+      if(trimmed) {
+        const classList = trimmed.split(/[,\s]+/).filter(c => c.trim())
+        classList.forEach(cls => {
+          if(cls && typeof cls === 'string') {
+            classes[cls.trim()] = true
+          }
+        })
+      }
+    } else if(Array.isArray(props.customClass)) {
+      // Array de strings
+      props.customClass.forEach(cls => {
+        if(cls && typeof cls === 'string') {
+          classes[cls.trim()] = true
+        }
+      })
+    }
+  }
+  return classes
+}
+
 const props = defineProps({
   /** Opacidad del HUD (0 = invisible, 1 = sólido). */
   opacity: {
@@ -36,13 +75,18 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  /** Clases CSS personalizadas para el contenedor del HUD. */
+  customClass: {
+    type: [String, Object, null],
+    default: null,
+  },
 })
 </script>
 
 <template>
   <div
     class="vnova-top-hud"
-    :class="{ 'vnova-top-hud--floating': props.floating }"
+    :class="{ 'vnova-top-hud--floating': props.floating, ...(resolveCustomClasses() || {}) }"
     :style="{ opacity: props.opacity }"
     role="banner"
   >
