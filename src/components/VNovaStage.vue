@@ -29,7 +29,7 @@
  *   getVar, setVar, state
  */
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useVNova } from '../composables/useVNova.js'
 import { useVNovaSaves } from '../composables/useVNovaSaves.js'
 
@@ -56,7 +56,7 @@ const vn = useVNova(props.script, {
 const {
   state, stageArray, speakerName, speakerColor,
   displayedText, textComplete, bgLayers, bgLayerStyle, imageTransitioning,
-  imageStyle, interact, choose, back, jump,
+  imageStyle, interact, choose, submitInput, submitSelect, closeModal, back, jump,
   restart, exitMenu, save, load, clearSave,
   resumeTypewriter,
   listQuests, getQuest, evaluateQuests, setQuestStatus,
@@ -74,6 +74,51 @@ const saveSlots = useVNovaSaves({
 const hasSave = saveSlots.hasSave
 const saveOpen = ref(false)
 const saveMode = ref('save')
+const inputDraft = ref('')
+
+const normalizedSelectOptions = computed(() => {
+  const step = state.current
+  if (step?.type !== 'select' || !Array.isArray(step.options)) return []
+
+  return step.options.map((option, index) => {
+    if (option && typeof option === 'object') {
+      const label = typeof option.label === 'string' && option.label.length > 0
+        ? option.label
+        : String(option.value ?? `Option ${index + 1}`)
+      return { ...option, label }
+    }
+
+    return {
+      label: String(option),
+      value: option,
+    }
+  })
+})
+
+function getValueAtPath(source, path) {
+  if (!source || typeof source !== 'object' || typeof path !== 'string') return undefined
+  const parts = path.split('.').map((part) => part.trim()).filter(Boolean)
+  if (parts.length === 0) return undefined
+
+  let cursor = source
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== 'object' || !(part in cursor)) return undefined
+    cursor = cursor[part]
+  }
+
+  return cursor
+}
+
+watch(
+  () => state.current,
+  (step) => {
+    if (step?.type !== 'input') return
+    const currentStored = typeof step.store === 'string' ? getValueAtPath(state.vars, step.store) : undefined
+    const initialValue = currentStored ?? step.default ?? ''
+    inputDraft.value = typeof initialValue === 'string' ? initialValue : String(initialValue ?? '')
+  },
+  { immediate: true }
+)
 
 const dialogueTextSize = computed(() => {
   const size = state.settings?.textSize ?? 'medium'
@@ -113,6 +158,15 @@ function handleChoose(option) {
   choose(option)
 }
 
+function handleSubmitInput() {
+  submitInput(inputDraft.value)
+}
+
+function handleSelectOption(option) {
+  emit('choice', option)
+  submitSelect(option)
+}
+
 function handleInteract() {
   emit('advance')
   interact()
@@ -130,6 +184,9 @@ function handleExitMenu() {
 defineExpose({
   interact,
   choose,
+  submitInput,
+  submitSelect,
+  closeModal,
   back: handleBack,
   jump,
   restart,
@@ -211,7 +268,7 @@ defineExpose({
       </transition-group>
     </div>
 
-    <template v-if="!state.awaitingChoice && !state.ended">
+    <template v-if="!state.awaitingChoice && !state.ended && state.current?.type !== 'modal'">
       <div
         class="vnova-dialog"
         role="log"
@@ -237,7 +294,7 @@ defineExpose({
     </template>
 
     <div
-      v-if="state.awaitingChoice && state.current"
+      v-if="state.awaitingChoice && state.current && state.current.type === 'choice'"
       class="vnova-choices"
       role="group"
       aria-label="Choose an option"
@@ -250,6 +307,51 @@ defineExpose({
         :key="option.label"
         class="vnova-choice-btn"
         @click.stop="handleChoose(option)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+
+    <div
+      v-if="state.awaitingChoice && state.current?.type === 'input'"
+      class="vnova-choices"
+      role="group"
+      aria-label="Input prompt"
+      @click.stop
+    >
+      <p v-if="state.current.prompt" class="vnova-choices__prompt">
+        {{ state.current.prompt }}
+      </p>
+      <form class="vnova-input-form" @submit.prevent.stop="handleSubmitInput">
+        <input
+          v-model="inputDraft"
+          class="vnova-input-field"
+          :type="state.current.inputType || 'text'"
+          :placeholder="state.current.placeholder || ''"
+          :maxlength="state.current.maxLength || null"
+          :required="state.current.required !== false"
+          @click.stop
+        >
+        <button type="submit" class="vnova-choice-btn vnova-input-submit">
+          {{ state.current.submitLabel || 'Continue' }}
+        </button>
+      </form>
+    </div>
+
+    <div
+      v-if="state.awaitingChoice && state.current?.type === 'select'"
+      class="vnova-choices"
+      role="group"
+      aria-label="Select an option"
+    >
+      <p v-if="state.current.prompt" class="vnova-choices__prompt">
+        {{ state.current.prompt }}
+      </p>
+      <button
+        v-for="option in normalizedSelectOptions"
+        :key="option.label"
+        class="vnova-choice-btn"
+        @click.stop="handleSelectOption(option)"
       >
         {{ option.label }}
       </button>
@@ -464,6 +566,33 @@ defineExpose({
 }
 
 .vnova-choice-btn:active { transform: translateY(0); }
+
+.vnova-input-form {
+  width: 100%;
+  max-width: 560px;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.vnova-input-field {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #f5f0ff;
+  background: rgba(11, 7, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 6px;
+}
+
+.vnova-input-field:focus-visible {
+  outline: 2px solid rgba(182, 146, 255, 0.72);
+  outline-offset: 1px;
+}
+
+.vnova-input-submit {
+  max-width: none;
+}
 
 .vnova-end {
   position: absolute;

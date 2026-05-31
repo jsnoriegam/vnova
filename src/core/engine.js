@@ -19,11 +19,14 @@ import { PARTICLE_PRESETS } from './particles.js'
  *   think      — inner monologue line, rendered like dialogue but stylable
  *   narrate    — unattributed narration (no nameplate)
  *   choice     — branch: presents options, each with a label + jump target
+ *   input      — capture a text value and store it in vars (supports dotted paths)
+ *   select     — choose one option and store its value in vars (supports dotted paths)
  *   jump       — unconditional jump to a label
  *   bgm        — play background music, or stop with `{ stop: true }` (stub)
  *   sfx        — play a sound effect (stub)
  *   video      — play / stop a video track (host app controlled)
  *   notify     — push a UI notification event (host app controlled)
+ *   modal      — render a custom modal component by id (optional options behave like choice)
  *   wait       — pause for N milliseconds before auto-advancing
  *   end        — stop the current session and return control to the initial menu
  *   call       — invoke a user-defined function (side effects, flags, etc.)
@@ -101,6 +104,17 @@ function buildIndex(script) {
   })
   return map
 }
+
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function splitPath(path) {
+  if (typeof path !== 'string') return []
+  return path.split('.').map((part) => part.trim()).filter(Boolean)
+}
+
+const INTERPOLATION_PATTERN = /\{\{\s*([\w$.]+)\s*\}\}/g
 
 export function expandNestedLabels(script) {
   const expanded = []
@@ -204,6 +218,74 @@ export function createEngine(script, options = {}) {
     const after = snapshotTrackedState(store)
     const diff  = buildStateDiff(before, after)
     if (diff.length > 0) store.pushBackDiff(diff)
+  }
+
+  function _readVarByPath(path) {
+    const parts = splitPath(path)
+    if (parts.length === 0) return undefined
+
+    let cursor = store.vars
+    for (const part of parts) {
+      if (!isPlainObject(cursor) || !(part in cursor)) return undefined
+      cursor = cursor[part]
+    }
+    return cursor
+  }
+
+  function _setVarByPath(path, value) {
+    const parts = splitPath(path)
+    if (parts.length === 0) return
+
+    if (parts.length === 1) {
+      store.setVar({ key: parts[0], value })
+      return
+    }
+
+    const root = isPlainObject(store.vars) ? cloneDeep(store.vars) : {}
+    let cursor = root
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]
+      if (!isPlainObject(cursor[part])) cursor[part] = {}
+      cursor = cursor[part]
+    }
+    cursor[parts[parts.length - 1]] = value
+    store.setVars(root)
+  }
+
+  function _applyVarSet(map) {
+    if (!isPlainObject(map)) return
+    for (const [key, value] of Object.entries(map)) _setVarByPath(key, value)
+  }
+
+  function _applyVarInc(map) {
+    if (!isPlainObject(map)) return
+    for (const [key, deltaRaw] of Object.entries(map)) {
+      const delta = Number(deltaRaw)
+      if (!Number.isFinite(delta)) continue
+      const currentValue = _readVarByPath(key)
+      const base = Number.isFinite(Number(currentValue ?? 0)) ? Number(currentValue ?? 0) : 0
+      _setVarByPath(key, base + delta)
+    }
+  }
+
+  function _interpolateString(text) {
+    if (typeof text !== 'string') return text
+    return text.replace(INTERPOLATION_PATTERN, (_full, path) => {
+      const value = _readVarByPath(path)
+      if (value === null || value === undefined) return ''
+      return String(value)
+    })
+  }
+
+  function _interpolateDeep(value) {
+    if (typeof value === 'string') return _interpolateString(value)
+    if (Array.isArray(value)) return value.map((item) => _interpolateDeep(item))
+    if (isPlainObject(value)) {
+      const next = {}
+      for (const [key, entry] of Object.entries(value)) next[key] = _interpolateDeep(entry)
+      return next
+    }
+    return value
   }
 
   function _effectiveVolume(type, baseVolume = 1) {
@@ -329,10 +411,11 @@ export function createEngine(script, options = {}) {
     }
 
     if (step.type === 'notify') {
+      const resolvedNotify = _interpolateDeep(step)
       onNotify({
-        status: step.status ?? 'info',
-        title: step.title ?? '',
-        text: step.text ?? '',
+        status: resolvedNotify.status ?? 'info',
+        title: resolvedNotify.title ?? '',
+        text: resolvedNotify.text ?? '',
       })
       _moveTo(store.cursor + 1)
       return
@@ -398,16 +481,44 @@ export function createEngine(script, options = {}) {
       return
     }
 
-    if (step.type === 'choice') {
-      store.setCurrent(step)
+    if (step.type === 'input') {
+      const resolvedInput = _interpolateDeep(step)
+      store.setCurrent(resolvedInput)
       store.setAwaitingChoice(true)
-      store.pushHistory(step)
+      store.pushHistory(resolvedInput)
+      return
+    }
+
+    if (step.type === 'select') {
+      const resolvedSelect = _interpolateDeep(step)
+      store.setCurrent(resolvedSelect)
+      store.setAwaitingChoice(true)
+      store.pushHistory(resolvedSelect)
+      return
+    }
+
+    if (step.type === 'modal') {
+      const resolvedModal = _interpolateDeep(step)
+      store.setCurrent(resolvedModal)
+      store.pushHistory(resolvedModal)
+
+      const hasOptions = Array.isArray(resolvedModal.options) && resolvedModal.options.length > 0
+      store.setAwaitingChoice(hasOptions)
+      return
+    }
+
+    if (step.type === 'choice') {
+      const resolvedChoice = _interpolateDeep(step)
+      store.setCurrent(resolvedChoice)
+      store.setAwaitingChoice(true)
+      store.pushHistory(resolvedChoice)
       return
     }
 
     if (step.type === 'say' || step.type === 'think' || step.type === 'narrate') {
-      store.setCurrent(step)
-      store.pushHistory(step)
+      const resolvedLine = _interpolateDeep(step)
+      store.setCurrent(resolvedLine)
+      store.pushHistory(resolvedLine)
       if (autoAdvanceDelay > 0) _scheduleAuto(autoAdvanceDelay)
       return
     }
@@ -442,22 +553,78 @@ export function createEngine(script, options = {}) {
       store.setAwaitingChoice(false)
       store.pushHistory({ type: '_choice_made', label: option.label })
 
-      if (option.set) {
-        for (const [key, value] of Object.entries(option.set))
-          store.setVar({ key, value })
-      }
-
-      if (option.inc) {
-        for (const [key, deltaRaw] of Object.entries(option.inc)) {
-          const delta = Number(deltaRaw)
-          if (!Number.isFinite(delta)) continue
-          const base = Number.isFinite(Number(store.vars?.[key] ?? 0))
-            ? Number(store.vars[key] ?? 0) : 0
-          store.setVar({ key, value: base + delta })
-        }
-      }
+      _applyVarSet(option.set)
+      _applyVarInc(option.inc)
 
       if (option.jump) { _jumpTo(option.jump); return }
+      _moveTo(store.cursor + 1)
+    })
+  }
+
+  function submitInput(value) {
+    const step = store.current
+    if (!store.awaitingChoice || step?.type !== 'input') return false
+
+    const raw = value ?? step.default ?? ''
+    const normalizedValue = typeof raw === 'string' ? raw : String(raw ?? '')
+    const isRequired = step.required !== false
+    if (isRequired && normalizedValue.trim() === '') return false
+
+    _runTrackedMove(() => {
+      store.setAwaitingChoice(false)
+      if (typeof step.store === 'string' && step.store.length > 0) {
+        _setVarByPath(step.store, normalizedValue)
+      }
+
+      _applyVarSet(step.set)
+      _applyVarInc(step.inc)
+
+      if (step.jump) { _jumpTo(step.jump); return }
+      _moveTo(store.cursor + 1)
+    })
+
+    return true
+  }
+
+  function submitSelect(option) {
+    const step = store.current
+    if (!store.awaitingChoice || step?.type !== 'select') return false
+
+    const options = Array.isArray(step.options) ? step.options : []
+    const selected = isPlainObject(option)
+      ? option
+      : options.find((candidate) => {
+        if (!isPlainObject(candidate)) return candidate === option
+        return candidate.value === option || candidate.label === option
+      })
+
+    if (!selected) return false
+
+    const selectedValue = selected.value ?? selected.label ?? option
+
+    _runTrackedMove(() => {
+      store.setAwaitingChoice(false)
+      if (typeof step.store === 'string' && step.store.length > 0) {
+        _setVarByPath(step.store, selectedValue)
+      }
+
+      _applyVarSet(step.set)
+      _applyVarInc(step.inc)
+      _applyVarSet(selected.set)
+      _applyVarInc(selected.inc)
+
+      if (selected.jump) { _jumpTo(selected.jump); return }
+      if (step.jump) { _jumpTo(step.jump); return }
+      _moveTo(store.cursor + 1)
+    })
+
+    return true
+  }
+
+  function closeModal() {
+    if (store.current?.type !== 'modal') return
+    _runTrackedMove(() => {
+      store.setAwaitingChoice(false)
       _moveTo(store.cursor + 1)
     })
   }
@@ -531,6 +698,9 @@ export function createEngine(script, options = {}) {
     setQuestStatus:questEngine.setStatus,
     advance,
     choose,
+    submitInput,
+    submitSelect,
+    closeModal,
     back,
     jump,
     restart,

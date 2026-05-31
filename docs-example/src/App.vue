@@ -4,6 +4,7 @@ import VNovaBacklogModal from '../../src/components/VNovaBacklogModal.vue'
 import VNovaSaveModal from '../../src/components/VNovaSaveModal.vue'
 import VNovaTitleScreen from '../../src/components/VNovaTitleScreen.vue'
 import VNovaStage from '../../src/components/VNovaStage.vue'
+import MapChoiceModal from './components/MapChoiceModal.vue'
 
 import { VNovaRuntime, VNovaHud, VNovaTopHud } from '../../src/index.js'
 
@@ -25,6 +26,7 @@ import config from './story/config.js'
       <template #center>Showcase</template>
       <template #right><button class="vnova-hud-btn--material">Quests</button></template>
     </VNovaTopHud>
+    <MapChoiceModal />
     <VNovaBacklogModal />
     <VNovaSettingsModal />
     <VNovaSaveModal />

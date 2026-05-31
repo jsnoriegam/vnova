@@ -9,7 +9,7 @@ import { expandNestedLabels } from './engine.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
-  'choice', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end',
+  'choice', 'modal', 'input', 'select', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
@@ -129,6 +129,63 @@ export function validateScript(script, characters = {}) {
             errors.push(`${at} option[${oi}].inc must be an object`)
         })
       }
+    }
+
+    if (step.type === 'modal') {
+      if (!step.id || typeof step.id !== 'string')
+        errors.push(`${at} modal step requires a string id field`)
+
+      if (step.options !== undefined) {
+        if (!Array.isArray(step.options) || step.options.length < 1) {
+          errors.push(`${at} modal step options must contain at least 1 option when provided`)
+        } else {
+          step.options.forEach((opt, oi) => {
+            if (!opt.label)
+              errors.push(`${at} option[${oi}] missing required field: label`)
+            if (opt.jump && !labels.has(opt.jump))
+              errors.push(`${at} option[${oi}].jump target "${opt.jump}" has no matching label`)
+            if (opt.inc && typeof opt.inc !== 'object')
+              errors.push(`${at} option[${oi}].inc must be an object`)
+          })
+        }
+      }
+    }
+
+    if (step.type === 'input') {
+      if (!step.store || typeof step.store !== 'string')
+        errors.push(`${at} input step requires a string store field`)
+      if (step.required !== undefined && typeof step.required !== 'boolean')
+        errors.push(`${at} input step required must be boolean when provided`)
+      if (step.maxLength !== undefined && (!Number.isFinite(Number(step.maxLength)) || Number(step.maxLength) < 1))
+        errors.push(`${at} input step maxLength must be a positive number when provided`)
+      if (step.jump && !labels.has(step.jump))
+        errors.push(`${at} input step jump target "${step.jump}" has no matching label`)
+    }
+
+    if (step.type === 'select') {
+      if (!step.store || typeof step.store !== 'string')
+        errors.push(`${at} select step requires a string store field`)
+
+      if (!Array.isArray(step.options) || step.options.length < 1) {
+        errors.push(`${at} select step requires at least 1 option`)
+      } else {
+        step.options.forEach((opt, oi) => {
+          if (typeof opt === 'object' && opt !== null) {
+            if (opt.label !== undefined && typeof opt.label !== 'string') {
+              errors.push(`${at} option[${oi}].label must be a string when provided`)
+            }
+            if (opt.jump && !labels.has(opt.jump)) {
+              errors.push(`${at} option[${oi}].jump target "${opt.jump}" has no matching label`)
+            }
+            if (opt.inc && typeof opt.inc !== 'object') {
+              errors.push(`${at} option[${oi}].inc must be an object`)
+            }
+          }
+        })
+      }
+
+      if (step.jump && !labels.has(step.jump))
+        errors.push(`${at} select step jump target "${step.jump}" has no matching label`)
     }
 
     if (step.type === 'wait') {

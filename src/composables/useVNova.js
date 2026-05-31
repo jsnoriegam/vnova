@@ -35,7 +35,7 @@ export function useVNova(script, options = {}) {
     store,
     stageArray, speakerName, speakerColor,
     quests, listQuests, getQuest, evaluateQuests, setQuestStatus,
-    advance, choose, back, jump, restart, start, exitMenu,
+    advance, choose, submitInput, submitSelect, closeModal, back, jump, restart, start, exitMenu,
     getVar, setVar, getSetting, setSetting,
   } = engine
 
@@ -409,6 +409,9 @@ export function useVNova(script, options = {}) {
     imageStyle,
     interact,
     choose,
+    submitInput,
+    submitSelect,
+    closeModal,
     back: backWithGuards,
     jump,
     restart: restartWithGuards,

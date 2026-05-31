@@ -111,12 +111,48 @@ export interface ChoiceOption {
   jump?: string
   set?: Record<string, unknown>
   inc?: Record<string, number>
+  [key: string]: unknown
 }
 
 export interface ChoiceStep {
   type: 'choice'
   prompt?: string
   options: [ChoiceOption, ChoiceOption, ...ChoiceOption[]]
+}
+
+export interface ModalStep {
+  type: 'modal'
+  id: string
+  title?: string
+  prompt?: string
+  options?: [ChoiceOption, ...ChoiceOption[]]
+}
+
+export interface InputStep {
+  type: 'input'
+  store: string
+  prompt?: string
+  placeholder?: string
+  default?: string
+  required?: boolean
+  maxLength?: number
+  inputType?: string
+  submitLabel?: string
+  set?: Record<string, unknown>
+  inc?: Record<string, number>
+  jump?: string
+}
+
+export type SelectOption = string | (ChoiceOption & { value?: unknown })
+
+export interface SelectStep {
+  type: 'select'
+  store: string
+  prompt?: string
+  options: [SelectOption, ...SelectOption[]]
+  set?: Record<string, unknown>
+  inc?: Record<string, number>
+  jump?: string
 }
 
 export interface JumpStep {
@@ -187,7 +223,7 @@ export type ScriptStep =
   | LabelStep | SceneStep | ImageStep
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
-  | ChoiceStep | JumpStep
+  | ChoiceStep | ModalStep | InputStep | SelectStep | JumpStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | WaitStep | NotifyStep
   | EndStep   | CallStep
 
@@ -397,6 +433,9 @@ export interface EngineHandle {
   setQuestStatus: (id: string, status: QuestStatusValue) => boolean
   advance():      void
   choose(option: ChoiceOption): void
+  submitInput(value: string): boolean
+  submitSelect(option: SelectOption): boolean
+  closeModal():   void
   back():         boolean
   jump(target: string): void
   start():        void
@@ -453,6 +492,9 @@ export interface VNovaComposable {
   imageStyle:         ComputedRef<CSSProperties>
   interact():         void
   choose(option: ChoiceOption): void
+  submitInput(value: string): boolean
+  submitSelect(option: SelectOption): boolean
+  closeModal():      void
   back():             boolean
   jump(target: string): void
   start():            void
@@ -570,6 +612,11 @@ export interface VNovaRuntimeContext {
     newGame(): void
     loadGame(): void
     back(): void
+    choose(option: ChoiceOption): void
+    submitInput(value: string): boolean
+    submitSelect(option: SelectOption): boolean
+    advance(): void
+    closeModal(): void
     restart(): void
     exitMenu(): void
     openSave(): void
@@ -629,6 +676,9 @@ export interface VNovaRuntimeProps {
 export interface VNovaStageExposed {
   interact():   void
   choose(option: ChoiceOption): void
+  submitInput(value: string): boolean
+  submitSelect(option: SelectOption): boolean
+  closeModal(): void
   back():       boolean
   jump(target: string): void
   restart():    void

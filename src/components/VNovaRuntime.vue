@@ -16,6 +16,7 @@ import {
 } from 'vue'
 
 import VNovaBacklogModal from './VNovaBacklogModal.vue'
+import VNovaBaseModal from './VNovaBaseModal.vue'
 import VNovaHud from './VNovaHud.vue'
 import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
@@ -34,6 +35,7 @@ const BUILTIN_NAMES = {
   settings: ['VNovaSettingsModal'],
   save: ['VNovaSaveModal'],
   backlog: ['VNovaBacklogModal'],
+  modal: ['VNovaBaseModal'],
 }
 
 function componentNameOf(vnode) {
@@ -48,6 +50,33 @@ function matchesComponent(vnode, componentRef, names = []) {
   if (vnode.type === componentRef) return true
   const name = componentNameOf(vnode)
   return Boolean(name && names.includes(name))
+}
+
+// ── Declarative modal support ─────────────────────────────────────────────────
+// Handles { type: 'modal', id: 'some-component' } syntax
+function isDeclarativeModal(vnode) {
+  if (!isVNode(vnode) || vnode.type === Comment) return false
+  if (vnode.type === Fragment && Array.isArray(vnode.children)) {
+    return vnode.children.some((child) => isDeclarativeModal(child))
+  }
+  return vnode.type === 'modal' && typeof vnode.props?.id === 'string'
+}
+
+function resolveDeclarativeModal(vnode) {
+  const modalProps = vnode.props || {}
+  const modalId = modalProps.id || 'vnova-modal'
+  const isOpen = modalProps.open !== undefined ? Boolean(modalProps.open) : true
+
+  return h(VNovaBaseModal, {
+    ...modalProps,
+    id: modalId,
+    title: modalProps.title || 'Modal',
+    open: isOpen,
+    onClose: (...args) => {
+      console.log(`[vnova] Declarative modal closed: ${modalId}`)
+      if (typeof modalProps.onClose === 'function') modalProps.onClose(...args)
+    },
+  }, vnode.children || null)
 }
 
 function toArray(handler) {
@@ -148,6 +177,7 @@ export default defineComponent({
     const hasBacklogRenderer = ref(false)
     const hasSettingsRenderer = ref(false)
     const hasSaveRenderer = ref(false)
+    const hasDeclarativeModal = ref(false)
     const pendingStageActions = []
 
     const activeStage = computed(() => customStageApi.value || builtInStageRef.value)
@@ -236,6 +266,26 @@ export default defineComponent({
 
     function handleBack() {
       callStage('back')
+    }
+
+    function handleChoose(option) {
+      callStage('choose', option)
+    }
+
+    function handleAdvance() {
+      callStage('interact')
+    }
+
+    function handleCloseModal() {
+      callStage('closeModal')
+    }
+
+    function handleSubmitInput(value) {
+      return callStage('submitInput', value)
+    }
+
+    function handleSubmitSelect(option) {
+      return callStage('submitSelect', option)
     }
 
     function handleOpenSave() {
@@ -397,6 +447,7 @@ export default defineComponent({
       hasSave,
       history,
       audioLog,
+      hasDeclarativeModal,
       ui: {
         titleOpen,
         settingsOpen,
@@ -408,6 +459,11 @@ export default defineComponent({
         newGame: handleNewGame,
         loadGame: handleLoadGame,
         back: handleBack,
+        choose: handleChoose,
+        submitInput: handleSubmitInput,
+        submitSelect: handleSubmitSelect,
+        advance: handleAdvance,
+        closeModal: handleCloseModal,
         restart: handleRestart,
         exitMenu: handleExitMenu,
         openSave: handleOpenSave,
@@ -586,6 +642,11 @@ export default defineComponent({
     function resolveVNode(vnode) {
       if (!isVNode(vnode) || vnode.type === Comment) return vnode
 
+      // ── Declarative modal support ────────────────────────────────────────────
+      if (isDeclarativeModal(vnode)) {
+        return resolveDeclarativeModal(vnode)
+      }
+
       if (vnode.type === Fragment && Array.isArray(vnode.children)) {
         const children = vnode.children.map(resolveVNode)
         return h(Fragment, vnode.props || null, children)
@@ -609,11 +670,17 @@ export default defineComponent({
       return false
     }
 
+    // ── Declarative modal detection ────────────────────────────────────────────
+    function containsDeclarativeModal(nodes) {
+      return nodes.some((node) => isDeclarativeModal(node))
+    }
+
     return () => {
       const nodes = slots.default ? slots.default() : []
       hasBacklogRenderer.value = nodes.some((node) => containsComponent(node, VNovaBacklogModal, BUILTIN_NAMES.backlog))
       hasSettingsRenderer.value = nodes.some((node) => containsComponent(node, VNovaSettingsModal, BUILTIN_NAMES.settings))
       hasSaveRenderer.value = nodes.some((node) => containsComponent(node, VNovaSaveModal, BUILTIN_NAMES.save))
+      hasDeclarativeModal.value = containsDeclarativeModal(nodes)
       return h(
         'div',
         { class: 'vnova-runtime' },
