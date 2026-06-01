@@ -145,6 +145,38 @@ function createQuestContext(store) {
   })
 }
 
+function evaluateChoiceCondition(option, store) {
+  if (typeof option?.condition !== 'function') {
+    if (typeof option?.condition === 'boolean') return option.condition
+    return true
+  }
+  try {
+    return Boolean(option.condition(createQuestContext(store)))
+  } catch (error) {
+    console.warn('[vnova] choice option condition failed:', error)
+    return false
+  }
+}
+
+function evaluateChoiceDisabled(option, store) {
+  if (typeof option?.disabled !== 'function') {
+    if (typeof option?.disabled === 'boolean') return option.disabled
+    return false
+  }
+  try {
+    return Boolean(option.disabled(createQuestContext(store)))
+  } catch (error) {
+    console.warn('[vnova] choice option disabled failed:', error)
+    return false
+  }
+}
+
+function stripChoiceRuntimeFields(option) {
+  if (!isPlainObject(option)) return option
+  const { condition, disabled, ...serializableOption } = option
+  return serializableOption
+}
+
 // ─── engine factory ───────────────────────────────────────────────────────────
 
 export function createEngine(script, options = {}) {
@@ -510,7 +542,22 @@ export function createEngine(script, options = {}) {
     }
 
     if (step.type === 'choice') {
-      const resolvedChoice = _interpolateDeep(step)
+      const visibleOptions = (step.options ?? [])
+        .filter((option) => evaluateChoiceCondition(option, store))
+        .map((option) => {
+          const serializableOption = stripChoiceRuntimeFields(option)
+          if (!isPlainObject(serializableOption)) return serializableOption
+          return {
+            ...serializableOption,
+            disabled: evaluateChoiceDisabled(option, store),
+          }
+        })
+      if (visibleOptions.length === 0) {
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      const resolvedChoice = _interpolateDeep({ ...step, options: visibleOptions })
       store.setCurrent(resolvedChoice)
       store.setAwaitingChoice(true)
       store.pushHistory(resolvedChoice)
@@ -551,6 +598,7 @@ export function createEngine(script, options = {}) {
 
   function choose(option) {
     if (!store.awaitingChoice) return
+    if (option?.disabled === true) return
     _runTrackedMove(() => {
       store.setAwaitingChoice(false)
       store.pushHistory({ type: '_choice_made', label: option.label })

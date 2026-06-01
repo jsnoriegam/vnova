@@ -1,13 +1,7 @@
 <script setup>
-import VNovaSettingsModal from '../../src/components/VNovaSettingsModal.vue'
-import VNovaBacklogModal from '../../src/components/VNovaBacklogModal.vue'
-import VNovaSaveModal from '../../src/components/VNovaSaveModal.vue'
-import VNovaTitleScreen from '../../src/components/VNovaTitleScreen.vue'
-import VNovaCreditsScreen from '../../src/components/VNovaCreditsScreen.vue'
-import VNovaStage from '../../src/components/VNovaStage.vue'
-import MapChoiceModal from './components/MapChoiceModal.vue'
+import { VNovaRuntime, VNovaStage, VNovaTitleScreen, VNovaSaveModal, VNovaSettingsModal, VNovaBacklogModal, VNovaCreditsScreen, VNovaHud, VNovaTopHud } from '../../src/index.js'
 
-import { VNovaRuntime, VNovaHud, VNovaTopHud } from '../../src/index.js'
+import MapChoiceModal from './components/MapChoiceModal.vue'
 
 import assets from './story/assets.js'
 import particles from './story/particles.js'

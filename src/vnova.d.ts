@@ -5,6 +5,7 @@
  *   createEngine · useVNova · useVNovaAudio · useVNovaStore
  *   createQuestEngine · validateScript · expandNestedLabels
  *   VNovaStage · VNovaHud · VNovaTitleScreen
+ *   VNovaTopHud
  *   VNovaSettingsModal · VNovaBacklogModal
  *   QS (QUEST_STATUS)
  */
@@ -45,6 +46,8 @@ export interface LabelStep {
 
 export interface SceneStep {
   type: 'scene'
+  /** Legacy alias for `id`. */
+  scene?: string
   id?: string
   src?: Url
   color?: CssColor
@@ -112,6 +115,9 @@ export interface ChoiceOption {
   jump?: string
   set?: Record<string, unknown>
   inc?: Record<string, number>
+  condition?: boolean | ((store: QuestContext) => boolean)
+  disabled?: boolean | ((store: QuestContext) => boolean)
+  disabledText?: string
   [key: string]: unknown
 }
 
@@ -164,6 +170,7 @@ export interface JumpStep {
 
 export interface BgmStep {
   type: 'bgm'
+  stop?: boolean
   /** Asset registry key. */
   id?: string | null
   /** Legacy alias for `id`. */
@@ -317,6 +324,7 @@ export interface VNovaState {
   background:     BackgroundState
   image:          ImageState
   bgm:            Url | null
+  particles:      { action: 'play' | 'stop'; id: string | null; config: ParticlePreset | null } | null
   vars:           Record<string, unknown>
   quests:         Record<string, QuestState>
   awaitingChoice: boolean
@@ -456,6 +464,7 @@ export interface EngineHandle {
   jump(target: string): void
   start():        void
   restart():      void
+  exitMenu():     void
   getVar(key: string): unknown
   setVar(key: string, value: unknown): void
   getSetting(key: keyof EngineSettings): unknown
@@ -486,6 +495,8 @@ export interface UseVNovaOptions extends CreateEngineOptions {
   typewriterSpeed?:   Milliseconds
   typewriterEnabled?: boolean
   keyboardEnabled?:   boolean
+  /** Optional color used by disabled choice helper text (`disabledText`). */
+  choiceDisabledTextColor?: CssColor
   /** localStorage key for save/load. Required to enable save functionality. */
   saveKey?:           string
 }
@@ -515,10 +526,12 @@ export interface VNovaComposable {
   jump(target: string): void
   start():            void
   restart():          void
+  exitMenu():         void
   save():             true | undefined
   load():             boolean
   clearSave():        void
   skipTypewriter():   void
+  resumeTypewriter(): void
   listQuests():       QuestState[]
   getQuest(id: string): QuestState | null
   evaluateQuests():   boolean
@@ -711,6 +724,7 @@ export interface VNovaStageExposed {
   saveOpen:     Ref<boolean>
   saveMode:     Ref<'save' | 'load'>
   exitMenu():   void
+  resumeTypewriter(): void
   canBack:      ComputedRef<boolean>
   hasSave:      Ref<boolean>
   history:      ComputedRef<ScriptStep[]>
@@ -746,6 +760,7 @@ export interface UseVNovaSavesOptions {
 
 export interface VNovaSavesHandle {
   slots:        Ref<(SlotMeta | null)[]>
+  hasSave:      ComputedRef<boolean>
   saving:       Ref<boolean>
   lastFileError: Ref<{ code: string; message: string } | null>
   saveSlot:     (slot: number) => Promise<boolean>
@@ -790,6 +805,9 @@ export declare const VNovaHud: DefineComponent<
   { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showCredits?: boolean },
   Record<string, never>,
   { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
+>
+export declare const VNovaTopHud: DefineComponent<
+  { opacity?: number; floating?: boolean; customClass?: string | string[] | Record<string, boolean> | null }
 >
 export declare const VNovaSettingsModal: DefineComponent<Record<string, never>>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>

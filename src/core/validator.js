@@ -127,6 +127,12 @@ export function validateScript(script, characters = {}) {
             errors.push(`${at} option[${oi}].jump target "${opt.jump}" has no matching label`)
           if (opt.inc && typeof opt.inc !== 'object')
             errors.push(`${at} option[${oi}].inc must be an object`)
+          if (opt.condition !== undefined && typeof opt.condition !== 'function' && typeof opt.condition !== 'boolean')
+            errors.push(`${at} option[${oi}].condition must be a function or boolean`)
+          if (opt.disabled !== undefined && typeof opt.disabled !== 'function' && typeof opt.disabled !== 'boolean')
+            errors.push(`${at} option[${oi}].disabled must be a function or boolean`)
+          if (opt.disabledText !== undefined && typeof opt.disabledText !== 'string')
+            errors.push(`${at} option[${oi}].disabledText must be a string`)
         })
       }
     }

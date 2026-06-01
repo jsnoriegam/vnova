@@ -127,6 +127,19 @@ const dialogueTextSize = computed(() => {
   return '1rem'
 })
 
+const stageStyle = computed(() => {
+  const style = {
+    '--vnova-text-size': dialogueTextSize.value,
+  }
+
+  const disabledTextColor = props.options?.choiceDisabledTextColor
+  if (typeof disabledTextColor === 'string' && disabledTextColor.trim().length > 0) {
+    style['--vnova-choice-disabled-text-color'] = disabledTextColor.trim()
+  }
+
+  return style
+})
+
 function handleSave() {
   return save()
 }
@@ -218,7 +231,7 @@ defineExpose({
 <template>
   <div
     class="vnova-stage"
-    :style="{ '--vnova-text-size': dialogueTextSize }"
+    :style="stageStyle"
     @click="handleInteract"
     @touchend.prevent="handleInteract"
   >
@@ -306,9 +319,17 @@ defineExpose({
         v-for="option in state.current.options"
         :key="option.label"
         class="vnova-choice-btn"
+        :disabled="option.disabled === true"
+        :aria-disabled="option.disabled === true ? 'true' : undefined"
         @click.stop="handleChoose(option)"
       >
-        {{ option.label }}
+        <span class="vnova-choice-btn__label">{{ option.label }}</span>
+        <small
+          v-if="option.disabled === true && option.disabledText"
+          class="vnova-choice-btn__disabled-text"
+        >
+          {{ option.disabledText }}
+        </small>
       </button>
     </div>
 
@@ -547,6 +568,10 @@ defineExpose({
 .vnova-choice-btn {
   width: 100%;
   max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
   box-sizing: border-box;
   padding: 0.85rem 1.5rem;
   font-size: var(--vnova-choice-size, 0.95rem);
@@ -561,13 +586,30 @@ defineExpose({
   transition: background 200ms, border-color 200ms, transform 180ms;
 }
 
-.vnova-choice-btn:hover {
+.vnova-choice-btn:hover:not(:disabled) {
   background: var(--vnova-choice-bg-hover, rgba(255,255,255,.18));
   border-color: rgba(255,255,255,.5);
   transform: translateY(-2px);
 }
 
+.vnova-choice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .vnova-choice-btn:active { transform: translateY(0); }
+
+.vnova-choice-btn__label {
+  display: block;
+}
+
+.vnova-choice-btn__disabled-text {
+  display: block;
+  margin: 0;
+  font-size: calc(var(--vnova-choice-size, 0.95rem) - 1px);
+  line-height: 1.2;
+  color: var(--vnova-choice-disabled-text-color, var(--vnova-color-danger, #c0392b));
+}
 
 .vnova-input-form {
   width: 100%;
