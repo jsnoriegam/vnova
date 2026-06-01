@@ -34,6 +34,7 @@ export declare function createVNovaApp(
 export type BgTransition = 'fade' | 'dissolve' | 'cut' | 'slide-left' | 'slide-right'
 export type SpritePosition = 'left' | 'center' | 'right' | 'left-far' | 'right-far'
 export type ImageFit = 'width' | 'height' | 'both' | 'x' | 'y'
+export type ModalSize = 'small' | 'medium' | 'large' | 'xlarge' | 'fullscreen' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
 
 export interface LabelStep {
   type: 'label'
@@ -124,6 +125,7 @@ export interface ModalStep {
   type: 'modal'
   id: string
   title?: string
+  size?: ModalSize
   prompt?: string
   options?: [ChoiceOption, ...ChoiceOption[]]
 }
@@ -253,6 +255,18 @@ export interface AssetRegistry {
   videos?: Record<string, Url>
 }
 
+export interface CreditLine {
+  text?: string
+  html?: string
+}
+
+export interface CreditSection {
+  label: string
+  lines: CreditLine[]
+}
+
+export type CreditsRegistry = CreditSection[]
+
 export type ParticlePreset = Record<string, unknown>
 export type ParticleRegistry = Record<string, ParticlePreset>
 
@@ -310,6 +324,7 @@ export interface VNovaState {
   history:        ScriptStep[]
   backStack:      StateDiff[][]
   characters:     CharacterRegistry
+  credits:        CreditsRegistry
   settings:       EngineSettings
   // getters
   readonly stageArray:   StageCharacter[]
@@ -402,6 +417,7 @@ export interface NotifyEvent {
 export interface CreateEngineOptions {
   characters?:       CharacterRegistry
   assets?:           AssetRegistry
+  credits?:          CreditsRegistry
   particles?:        ParticleRegistry
   quests?:           QuestDefinition[]
   /** When true, engine is created without applying the first script step until start()/restart(). */
@@ -605,6 +621,7 @@ export interface VNovaRuntimeContext {
     titleOpen: Ref<boolean>
     settingsOpen: Ref<boolean>
     backlogOpen: Ref<boolean>
+    creditsOpen: Ref<boolean>
     saveOpen: Ref<boolean>
     saveMode: Ref<'save' | 'load'>
   }
@@ -622,6 +639,7 @@ export interface VNovaRuntimeContext {
     openSave(): void
     openLoad(): void
     openBacklog(): void
+    openCredits(): void
     openSettings(): void
     closeAllModals(): void
     setSetting(key: keyof EngineSettings, value: unknown): void
@@ -633,6 +651,7 @@ export interface VNovaRuntimeConfig {
   title?: string
   subtitle?: string
   meta?: string
+  creditsTitle?: string
   saveKey?: string
   slotCount?: number
   startLabel?: string
@@ -667,6 +686,7 @@ export interface VNovaRuntimeProps {
   script: ScriptStep[]
   characters?: CharacterRegistry
   assets?: AssetRegistry
+  credits?: CreditsRegistry
   particles?: ParticleRegistry
   config?: VNovaRuntimeConfig
   componentResolvers?: Record<string, (input: VNovaRuntimeResolverInput) => VNovaRuntimeResolverResult | null | undefined>
@@ -765,10 +785,11 @@ export declare const VNOVA_RUNTIME_CONTEXT_KEY: 'vnova-runtime'
 export declare const VNovaRuntime: DefineComponent<VNovaRuntimeProps>
 export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStageExposed, VNovaStageEmits>
 export declare const VNovaTitleScreen: DefineComponent<Record<string, never>>
+export declare const VNovaCreditsScreen: DefineComponent<{ open?: boolean; title?: string; credits?: CreditsRegistry }>
 export declare const VNovaHud: DefineComponent<
-  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean },
+  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showCredits?: boolean },
   Record<string, never>,
-  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-settings': []; restart: []; 'exit-menu': [] }
+  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
 >
 export declare const VNovaSettingsModal: DefineComponent<Record<string, never>>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>

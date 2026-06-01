@@ -151,6 +151,7 @@ export function createEngine(script, options = {}) {
   const {
     characters       = {},
     assets           = {},
+    credits          = [],
     particles        = {},
     quests           = [],
     onAudio          = noop,
@@ -178,6 +179,7 @@ export function createEngine(script, options = {}) {
 
   store.resetEngine()
   store.setCharacters(characters)
+  store.setCredits(credits)
 
   // ── asset resolver ────────────────────────────────────────────────────────
   function resolveAsset(group, key, fallback = null) {

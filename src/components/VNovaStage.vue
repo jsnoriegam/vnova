@@ -531,6 +531,7 @@ defineExpose({
   justify-content: center;
   gap: 0.75rem;
   padding: 2rem;
+  box-sizing: border-box;
   background: var(--vnova-choices-bg, rgba(0,0,0,.65));
   backdrop-filter: blur(6px);
   z-index: 4;
@@ -546,6 +547,7 @@ defineExpose({
 .vnova-choice-btn {
   width: 100%;
   max-width: 560px;
+  box-sizing: border-box;
   padding: 0.85rem 1.5rem;
   font-size: var(--vnova-choice-size, 0.95rem);
   font-family: inherit;
@@ -572,10 +574,12 @@ defineExpose({
   max-width: 560px;
   display: grid;
   gap: 0.75rem;
+  box-sizing: border-box;
 }
 
 .vnova-input-field {
   width: 100%;
+  box-sizing: border-box;
   padding: 0.8rem 1rem;
   font-size: 0.95rem;
   font-family: inherit;

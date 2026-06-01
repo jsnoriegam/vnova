@@ -17,6 +17,7 @@ import {
 
 import VNovaBacklogModal from './VNovaBacklogModal.vue'
 import VNovaBaseModal from './VNovaBaseModal.vue'
+import VNovaCreditsScreen from './VNovaCreditsScreen.vue'
 import VNovaHud from './VNovaHud.vue'
 import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
@@ -35,6 +36,7 @@ const BUILTIN_NAMES = {
   settings: ['VNovaSettingsModal'],
   save: ['VNovaSaveModal'],
   backlog: ['VNovaBacklogModal'],
+  credits: ['VNovaCreditsScreen'],
   modal: ['VNovaBaseModal'],
 }
 
@@ -156,6 +158,7 @@ export default defineComponent({
     script: { type: Array, required: true },
     characters: { type: Object, default: () => ({}) },
     assets: { type: Object, default: () => ({}) },
+    credits: { type: Array, default: () => [] },
     particles: { type: Object, default: () => ({}) },
     config: { type: Object, default: () => ({}) },
     componentResolvers: { type: Object, default: () => ({}) },
@@ -171,10 +174,12 @@ export default defineComponent({
     const titleOpen = ref(true)
     const settingsOpen = ref(false)
     const backlogOpen = ref(false)
+    const creditsOpen = ref(false)
     const saveOpen = ref(false)
     const saveMode = ref('save')
     const audioLog = ref('')
     const hasBacklogRenderer = ref(false)
+    const hasCreditsRenderer = ref(false)
     const hasSettingsRenderer = ref(false)
     const hasSaveRenderer = ref(false)
     const hasDeclarativeModal = ref(false)
@@ -225,6 +230,7 @@ export default defineComponent({
       const { resumeTypewriter = true } = options
       settingsOpen.value = false
       backlogOpen.value = false
+      creditsOpen.value = false
       saveOpen.value = false
       callStage('closeSave')
       if (resumeTypewriter) callStage('resumeTypewriter')
@@ -316,6 +322,14 @@ export default defineComponent({
         return
       }
       backlogOpen.value = true
+    }
+
+    function handleOpenCredits() {
+      if (!hasCreditsRenderer.value) {
+        notifyMissingComponent('VNovaCreditsScreen')
+        return
+      }
+      creditsOpen.value = true
     }
 
     function handleOpenSettings() {
@@ -430,6 +444,7 @@ export default defineComponent({
 
     const stageOptions = computed(() => ({
       assets: props.assets,
+      credits: props.credits,
       particles: props.particles,
       saveKey: saveKey.value,
       slotCount: slotCount.value,
@@ -452,6 +467,7 @@ export default defineComponent({
         titleOpen,
         settingsOpen,
         backlogOpen,
+        creditsOpen,
         saveOpen,
         saveMode,
       },
@@ -469,6 +485,7 @@ export default defineComponent({
         openSave: handleOpenSave,
         openLoad: handleOpenLoad,
         openBacklog: handleOpenBacklog,
+        openCredits: handleOpenCredits,
         openSettings: handleOpenSettings,
         closeAllModals,
         setSetting: handleSetSetting,
@@ -502,6 +519,7 @@ export default defineComponent({
           props: {
             visible: titleOpen.value,
             hasSave: hasSave.value,
+            hasCredits: hasCreditsRenderer.value,
             title: props.config?.title,
             subtitle: props.config?.subtitle,
             meta: props.config?.meta,
@@ -510,6 +528,7 @@ export default defineComponent({
             onNewGame: handleNewGame,
             onLoadGame: handleLoadGame,
             onOpenSettings: handleOpenSettings,
+            onOpenCredits: handleOpenCredits,
           },
         }
       }
@@ -521,12 +540,14 @@ export default defineComponent({
             audioLog: audioLog.value,
             visible: !titleOpen.value,
             showBacklog: hasBacklogRenderer.value,
+            showCredits: hasCreditsRenderer.value,
           },
           listeners: {
             onBack: handleBack,
             onOpenSave: handleOpenSave,
             onOpenLoad: handleOpenLoad,
             onOpenBacklog: handleOpenBacklog,
+            onOpenCredits: handleOpenCredits,
             onOpenSettings: handleOpenSettings,
             onRestart: handleRestart,
             onExitMenu: handleExitMenu,
@@ -596,6 +617,22 @@ export default defineComponent({
           listeners: {
             onClose: () => {
               backlogOpen.value = false
+              callStage('resumeTypewriter')
+            },
+          },
+        }
+      }
+
+      if (matchesComponent(vnode, VNovaCreditsScreen, BUILTIN_NAMES.credits)) {
+        return {
+          props: {
+            open: creditsOpen.value,
+            credits: props.credits,
+            title: props.config?.creditsTitle || 'Credits',
+          },
+          listeners: {
+            onClose: () => {
+              creditsOpen.value = false
               callStage('resumeTypewriter')
             },
           },
@@ -678,6 +715,7 @@ export default defineComponent({
     return () => {
       const nodes = slots.default ? slots.default() : []
       hasBacklogRenderer.value = nodes.some((node) => containsComponent(node, VNovaBacklogModal, BUILTIN_NAMES.backlog))
+      hasCreditsRenderer.value = nodes.some((node) => containsComponent(node, VNovaCreditsScreen, BUILTIN_NAMES.credits))
       hasSettingsRenderer.value = nodes.some((node) => containsComponent(node, VNovaSettingsModal, BUILTIN_NAMES.settings))
       hasSaveRenderer.value = nodes.some((node) => containsComponent(node, VNovaSaveModal, BUILTIN_NAMES.save))
       hasDeclarativeModal.value = containsDeclarativeModal(nodes)

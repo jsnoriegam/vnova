@@ -15,6 +15,7 @@ export { default as VNovaSaveModal }       from './components/VNovaSaveModal.vue
 export { default as VNovaRuntime, VNOVA_RUNTIME_CONTEXT_KEY } from './components/VNovaRuntime.vue'
 export { default as VNovaStage }           from './components/VNovaStage.vue'
 export { default as VNovaTitleScreen }     from './components/VNovaTitleScreen.vue'
+export { default as VNovaCreditsScreen }   from './components/VNovaCreditsScreen.vue'
 export { default as VNovaHud }             from './components/VNovaHud.vue'
 export { default as VNovaTopHud }          from './components/VNovaTopHud.vue'
 export { default as VNovaSettingsModal }   from './components/VNovaSettingsModal.vue'

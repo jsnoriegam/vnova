@@ -15,6 +15,7 @@ export function useVNova(script, options = {}) {
   const {
     characters = {},
     assets = {},
+    credits = [],
     particles = {},
     typewriterSpeed = 30,
     typewriterEnabled = true,
@@ -28,9 +29,10 @@ export function useVNova(script, options = {}) {
     onEnd = () => { },
     pinia = null,
   } = options
+  const questDefinitions = options.quests ?? []
 
   // ── engine ──────────────────────────────────────────────────────────────────
-  const engine = createEngine(script, { characters, assets, particles, deferStart, onAudio, onParticles, onVideo, onNotify, onEnd, pinia })
+  const engine = createEngine(script, { characters, assets, credits, particles, quests: questDefinitions, deferStart, onAudio, onParticles, onVideo, onNotify, onEnd, pinia })
   const {
     store,
     stageArray, speakerName, speakerColor,

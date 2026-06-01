@@ -10,6 +10,7 @@
  *   open      — controls visibility (default: false)
  *   id        — unique identifier for the modal (default: 'vnova-modal')
  *   title     — modal title text (default: 'Modal')
+ *   size      — modal size: small, medium, large, xlarge, fullscreen
  *   onClose   — callback when modal is closed
  *   children  — Vue slots for modal content
  *
@@ -17,13 +18,38 @@
  *   close     — modal was closed
  */
 
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
+
+const MODAL_SIZE_ALIASES = {
+  sm: 'small',
+  md: 'medium',
+  lg: 'large',
+  xl: 'xlarge',
+  full: 'fullscreen',
+}
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   id: { type: String, default: 'vnova-modal' },
   title: { type: String, default: 'Modal' },
+  size: {
+    type: String,
+    default: 'medium',
+    validator: (value) => [
+      'small',
+      'medium',
+      'large',
+      'xlarge',
+      'fullscreen',
+      'sm',
+      'md',
+      'lg',
+      'xl',
+      'full',
+    ].includes(value),
+  },
   onClose: { type: Function, default: null },
+  showHeader:  { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['close'])
@@ -35,18 +61,22 @@ watch(() => props.open, (newOpen) => {
   }
 })
 
+const modalSizeClass = computed(() => {
+  const size = MODAL_SIZE_ALIASES[props.size] || props.size
+  return `vnova-base-modal--${size}`
+})
+
 defineSlots()
 </script>
 
 <template>
   <transition name="vnova-slide-up">
     <div v-if="props.open" class="vnova-modal-overlay" @click.self="$emit('close')">
-      <div class="vnova-glass-modal vnova-base-modal">
-        <div class="vnova-modal-header">
+      <div class="vnova-glass-modal vnova-base-modal" :class="modalSizeClass">
+        <div v-if="props.showHeader" class="vnova-modal-header">
           <h2>{{ props.title }}</h2>
           <button class="vnova-close-btn" @click="$emit('close')">&times;</button>
         </div>
-
         <div class="vnova-modal-body">
           <slot />
         </div>
@@ -66,6 +96,8 @@ defineSlots()
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
   z-index: 999;
 }
 
@@ -74,11 +106,37 @@ defineSlots()
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  min-width: 320px;
-  max-width: 90vw;
-  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--vnova-base-modal-width), calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   overflow: hidden;
+  box-sizing: border-box;
   animation: vnova-modal-enter 0.2s ease-out;
+}
+
+.vnova-base-modal--small {
+  --vnova-base-modal-width: 360px;
+}
+
+.vnova-base-modal--medium {
+  --vnova-base-modal-width: 520px;
+}
+
+.vnova-base-modal--large {
+  --vnova-base-modal-width: 720px;
+}
+
+.vnova-base-modal--xlarge {
+  --vnova-base-modal-width: 960px;
+}
+
+.vnova-base-modal--fullscreen {
+  --vnova-base-modal-width: calc(100vw - 2rem);
+  height: calc(100vh - 2rem);
+  height: calc(100dvh - 2rem);
 }
 
 @keyframes vnova-modal-enter {
@@ -86,6 +144,7 @@ defineSlots()
     opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -96,6 +155,7 @@ defineSlots()
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: 0 0 auto;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
@@ -125,9 +185,10 @@ defineSlots()
 }
 
 .vnova-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 1.25rem;
-  overflow-y: auto;
-  max-height: calc(85vh - 80px);
+  overflow: auto;
 }
 
 .vnova-base-modal {

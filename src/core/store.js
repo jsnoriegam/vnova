@@ -37,6 +37,7 @@ export const useVNovaStore = defineStore('vnova', {
     history:        [],
     backStack:      [],
     characters:     {},
+    credits:        [],
     settings:       defaultSettings(),
   }),
 
@@ -106,6 +107,7 @@ export const useVNovaStore = defineStore('vnova', {
     setBgm(track)               { this.bgm = track },
     setParticles(particles)     { this.particles = particles },
     setCharacters(characters)   { this.characters = characters },
+    setCredits(credits)         { this.credits = Array.isArray(credits) ? credits : [] },
 
     showCharacter({ character, data }) {
       this.stage = { ...this.stage, [character]: data }

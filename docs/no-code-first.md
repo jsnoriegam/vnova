@@ -3,7 +3,7 @@
 ## Vision
 
 vnova debe permitir crear y publicar una novela visual sin escribir logica de programacion.
-El camino principal debe ser declarativo: editar script, assets, characters y config.
+El camino principal debe ser declarativo: editar script, assets, characters, credits y config.
 
 ## Regla central
 
@@ -13,7 +13,7 @@ La solucion correcta es mover esa complejidad al core y exponerla como config de
 ## Niveles de uso
 
 1. Nivel Autor (sin codigo)
-- Edita `story/script.js`, `story/assets.js`, `story/characters.js`, `story/config.js`.
+- Edita `story/script.js`, `story/assets.js`, `story/characters.js`, `story/credits.js`, `story/config.js`.
 - Usa componentes oficiales por defecto.
 - No necesita modificar App ni runtime interno.
 

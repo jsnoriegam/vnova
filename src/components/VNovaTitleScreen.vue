@@ -2,12 +2,13 @@
 const props = defineProps({
   visible: { type: Boolean, default: false },
   hasSave: { type: Boolean, default: false },
+  hasCredits: { type: Boolean, default: false },
   title: { type: String, default: 'VNOVA ENGINE' },
   subtitle: { type: String, default: 'Vuex-powered visual novel framework' },
   meta: { type: String, default: '' },
 })
 
-const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
+const emit = defineEmits(['new-game', 'load-game', 'open-settings', 'open-credits'])
 </script>
 
 <template>
@@ -22,6 +23,7 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings'])
           <button class="menu-btn secondary" :disabled="!props.hasSave" @click="emit('load-game')">
             Load Game
           </button>
+          <button v-if="props.hasCredits" class="menu-btn secondary" @click="emit('open-credits')">Credits</button>
           <button class="menu-btn secondary" @click="emit('open-settings')">Settings</button>
         </div>
 

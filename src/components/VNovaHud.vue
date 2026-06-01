@@ -5,9 +5,19 @@ const props = defineProps({
   showAudioLog: { type: Boolean, default: false },
   visible: { type: Boolean, default: true },
   showBacklog: { type: Boolean, default: true },
+  showCredits: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'open-settings', 'restart', 'exit-menu'])
+const emit = defineEmits([
+  'back',
+  'open-save',
+  'open-load',
+  'open-backlog',
+  'open-credits',
+  'open-settings',
+  'restart',
+  'exit-menu',
+])
 </script>
 
 <template>
@@ -18,6 +28,7 @@ const emit = defineEmits(['back', 'open-save', 'open-load', 'open-backlog', 'ope
       <button class="vnova-hud-link" @click="emit('open-save')">Save</button>
       <button class="vnova-hud-link" @click="emit('open-load')">Load</button>
       <button class="vnova-hud-link" @click="emit('open-settings')">Settings</button>
+      <button v-if="props.showCredits" class="vnova-hud-link" @click="emit('open-credits')">Credits</button>
       <button class="vnova-hud-link" @click="emit('restart')">Restart</button>
       <button class="vnova-hud-link danger" @click="emit('exit-menu')">Quit</button>
     </nav>
