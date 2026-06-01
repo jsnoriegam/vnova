@@ -42,6 +42,26 @@ function normalizeStatus(status) {
   return VALID_STATUSES.has(status) ? status : QUEST_STATUS.INACTIVE
 }
 
+function normalizeIdList(value) {
+  if (typeof value === 'string') return [value]
+  if (!Array.isArray(value)) return []
+  return value.filter((entry) => typeof entry === 'string' && entry.length > 0)
+}
+
+function normalizeTransitionRule(rule) {
+  if (!rule || typeof rule !== 'object') return null
+
+  const normalized = {
+    activate: normalizeIdList(rule.activate),
+    complete: normalizeIdList(rule.complete),
+    fail: normalizeIdList(rule.fail),
+    deactivate: normalizeIdList(rule.deactivate),
+  }
+
+  const hasActions = Object.values(normalized).some((entries) => entries.length > 0)
+  return hasActions ? normalized : null
+}
+
 function normalizeDefinitions(definitions) {
   if (!Array.isArray(definitions)) {
     throw new Error('[vnova][quests] definitions must be an array')
@@ -68,6 +88,8 @@ function normalizeDefinitions(definitions) {
       doneIf: asFn(quest.doneIf),
       reward: asFn(quest.reward),
       penalty: asFn(quest.penalty),
+      onComplete: normalizeTransitionRule(quest.onComplete),
+      onFail: normalizeTransitionRule(quest.onFail),
     }
   })
 
@@ -136,12 +158,58 @@ export function createQuestEngine(definitions = [], options = {}) {
   function setStatus(id, status) {
     const nextStatus = normalizeStatus(status)
     const current = readState()
+    const context = getContext()
+    const definition = definitionMap[id]
     if (!current[id]) return false
     if (current[id].status === nextStatus) return false
+
     current[id].status = nextStatus
     current[id].updatedAt = now()
+
+    if (nextStatus === QUEST_STATUS.COMPLETED) {
+      safeRun(definition?.reward, context)
+      _applyTransition(current, definition?.onComplete)
+    }
+
+    if (nextStatus === QUEST_STATUS.FAILED) {
+      safeRun(definition?.penalty, context)
+      _applyTransition(current, definition?.onFail)
+    }
+
     writeState(current)
     return true
+  }
+
+  function _applyStatus(current, id, status) {
+    const nextStatus = normalizeStatus(status)
+    const quest = current[id]
+    if (!quest || quest.status === nextStatus) return false
+    quest.status = nextStatus
+    quest.updatedAt = now()
+    return true
+  }
+
+  function _applyTransition(current, transitionRule) {
+    if (!transitionRule) return false
+    let changed = false
+
+    transitionRule.activate.forEach((id) => {
+      changed = _applyStatus(current, id, QUEST_STATUS.ACTIVE) || changed
+    })
+
+    transitionRule.complete.forEach((id) => {
+      changed = _applyStatus(current, id, QUEST_STATUS.COMPLETED) || changed
+    })
+
+    transitionRule.fail.forEach((id) => {
+      changed = _applyStatus(current, id, QUEST_STATUS.FAILED) || changed
+    })
+
+    transitionRule.deactivate.forEach((id) => {
+      changed = _applyStatus(current, id, QUEST_STATUS.INACTIVE) || changed
+    })
+
+    return changed
   }
 
   function evaluate() {
@@ -158,6 +226,7 @@ export function createQuestEngine(definitions = [], options = {}) {
         quest.status = QUEST_STATUS.FAILED
         quest.updatedAt = now()
         safeRun(def.penalty, context)
+        _applyTransition(current, def.onFail)
         changed = true
         return
       }
@@ -167,6 +236,7 @@ export function createQuestEngine(definitions = [], options = {}) {
         quest.status = QUEST_STATUS.COMPLETED
         quest.updatedAt = now()
         safeRun(def.reward, context)
+        _applyTransition(current, def.onComplete)
         changed = true
       }
     })

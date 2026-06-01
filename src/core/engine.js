@@ -177,6 +177,36 @@ function stripChoiceRuntimeFields(option) {
   return serializableOption
 }
 
+function mergeWithDefaults(currentValue, defaults) {
+  if (!isPlainObject(defaults)) {
+    return currentValue === undefined ? cloneDeep(defaults) : currentValue
+  }
+
+  const base = isPlainObject(currentValue) ? { ...currentValue } : {}
+  for (const [key, defaultValue] of Object.entries(defaults)) {
+    if (base[key] === undefined) {
+      base[key] = cloneDeep(defaultValue)
+      continue
+    }
+    base[key] = mergeWithDefaults(base[key], defaultValue)
+  }
+  return base
+}
+
+function applyInitialStateSchema(store, schema) {
+  if (!isPlainObject(schema)) return
+
+  if (schema.vars !== undefined) {
+    const mergedVars = mergeWithDefaults(store.vars, schema.vars)
+    store.setVars(mergedVars)
+  }
+
+  if (schema.quests !== undefined) {
+    const mergedQuests = mergeWithDefaults(store.quests, schema.quests)
+    store.setQuests(mergedQuests)
+  }
+}
+
 // ─── engine factory ───────────────────────────────────────────────────────────
 
 export function createEngine(script, options = {}) {
@@ -192,6 +222,7 @@ export function createEngine(script, options = {}) {
     onNotify         = noop,
     onEnd            = noop,
     autoAdvanceDelay = 0,
+    initialState     = null,
     deferStart       = false,
     // Accept an externally-provided Pinia instance, or create a fresh one.
     pinia            = null,
@@ -210,6 +241,7 @@ export function createEngine(script, options = {}) {
   const store  = useVNovaStore(_pinia)
 
   store.resetEngine()
+  applyInitialStateSchema(store, initialState)
   store.setCharacters(characters)
   store.setCredits(credits)
 
@@ -368,7 +400,44 @@ export function createEngine(script, options = {}) {
 
     if (step.type === 'label') { _moveTo(store.cursor + 1); return }
     if (step.type === 'jump')  { _jumpTo(step.target); return }
-    if (step.type === 'call')  { (step.fn ?? noop)(store); _moveTo(store.cursor + 1); return }
+    if (step.type === 'call') {
+      const startCursor = store.cursor
+      const callContext = {
+        jump: (target) => _jumpTo(target),
+        moveTo: (index) => _moveTo(index),
+        quest: {
+          activate: (id) => questEngine.activate(id),
+          complete: (id) => questEngine.complete(id),
+          fail: (id) => questEngine.fail(id),
+          deactivate: (id) => questEngine.deactivate(id),
+          setStatus: (id, status) => questEngine.setStatus(id, status),
+        },
+      }
+
+      const outcome = (step.fn ?? noop)(store, callContext)
+
+      if (store.cursor !== startCursor) return
+      if (typeof outcome === 'string') { _jumpTo(outcome); return }
+
+      if (isPlainObject(outcome)) {
+        if (typeof outcome.jump === 'string' && outcome.jump.length > 0) {
+          _jumpTo(outcome.jump)
+          return
+        }
+
+        if (Number.isInteger(outcome.moveTo)) {
+          _moveTo(outcome.moveTo)
+          return
+        }
+
+        if (outcome.stay === true) {
+          return
+        }
+      }
+
+      _moveTo(store.cursor + 1)
+      return
+    }
 
     if (step.type === 'bgm') {
       if (step.stop === true) {
@@ -698,6 +767,7 @@ export function createEngine(script, options = {}) {
     _stopParticles()
     _stopVideo()
     store.resetEngine()
+    applyInitialStateSchema(store, initialState)
     store.setCharacters(characters)
     questEngine.reset()
     _applyStep(runtimeScript[0])

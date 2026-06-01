@@ -225,7 +225,20 @@ export interface EndStep {
 
 export interface CallStep {
   type: 'call'
-  fn: (state: VNovaState) => void
+  fn: (
+    state: VNovaState,
+    context: {
+      jump: (target: string) => void
+      moveTo: (index: number) => void
+      quest: {
+        activate: (id: string) => boolean
+        complete: (id: string) => boolean
+        fail: (id: string) => boolean
+        deactivate: (id: string) => boolean
+        setStatus: (id: string, status: QuestStatusValue) => boolean
+      }
+    }
+  ) => void | string | { jump?: string; moveTo?: number; stay?: boolean }
 }
 
 export type ScriptStep =
@@ -368,6 +381,15 @@ export interface QuestDefinition {
   doneIf?:        (store: QuestContext) => boolean
   reward?:        (store: QuestContext) => void
   penalty?:       (store: QuestContext) => void
+  onComplete?:    QuestTransitionRule
+  onFail?:        QuestTransitionRule
+}
+
+export interface QuestTransitionRule {
+  activate?: string[] | string
+  complete?: string[] | string
+  fail?: string[] | string
+  deactivate?: string[] | string
 }
 
 export interface QuestContext {
@@ -428,6 +450,10 @@ export interface CreateEngineOptions {
   credits?:          CreditsRegistry
   particles?:        ParticleRegistry
   quests?:           QuestDefinition[]
+  initialState?: {
+    vars?: Record<string, unknown>
+    quests?: Record<string, unknown>
+  }
   /** When true, engine is created without applying the first script step until start()/restart(). */
   deferStart?:       boolean
   onAudio?:          (event: AudioEvent) => void
