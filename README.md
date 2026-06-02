@@ -223,6 +223,7 @@ Exportado desde src/index.js:
 - useVNova
 - useVNovaAudio
 - useVNovaSaves
+- useUserStorage
 - VNovaRuntime
 - VNovaStage
 - VNovaTitleScreen
@@ -240,6 +241,7 @@ Para UIs custom, useVNova expone estado y acciones del motor.
 Retorno principal:
 
 - state, store
+- userStorage, storage
 - stageArray, speakerName, speakerColor
 - displayedText, textComplete
 - bgLayers, bgLayerStyle, imageTransitioning, imageStyle
@@ -249,6 +251,31 @@ Retorno principal:
 - listQuests, getQuest, evaluateQuests, setQuestStatus
 - skipTypewriter, resumeTypewriter
 - engine
+
+---
+
+## useUserStorage
+
+Helper para leer y modificar las variables de autor guardadas en `state.vars`.
+Acepta claves simples o paths con puntos:
+
+```js
+const { storage } = useVNova(script)
+
+storage.set('player.name', 'Ada')
+storage.inc('stats.courage')
+storage.toggle('flags.metGuide')
+
+const playerName = storage.ref('player.name', '')
+```
+
+Tambien puede importarse directo:
+
+```js
+import { useUserStorage } from 'vnova-engine'
+
+const storage = useUserStorage()
+```
 
 ---
 

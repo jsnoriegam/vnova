@@ -2,6 +2,7 @@
 import { VNovaRuntime, VNovaStage, VNovaTitleScreen, VNovaSaveModal, VNovaSettingsModal, VNovaBacklogModal, VNovaCreditsScreen, VNovaHud, VNovaTopHud } from '../../src/index.js'
 
 import MapChoiceModal from './components/MapChoiceModal.vue'
+import OperatorStoragePanel from './components/OperatorStoragePanel.vue'
 
 import assets from './story/assets.js'
 import particles from './story/particles.js'
@@ -29,6 +30,7 @@ import config from './story/config.js'
       <template #center>Showcase</template>
       <template #right><button class="vnova-hud-btn--material">Quests</button></template>
     </VNovaTopHud>
+    <OperatorStoragePanel />
     <MapChoiceModal />
     <VNovaCreditsScreen />
     <VNovaBacklogModal />

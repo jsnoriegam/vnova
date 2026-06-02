@@ -10,7 +10,7 @@
  *   QS (QUEST_STATUS)
  */
 
-import type { Ref, ComputedRef, CSSProperties, DefineComponent, Plugin, App as VueApp, Component } from 'vue'
+import type { Ref, ComputedRef, WritableComputedRef, CSSProperties, DefineComponent, Plugin, App as VueApp, Component } from 'vue'
 import type { Store, Pinia } from 'pinia'
 
 // ─── Primitive aliases ────────────────────────────────────────────────────────
@@ -354,6 +354,28 @@ export interface VNovaState {
   readonly canBack:      boolean
 }
 
+export interface UseUserStorageOptions {
+  store?: VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>
+  state?: VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>
+}
+
+export interface UserStorageHandle {
+  /** Reactive user-defined variables saved in VNova state. */
+  vars:   ComputedRef<Record<string, unknown>>
+  /** Reads a variable by key or dotted path, e.g. `player.name`. */
+  get<T = unknown>(path: string, fallback?: T): T
+  has(path: string): boolean
+  /** Writes a variable by key or dotted path. Returns false for invalid paths. */
+  set(path: string, value: unknown): boolean
+  update(path: string, updater: (value: unknown) => unknown, fallback?: unknown): boolean
+  inc(path: string, amount?: number): boolean
+  toggle(path: string): boolean
+  remove(path: string): boolean
+  clear(): boolean
+  /** Writable computed ref for templates and v-model. */
+  ref<T = unknown>(path: string, fallback?: T): WritableComputedRef<T>
+}
+
 interface StateDiff {
   key:    keyof VNovaState
   before: unknown
@@ -537,6 +559,8 @@ export interface VNovaComposable {
   speakerName:        ComputedRef<string | null>
   speakerColor:       ComputedRef<CssColor | null>
   quests:             ComputedRef<Record<string, QuestState>>
+  userStorage:        UserStorageHandle
+  storage:            UserStorageHandle
   displayedText:      ComputedRef<string>
   textComplete:       Ref<boolean>
   bgLayers:           Ref<BgLayer[]>
@@ -574,6 +598,12 @@ export declare function useVNova(
   script:   ScriptStep[],
   options?: UseVNovaOptions,
 ): VNovaComposable
+
+// ─── useUserStorage ──────────────────────────────────────────────────────────
+
+export declare function useUserStorage(
+  options?: UseUserStorageOptions | VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>,
+): UserStorageHandle
 
 // ─── useVNovaAudio ────────────────────────────────────────────────────────────
 
@@ -762,6 +792,8 @@ export interface VNovaStageExposed {
   setVar(key: string, value: unknown): void
   getSetting(key: keyof EngineSettings): unknown
   setSetting(key: keyof EngineSettings, value: unknown): void
+  userStorage: UserStorageHandle
+  storage: UserStorageHandle
   state: VNovaState
 }
 

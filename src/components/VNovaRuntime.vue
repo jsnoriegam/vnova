@@ -508,7 +508,7 @@ export default defineComponent({
           props: {
             script: props.script,
             characters: props.characters,
-            options: stageOptions.value,
+            config: stageOptions.value,
             ref: builtInStageRef,
           },
         }

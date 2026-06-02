@@ -1,6 +1,6 @@
 <script setup>
 import { computed, inject } from 'vue'
-import VNovaBaseModal from '../../../src/components/VNovaBaseModal.vue'
+import { VNovaBaseModal } from 'vnova-engine'
 
 const RUNTIME_KEY = 'vnova-runtime'
 

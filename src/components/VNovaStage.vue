@@ -2,76 +2,87 @@
 /**
  * VNovaStage.vue
  *
- * Drop-in stage component. Renders background, sprites, dialogue box,
- * nameplate, and choices. Designed to be the *only* thing you put in
- * a full-screen container — layout is your responsibility.
+ * Componente principal. Renderiza fondo, sprites, diálogo y opciones.
  *
  * Props:
- *   script      {object[]}  required — story script
- *   characters  {object}    optional — character registry
- *   options     {object}    optional — passed to useVNova()
+ *   script      {object[]}  required — guion de la historia
+ *   characters  {object}    optional — registro de personajes
+ *   config      {object}    optional — configuración (ver useVNovaEngine)
  *
  * Emits:
- *   end                     — when the script finishes
- *   choice (option)         — when a player makes a choice
- *   advance                 — on every manual advance
- *   back                    — on backtracking command
+ *   end                     — cuando termina el guion
+ *   choice (option)         — cuando el jugador elige una opción
+ *   advance                 — en cada avance manual
+ *   back                    — en cada retroceso
  *
  * Slots:
  *   #overlay({ canBack, hasSave, history, back, save, load, restart, openSave, openLoad, closeSave, exitMenu })
  *   #sprite({ char, pos })
  *
- * Exposed (use ref on the component):
- *   interact, choose, back, jump, restart, save, load, clearSave,
- *   openSave, openLoad, closeSave, saveOpen, saveMode, exitMenu,
+ * Exposed (via ref en el componente):
+ *   interact, choose, back, jump, restart, exitMenu,
+ *   save, load, clearSave, openSave, openLoad, closeSave, saveOpen, saveMode,
  *   canBack, hasSave, history,
- *   listQuests, getQuest, evaluateQuests, setQuestStatus,
- *   getVar, setVar, state
+ *   quests, storage,
+ *   getVar, setVar, getSetting, setSetting,
+ *   state
  */
 
 import { computed, ref, watch } from 'vue'
-import { useVNova } from '../composables/useVNova.js'
+import { useVNovaEngine } from '../composables/useVNovaEngine.js'
+import { useUserStorage } from '../composables/useUserStorage.js'
+import { useQuestEngine } from '../composables/useQuestEngine.js'
 import { useVNovaSaves } from '../composables/useVNovaSaves.js'
 
+/**
+ * Props:
+ *   script      {object[]}  required — guion de la historia
+ *   characters  {object}    optional — registro de personajes
+ *   config      {object}    optional — configuración del engine
+ *
+ * Config acepta:
+ *   assets, credits, particles, quests,
+ *   typewriterSpeed, typewriterEnabled, keyboardEnabled,
+ *   autoAdvanceDelay, saveKey, slotCount,
+ *   onAudio, onParticles, onVideo, onNotify, onEnd
+ */
 const props = defineProps({
-  script:     { type: Array,  required: true },
+  script: { type: Array, required: true },
   characters: { type: Object, default: () => ({}) },
-  options:    { type: Object, default: () => ({}) },
+  config: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['end', 'choice', 'advance', 'back'])
 
-const keyboardEnabled = computed(() => props.options?.keyboardEnabled ?? true)
-
-const vn = useVNova(props.script, {
+const vn = useVNovaEngine(props.script, {
   characters: props.characters,
-  ...props.options,
-  keyboardEnabled,
-  onEnd:  (payload) => emit('end', payload),
-  onAudio: (evt) => props.options?.onAudio?.(evt),
-  onParticles: (evt) => props.options?.onParticles?.(evt),
-  onVideo: (evt) => props.options?.onVideo?.(evt),
+  ...props.config,
+  onEnd: (payload) => { props.config?.onEnd?.(payload); emit('end', payload) },
 })
 
 const {
-  state, stageArray, speakerName, speakerColor,
-  displayedText, textComplete, bgLayers, bgLayerStyle, imageTransitioning,
-  imageStyle, interact, choose, submitInput, submitSelect, closeModal, back, jump,
-  restart, exitMenu, save, load, clearSave,
-  resumeTypewriter,
-  listQuests, getQuest, evaluateQuests, setQuestStatus,
+  store,
+  current, awaitingChoice, ended,
+  stage: stageArray, background, image,
+  history, canBack,
+  speakerName, speakerColor,
+  displayedText, textComplete,
+  bgLayers, bgLayerStyle, imageStyle, imageTransitioning,
+  interact, choose, submitInput, submitSelect, closeModal, back, jump,
+  restart, exitMenu,
   getVar, setVar, getSetting, setSetting,
+  resumeTypewriter,
 } = vn
 
-const canBack = computed(() => Array.isArray(state.backStack) && state.backStack.length > 0)
-const history = computed(() => (Array.isArray(state.history) ? state.history : []))
+const state = store
+
 const saveSlots = useVNovaSaves({
-  saveKey: props.options?.saveKey,
-  slotCount: props.options?.slotCount ?? 8,
-  store: state,
+  saveKey: props.config?.saveKey,
+  slotCount: props.config?.slotCount ?? 8,
+  store,
 })
 
-const hasSave = saveSlots.hasSave
+const { hasSave, saveSlot: save, loadSlot: load, clearAll: clearSave } = saveSlots
 const saveOpen = ref(false)
 const saveMode = ref('save')
 const inputDraft = ref('')
@@ -127,12 +138,15 @@ const dialogueTextSize = computed(() => {
   return '1rem'
 })
 
+const storage = useUserStorage()
+const quests = useQuestEngine()
+
 const stageStyle = computed(() => {
   const style = {
     '--vnova-text-size': dialogueTextSize.value,
   }
 
-  const disabledTextColor = props.options?.choiceDisabledTextColor
+  const disabledTextColor = props.config?.choiceDisabledTextColor
   if (typeof disabledTextColor === 'string' && disabledTextColor.trim().length > 0) {
     style['--vnova-choice-disabled-text-color'] = disabledTextColor.trim()
   }
@@ -141,11 +155,11 @@ const stageStyle = computed(() => {
 })
 
 function handleSave() {
-  return save()
+  return save(1)
 }
 
 function handleLoad() {
-  return load()
+  return load(1)
 }
 
 function handleClearSave() {
@@ -215,10 +229,8 @@ defineExpose({
   canBack,
   hasSave,
   history,
-  listQuests,
-  getQuest,
-  evaluateQuests,
-  setQuestStatus,
+  quests,
+  storage,
   getVar,
   setVar,
   getSetting,
@@ -229,50 +241,28 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    class="vnova-stage"
-    :style="stageStyle"
-    @click="handleInteract"
-    @touchend.prevent="handleInteract"
-  >
+  <div class="vnova-stage" :style="stageStyle" @click="handleInteract" @touchend.prevent="handleInteract">
     <template v-for="layer in bgLayers" :key="layer.key">
-      <div
-        v-if="layer.visible"
-        class="vnova-bg"
-        :class="[
-          `vnova-bg--${layer.transition}`,
-          { 'vnova-bg--active': layer.active },
-          { 'vnova-bg--entering': layer.entering },
-        ]"
-        :style="bgLayerStyle(layer)"
-      />
+      <div v-if="layer.visible" class="vnova-bg" :class="[
+        `vnova-bg--${layer.transition}`,
+        { 'vnova-bg--active': layer.active },
+        { 'vnova-bg--entering': layer.entering },
+      ]" :style="bgLayerStyle(layer)" />
     </template>
 
-    <div
-      class="vnova-image"
-      :class="{ 'vnova-image--transitioning': imageTransitioning }"
-      :style="imageStyle"
-      aria-hidden="true"
-    />
+    <div class="vnova-image" :class="{ 'vnova-image--transitioning': imageTransitioning }" :style="imageStyle"
+      aria-hidden="true" />
 
     <div class="vnova-sprites" aria-hidden="true">
       <transition-group name="vnova-sprite">
-        <div
-          v-for="char in stageArray"
-          :key="char.id"
-          :class="[
-            'vnova-sprite',
-            `vnova-sprite--${char.position}`,
-            { 'vnova-sprite--dim': speakerName && characters[char.id]?.name !== speakerName },
-          ]"
-        >
+        <div v-for="char in stageArray" :key="char.id" :class="[
+          'vnova-sprite',
+          `vnova-sprite--${char.position}`,
+          { 'vnova-sprite--dim': speakerName && characters[char.id]?.name !== speakerName },
+        ]">
           <slot name="sprite" :char="char" :pos="char.position">
-            <img
-              v-if="char.sprite"
-              class="vnova-sprite__img"
-              :src="char.sprite"
-              :alt="characters[char.id]?.name ?? char.id"
-            >
+            <img v-if="char.sprite" class="vnova-sprite__img" :src="char.sprite"
+              :alt="characters[char.id]?.name ?? char.id">
             <span v-else class="vnova-sprite__fallback">
               {{ characters[char.id]?.avatar ?? '👤' }}
             </span>
@@ -282,98 +272,55 @@ defineExpose({
     </div>
 
     <template v-if="!state.awaitingChoice && !state.ended && state.current?.type !== 'modal'">
-      <div
-        class="vnova-dialog"
-        role="log"
-        aria-live="polite"
-        aria-label="Dialogue"
-      >
-        <div
-          v-if="speakerName"
-          class="vnova-nameplate"
-          :style="speakerColor ? { color: speakerColor, borderColor: speakerColor } : {}"
-        >
+      <div class="vnova-dialog" role="log" aria-live="polite" aria-label="Dialogue">
+        <div v-if="speakerName" class="vnova-nameplate"
+          :style="speakerColor ? { color: speakerColor, borderColor: speakerColor } : {}">
           {{ speakerName }}
         </div>
 
         <p class="vnova-text" :class="{ 'vnova-text--think': state.current?.type === 'think' }">{{ displayedText }}</p>
 
-        <span
-          v-if="textComplete"
-          class="vnova-hint"
-          aria-hidden="true"
-        >▼</span>
+        <span v-if="textComplete" class="vnova-hint" aria-hidden="true">▼</span>
       </div>
     </template>
 
-    <div
-      v-if="state.awaitingChoice && state.current && state.current.type === 'choice'"
-      class="vnova-choices"
-      role="group"
-      aria-label="Choose an option"
-    >
+    <div v-if="state.awaitingChoice && state.current && state.current.type === 'choice'" class="vnova-choices"
+      role="group" aria-label="Choose an option">
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
       </p>
-      <button
-        v-for="option in state.current.options"
-        :key="option.label"
-        class="vnova-choice-btn"
-        :disabled="option.disabled === true"
-        :aria-disabled="option.disabled === true ? 'true' : undefined"
-        @click.stop="handleChoose(option)"
-      >
+      <button v-for="option in state.current.options" :key="option.label" class="vnova-choice-btn"
+        :disabled="option.disabled === true" :aria-disabled="option.disabled === true ? 'true' : undefined"
+        @click.stop="handleChoose(option)">
         <span class="vnova-choice-btn__label">{{ option.label }}</span>
-        <small
-          v-if="option.disabled === true && option.disabledText"
-          class="vnova-choice-btn__disabled-text"
-        >
+        <small v-if="option.disabled === true && option.disabledText" class="vnova-choice-btn__disabled-text">
           {{ option.disabledText }}
         </small>
       </button>
     </div>
 
-    <div
-      v-if="state.awaitingChoice && state.current?.type === 'input'"
-      class="vnova-choices"
-      role="group"
-      aria-label="Input prompt"
-      @click.stop
-    >
+    <div v-if="state.awaitingChoice && state.current?.type === 'input'" class="vnova-choices" role="group"
+      aria-label="Input prompt" @click.stop>
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
       </p>
       <form class="vnova-input-form" @submit.prevent.stop="handleSubmitInput">
-        <input
-          v-model="inputDraft"
-          class="vnova-input-field"
-          :type="state.current.inputType || 'text'"
-          :placeholder="state.current.placeholder || ''"
-          :maxlength="state.current.maxLength || null"
-          :required="state.current.required !== false"
-          @click.stop
-        >
+        <input v-model="inputDraft" class="vnova-input-field" :type="state.current.inputType || 'text'"
+          :placeholder="state.current.placeholder || ''" :maxlength="state.current.maxLength || null"
+          :required="state.current.required !== false" @click.stop>
         <button type="submit" class="vnova-choice-btn vnova-input-submit">
           {{ state.current.submitLabel || 'Continue' }}
         </button>
       </form>
     </div>
 
-    <div
-      v-if="state.awaitingChoice && state.current?.type === 'select'"
-      class="vnova-choices"
-      role="group"
-      aria-label="Select an option"
-    >
+    <div v-if="state.awaitingChoice && state.current?.type === 'select'" class="vnova-choices" role="group"
+      aria-label="Select an option">
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
       </p>
-      <button
-        v-for="option in normalizedSelectOptions"
-        :key="option.label"
-        class="vnova-choice-btn"
-        @click.stop="handleSelectOption(option)"
-      >
+      <button v-for="option in normalizedSelectOptions" :key="option.label" class="vnova-choice-btn"
+        @click.stop="handleSelectOption(option)">
         {{ option.label }}
       </button>
     </div>
@@ -385,20 +332,9 @@ defineExpose({
     </div>
 
     <div class="vnova-overlay" @click.stop>
-      <slot
-        name="overlay"
-        :can-back="canBack"
-        :has-save="hasSave"
-        :history="history"
-        :back="handleBack"
-        :save="handleSave"
-        :load="handleLoad"
-        :open-save="openSave"
-        :open-load="openLoad"
-        :close-save="closeSave"
-        :restart="restart"
-        :exit-menu="handleExitMenu"
-      />
+      <slot name="overlay" :can-back="canBack" :has-save="hasSave" :history="history" :back="handleBack"
+        :save="handleSave" :load="handleLoad" :open-save="openSave" :open-load="openLoad" :close-save="closeSave"
+        :restart="restart" :exit-menu="handleExitMenu" />
     </div>
   </div>
 </template>
@@ -423,16 +359,47 @@ defineExpose({
   z-index: 0;
 }
 
-.vnova-bg--active { z-index: 1; }
-.vnova-bg--fade { transition: opacity var(--vnova-bg-duration, 400ms) ease; }
-.vnova-bg--fade.vnova-bg--entering { opacity: 0; }
-.vnova-bg--dissolve { transition: opacity var(--vnova-bg-duration, 400ms) linear; }
-.vnova-bg--dissolve.vnova-bg--entering { opacity: 0; }
-.vnova-bg--slide-left { transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease; }
-.vnova-bg--slide-left.vnova-bg--entering { opacity: 0; transform: translateX(6%); }
-.vnova-bg--slide-right { transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease; }
-.vnova-bg--slide-right.vnova-bg--entering { opacity: 0; transform: translateX(-6%); }
-.vnova-bg--cut { transition: none; }
+.vnova-bg--active {
+  z-index: 1;
+}
+
+.vnova-bg--fade {
+  transition: opacity var(--vnova-bg-duration, 400ms) ease;
+}
+
+.vnova-bg--fade.vnova-bg--entering {
+  opacity: 0;
+}
+
+.vnova-bg--dissolve {
+  transition: opacity var(--vnova-bg-duration, 400ms) linear;
+}
+
+.vnova-bg--dissolve.vnova-bg--entering {
+  opacity: 0;
+}
+
+.vnova-bg--slide-left {
+  transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease;
+}
+
+.vnova-bg--slide-left.vnova-bg--entering {
+  opacity: 0;
+  transform: translateX(6%);
+}
+
+.vnova-bg--slide-right {
+  transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease;
+}
+
+.vnova-bg--slide-right.vnova-bg--entering {
+  opacity: 0;
+  transform: translateX(-6%);
+}
+
+.vnova-bg--cut {
+  transition: none;
+}
 
 .vnova-image {
   position: absolute;
@@ -445,7 +412,9 @@ defineExpose({
   z-index: 2;
 }
 
-.vnova-image--transitioning { opacity: 1; }
+.vnova-image--transitioning {
+  opacity: 1;
+}
 
 .vnova-sprites {
   position: absolute;
@@ -462,19 +431,36 @@ defineExpose({
   transition: filter 250ms ease, transform 250ms ease;
 }
 
-.vnova-sprite--left     { left: 5%; }
-.vnova-sprite--left-far { left: 0; }
-.vnova-sprite--center   { left: 50%; transform: translateX(-50%); }
-.vnova-sprite--right    { right: 5%; }
-.vnova-sprite--right-far{ right: 0; }
+.vnova-sprite--left {
+  left: 5%;
+}
 
-.vnova-sprite--dim { filter: brightness(0.45); }
+.vnova-sprite--left-far {
+  left: 0;
+}
+
+.vnova-sprite--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.vnova-sprite--right {
+  right: 5%;
+}
+
+.vnova-sprite--right-far {
+  right: 0;
+}
+
+.vnova-sprite--dim {
+  filter: brightness(0.45);
+}
 
 .vnova-sprite__fallback {
   font-size: clamp(60px, 10vw, 120px);
   line-height: 1;
   display: block;
-  filter: drop-shadow(0 8px 20px rgba(0,0,0,.6));
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, .6));
 }
 
 .vnova-sprite__img {
@@ -482,21 +468,33 @@ defineExpose({
   max-height: min(78dvh, 760px);
   max-width: min(36vw, 520px);
   object-fit: contain;
-  filter: drop-shadow(0 8px 20px rgba(0,0,0,.6));
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, .6));
 }
 
 .vnova-sprite-enter-active,
-.vnova-sprite-leave-active { transition: opacity 300ms ease, transform 300ms ease; }
-.vnova-sprite-enter-from   { opacity: 0; transform: translateY(20px); }
-.vnova-sprite-leave-to     { opacity: 0; transform: translateY(20px); }
+.vnova-sprite-leave-active {
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.vnova-sprite-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.vnova-sprite-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
 
 .vnova-dialog {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
   min-height: var(--vnova-dialog-height, 18%);
   padding: var(--vnova-dialog-padding, 0.8rem 1.2rem 0.95rem);
   background: var(--vnova-dialog-bg, rgba(0, 0, 0, 0.56));
-  border-top: 1px solid var(--vnova-dialog-border, rgba(255,255,255,.12));
+  border-top: 1px solid var(--vnova-dialog-border, rgba(255, 255, 255, .12));
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
@@ -512,9 +510,9 @@ defineExpose({
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--vnova-nameplate-color, #fff);
-  border: 1px solid rgba(255,255,255,.3);
+  border: 1px solid rgba(255, 255, 255, .3);
   border-radius: 3px;
-  background: rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, .06);
 }
 
 .vnova-text {
@@ -532,15 +530,23 @@ defineExpose({
 
 .vnova-hint {
   position: absolute;
-  bottom: 1rem; right: 1.25rem;
+  bottom: 1rem;
+  right: 1.25rem;
   font-size: 1rem;
-  color: rgba(255,255,255,.4);
+  color: rgba(255, 255, 255, .4);
   animation: vnova-blink 1.2s ease-in-out infinite;
 }
 
 @keyframes vnova-blink {
-  0%, 100% { opacity: .35; }
-  50%      { opacity: 1;   }
+
+  0%,
+  100% {
+    opacity: .35;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .vnova-choices {
@@ -553,7 +559,7 @@ defineExpose({
   gap: 0.75rem;
   padding: 2rem;
   box-sizing: border-box;
-  background: var(--vnova-choices-bg, rgba(0,0,0,.65));
+  background: var(--vnova-choices-bg, rgba(0, 0, 0, .65));
   backdrop-filter: blur(6px);
   z-index: 4;
 }
@@ -561,7 +567,7 @@ defineExpose({
 .vnova-choices__prompt {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
-  color: rgba(255,255,255,.7);
+  color: rgba(255, 255, 255, .7);
   text-align: center;
 }
 
@@ -577,8 +583,8 @@ defineExpose({
   font-size: var(--vnova-choice-size, 0.95rem);
   font-family: inherit;
   color: var(--vnova-choice-color, #f0eaf8);
-  background: var(--vnova-choice-bg, rgba(255,255,255,.08));
-  border: 1px solid var(--vnova-choice-border, rgba(255,255,255,.2));
+  background: var(--vnova-choice-bg, rgba(255, 255, 255, .08));
+  border: 1px solid var(--vnova-choice-border, rgba(255, 255, 255, .2));
   border-radius: var(--vnova-choice-radius, 6px);
   cursor: pointer;
   text-align: center;
@@ -587,8 +593,8 @@ defineExpose({
 }
 
 .vnova-choice-btn:hover:not(:disabled) {
-  background: var(--vnova-choice-bg-hover, rgba(255,255,255,.18));
-  border-color: rgba(255,255,255,.5);
+  background: var(--vnova-choice-bg-hover, rgba(255, 255, 255, .18));
+  border-color: rgba(255, 255, 255, .5);
   transform: translateY(-2px);
 }
 
@@ -597,7 +603,9 @@ defineExpose({
   opacity: 0.72;
 }
 
-.vnova-choice-btn:active { transform: translateY(0); }
+.vnova-choice-btn:active {
+  transform: translateY(0);
+}
 
 .vnova-choice-btn__label {
   display: block;
@@ -646,13 +654,13 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,.7);
+  background: rgba(0, 0, 0, .7);
   z-index: 5;
 }
 
 .vnova-end__text {
   font-size: 2rem;
-  color: rgba(255,255,255,.8);
+  color: rgba(255, 255, 255, .8);
   letter-spacing: 0.3em;
 }
 
@@ -663,5 +671,7 @@ defineExpose({
   z-index: 6;
 }
 
-.vnova-overlay > * { pointer-events: auto; }
+.vnova-overlay>* {
+  pointer-events: auto;
+}
 </style>

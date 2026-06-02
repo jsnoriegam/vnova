@@ -11,7 +11,7 @@
  *   id        — unique identifier for the modal (default: 'vnova-modal')
  *   title     — modal title text (default: 'Modal')
  *   size      — modal size: small, medium, large, xlarge, fullscreen
- *   onClose   — callback when modal is closed
+ *   close     — modal fue cerrado (usar @close en el padre)
  *   children  — Vue slots for modal content
  *
  * Emits:
@@ -48,7 +48,6 @@ const props = defineProps({
       'full',
     ].includes(value),
   },
-  onClose: { type: Function, default: null },
   showHeader:  { type: Boolean, default: true },
 })
 

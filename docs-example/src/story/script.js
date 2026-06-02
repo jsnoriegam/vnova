@@ -6,6 +6,8 @@
  * choices with set/inc, call, wait, jump, bgm/sfx/video and end.
  */
 
+import { useUserStorage } from 'vnova-engine'
+
 export default [
   {
     type: 'label',
@@ -111,7 +113,13 @@ export default [
       },
       { type: 'say', character: 'hana', text: 'No time. Push full bandwidth now.' },
       { type: 'say', character: 'kenji', text: 'That could fry the relay.', expression: 'concerned' },
-      { type: 'call', fn: (state) => { state.vars.overheat = true } },
+      {
+        type: 'call',
+        fn: () => {
+          const storage = useUserStorage()
+          storage.set('overheat', true)
+        },
+      },
       { type: 'jump', target: 'checkpoint' },
     ],
   },
@@ -142,9 +150,10 @@ export default [
       {
         type: 'call',
         fn: (state) => {
-          const trust = Number(state.vars.trust ?? 0)
-          const risk = Number(state.vars.risk ?? 0)
-          state.vars.tone = trust >= risk ? 'hopeful' : 'tense'
+          const storage = useUserStorage()
+          const trust = Number(storage.get('trust', 0))
+          const risk = Number(storage.get('risk', 0))
+          storage.set('tone', trust >= risk ? 'hopeful' : 'tense')
         },
       },
       { type: 'scene', id: 'tower-roof', transition: 'slide-left' },

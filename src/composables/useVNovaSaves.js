@@ -326,7 +326,16 @@ export function useVNovaSaves(options = {}) {
       const raw = localStorage.getItem(storageKey(saveKey, slot))
       if (!raw) return false
       const data = JSON.parse(raw)
-      if (data?.snapshot) { store.loadSnapshot(data.snapshot); return true }
+      if (data?.snapshot) {
+        if (typeof store.__vnovaPrepareLoad === 'function') {
+          store.__vnovaPrepareLoad()
+        }
+        store.loadSnapshot(data.snapshot)
+        if (typeof store.__vnovaSyncRuntime === 'function') {
+          store.__vnovaSyncRuntime(data.snapshot)
+        }
+        return true
+      }
       return false
     } catch (e) {
       console.warn('[vnova] loadSlot failed:', e)
@@ -474,7 +483,13 @@ export function useVNovaSaves(options = {}) {
           .then(async (text) => {
             const data = await _unpackSignedFile({ text, expectedKind: 'save' })
             if (data?.snapshot) {
+              if (typeof store.__vnovaPrepareLoad === 'function') {
+                store.__vnovaPrepareLoad()
+              }
               store.loadSnapshot(data.snapshot)
+              if (typeof store.__vnovaSyncRuntime === 'function') {
+                store.__vnovaSyncRuntime(data.snapshot)
+              }
               _clearFileError()
               resolve(true)
             } else {
