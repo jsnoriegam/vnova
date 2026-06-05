@@ -32,6 +32,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   id: { type: String, default: 'vnova-modal' },
   title: { type: String, default: 'Modal' },
+  closeOnBackdrop: { type: Boolean, default: false },
   size: {
     type: String,
     default: 'medium',
@@ -70,7 +71,7 @@ defineSlots()
 
 <template>
   <transition name="vnova-slide-up">
-    <div v-if="props.open" class="vnova-modal-overlay" @click.self="$emit('close')">
+    <div v-if="props.open" class="vnova-modal-overlay" @click.self="() => props.closeOnBackdrop ? $emit('close') : false">
       <div class="vnova-glass-modal vnova-base-modal" :class="modalSizeClass">
         <div v-if="props.showHeader" class="vnova-modal-header">
           <h2>{{ props.title }}</h2>

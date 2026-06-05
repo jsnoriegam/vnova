@@ -8,7 +8,7 @@ const props = defineProps({
   meta: { type: String, default: '' },
 })
 
-const emit = defineEmits(['new-game', 'load-game', 'open-settings', 'open-credits'])
+const emit = defineEmits(['new-game', 'open-load', 'open-settings', 'open-credits'])
 </script>
 
 <template>
@@ -20,9 +20,7 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings', 'open-credit
 
         <div class="menu-actions">
           <button class="menu-btn primary" @click="emit('new-game')">New Game</button>
-          <button class="menu-btn secondary" :disabled="!props.hasSave" @click="emit('load-game')">
-            Load Game
-          </button>
+          <button class="menu-btn secondary" @click="emit('open-load')">Load Game</button>
           <button v-if="props.hasCredits" class="menu-btn secondary" @click="emit('open-credits')">Credits</button>
           <button class="menu-btn secondary" @click="emit('open-settings')">Settings</button>
         </div>
@@ -131,5 +129,4 @@ const emit = defineEmits(['new-game', 'load-game', 'open-settings', 'open-credit
   font-size: 0.75rem;
   color: #6b7280;
 }
-
 </style>

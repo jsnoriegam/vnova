@@ -136,6 +136,10 @@ function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]'
 }
 
+function isRenderableComponent(value) {
+  return typeof value === 'function' || isPlainObject(value)
+}
+
 function destroyParticlesByContainer(containerId) {
   if (typeof window === 'undefined') return
 
@@ -161,6 +165,7 @@ export default defineComponent({
     credits: { type: Array, default: () => [] },
     particles: { type: Object, default: () => ({}) },
     config: { type: Object, default: () => ({}) },
+    modals: { type: Object, default: () => ({}) },
     componentResolvers: { type: Object, default: () => ({}) },
   },
   setup(props) {
@@ -196,6 +201,15 @@ export default defineComponent({
 
     const saveKey = computed(() => props.config?.saveKey || 'vnova')
     const slotCount = computed(() => Number(props.config?.slotCount ?? 8))
+    const uiModalRegistry = computed(() => {
+      const fromConfig = isPlainObject(props.config?.ui?.modals) ? props.config.ui.modals : {}
+      const fromProps = isPlainObject(props.modals) ? props.modals : {}
+      return { ...fromConfig, ...fromProps }
+    })
+    const runtimeModalsEnabled = computed(() => {
+      if (props.config?.ui?.autoModal === true) return true
+      return Object.keys(uiModalRegistry.value).length > 0
+    })
 
     const bgmVolume = computed(() => Number(stageState.value?.settings?.bgmVolume ?? 0.5))
     const sfxVolume = computed(() => Number(stageState.value?.settings?.sfxVolume ?? 0.5))
@@ -255,18 +269,6 @@ export default defineComponent({
         requestAnimationFrame(() => {
           callStage('resumeTypewriter')
         })
-      })
-    }
-
-    function handleLoadGame() {
-      queueStageAction(() => {
-        const loaded = callStage('load')
-        if (loaded) {
-          closeAllModals()
-          titleOpen.value = false
-          return
-        }
-        handleOpenLoad()
       })
     }
 
@@ -473,7 +475,6 @@ export default defineComponent({
       },
       actions: {
         newGame: handleNewGame,
-        loadGame: handleLoadGame,
         back: handleBack,
         choose: handleChoose,
         submitInput: handleSubmitInput,
@@ -526,7 +527,7 @@ export default defineComponent({
           },
           listeners: {
             onNewGame: handleNewGame,
-            onLoadGame: handleLoadGame,
+            onOpenLoad: handleOpenLoad,
             onOpenSettings: handleOpenSettings,
             onOpenCredits: handleOpenCredits,
           },
@@ -663,7 +664,6 @@ export default defineComponent({
     function genericDefinition() {
       const listeners = {
         onNewGame: handleNewGame,
-        onLoadGame: handleLoadGame,
         onOpenSettings: handleOpenSettings,
         onOpenSave: handleOpenSave,
         onOpenLoad: handleOpenLoad,
@@ -674,6 +674,82 @@ export default defineComponent({
         onClose: handleCloseAnyModal,
       }
       return { listeners }
+    }
+
+    function getActiveModalStep() {
+      const state = stageState.value
+      const step = state?.current
+      if (!state?.awaitingChoice || !step || step.type !== 'modal') return null
+      return step
+    }
+
+    function resolveModalComponent(step) {
+      if (!step) return null
+      const uiKey = typeof step.ui === 'string' && step.ui.trim().length > 0
+        ? step.ui.trim()
+        : step.id
+
+      const component = uiModalRegistry.value?.[uiKey] ?? uiModalRegistry.value?.[step.id]
+      return isRenderableComponent(component) ? component : null
+    }
+
+    function modalComponentProps(step) {
+      return {
+        id: step.id,
+        open: true,
+        title: step.title || 'Modal',
+        prompt: step.prompt || '',
+        options: Array.isArray(step.options) ? step.options : [],
+        step,
+        state: stageState.value,
+        actions: runtimeContext.actions,
+        runtime: runtimeContext,
+        onChoose: handleChoose,
+        onClose: handleCloseModal,
+      }
+    }
+
+    function renderDefaultRuntimeModal(step) {
+      const options = Array.isArray(step.options) ? step.options : []
+      return h(
+        VNovaBaseModal,
+        {
+          id: step.id || 'vnova-modal',
+          open: true,
+          title: step.title || 'Modal',
+          size: step.size || 'large',
+          showHeader: step.showHeader ?? false,
+          closeOnBackdrop: step.closeOnBackdrop ?? false
+        },
+        {
+          default: () => [
+            step.prompt ? h('p', { class: 'vnova-runtime-modal__prompt' }, step.prompt) : null,
+            ...options.map((option, index) => h(
+              'button',
+              {
+                key: option?.label || `modal-option-${index}`,
+                class: 'vnova-runtime-modal__option',
+                type: 'button',
+                disabled: option?.disabled === true,
+                onClick: () => handleChoose(option),
+              },
+              option?.label || `Option ${index + 1}`
+            )),
+          ],
+        }
+      )
+    }
+
+    function renderActiveRuntimeModal() {
+      if (!runtimeModalsEnabled.value) return null
+      if (hasDeclarativeModal.value) return null
+
+      const step = getActiveModalStep()
+      if (!step) return null
+
+      const customModal = resolveModalComponent(step)
+      if (customModal) return h(customModal, modalComponentProps(step))
+      return renderDefaultRuntimeModal(step)
     }
 
     function resolveVNode(vnode) {
@@ -725,6 +801,7 @@ export default defineComponent({
         [
           h('div', { id: particlesContainerId, class: 'vnova-runtime-particles', 'aria-hidden': 'true' }),
           ...nodes.map(resolveVNode),
+          renderActiveRuntimeModal(),
         ]
       )
     }

@@ -9,10 +9,12 @@ export { PARTICLE_PRESETS }                from './core/particles.js'
 export { createQuestEngine }               from './core/quests.js'
 export { validateScript }                  from './core/validator.js'
 export { createVNovaApp }                  from './createVNovaApp.js'
+export { registerRuntimeModal, registerRuntimeModals } from './utils/runtimeUi.js'
 
 // Composables del autor
 export { useVNovaEngine }                  from './composables/useVNovaEngine.js'
 export { useUserStorage }                  from './composables/useUserStorage.js'
+export { useEngine }                       from './composables/useEngine.js'
 export { useQuestEngine, QS }              from './composables/useQuestEngine.js'
 export { useVNovaAudio }                   from './composables/useVNovaAudio.js'
 export { useVNovaSaves }                   from './composables/useVNovaSaves.js'

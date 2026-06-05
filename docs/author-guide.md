@@ -78,6 +78,16 @@ El script es un array de **pasos** (steps). Cada paso es un objeto con un `type`
 }
 ```
 
+Para ocultar la capa de imagen, usa `hide: true`:
+
+```javascript
+{
+  type: 'image',
+  hide: true,
+  transition: 'fade'
+}
+```
+
 #### 👤 Mostrar Personaje (`show`)
 ```javascript
 {
@@ -142,6 +152,38 @@ El script es un array de **pasos** (steps). Cada paso es un objeto con un `type`
 }
 ```
 
+#### 🗺️ Modal personalizado (`modal`) sin hackear runtime
+
+Puedes registrar un componente por `id` (o `ui`) desde config y el runtime lo renderiza automaticamente.
+
+```javascript
+// story/config.js
+export default {
+  ui: {
+    modals: {
+      'city-map-route': MapChoiceModal,
+    },
+  },
+}
+```
+
+```javascript
+// script.js
+{
+  type: 'modal',
+  id: 'city-map-route',
+  title: 'Tactical Infiltration Map',
+  prompt: 'Select your insertion route.',
+  options: [
+    { label: 'Canals', jump: 'route-steady', pin: { x: 22, y: 70 } },
+    { label: 'Core', jump: 'route-risky', pin: { x: 68, y: 38 } },
+  ],
+}
+```
+
+Tu componente recibe `open`, `step`, `options`, `state` y `actions` por props.
+No necesitas `inject` ni una key interna del runtime.
+
 #### 🎵 Música (`bgm`)
 ```javascript
 {
@@ -170,6 +212,25 @@ El script es un array de **pasos** (steps). Cada paso es un objeto con un `type`
   ms: 2000  // Espera 2 segundos
 }
 ```
+
+#### ⚙️ Callback (`call`)
+```javascript
+import { useEngine, useUserStorage } from 'vnova-engine'
+
+{
+  type: 'call',
+  fn: () => {
+    const engine = useEngine()
+    const storage = useUserStorage()
+
+    const trust = Number(engine.getVar('trust') ?? 0)
+    storage.set('flags.highTrust', trust >= 2)
+    engine.run('next-label')
+  }
+}
+```
+
+No necesitas declarar parámetros en `fn`.
 
 #### 🏁 Fin (`end`)
 ```javascript

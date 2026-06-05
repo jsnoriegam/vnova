@@ -224,6 +224,7 @@ Exportado desde src/index.js:
 - useVNovaAudio
 - useVNovaSaves
 - useUserStorage
+- useEngine
 - VNovaRuntime
 - VNovaStage
 - VNovaTitleScreen
@@ -275,6 +276,16 @@ Tambien puede importarse directo:
 import { useUserStorage } from 'vnova-engine'
 
 const storage = useUserStorage()
+```
+
+Helper equivalente para control de motor en callbacks:
+
+```js
+import { useEngine } from 'vnova-engine'
+
+const engine = useEngine()
+engine.run('label-id')
+engine.setVar('tone', 'hopeful')
 ```
 
 ---

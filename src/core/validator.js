@@ -85,10 +85,14 @@ export function validateScript(script, characters = {}) {
     }
 
     if (step.type === 'image') {
+      const wantsHide = step.hide === true
       const hasId = step.id !== undefined && step.id !== null
       const hasSrc = step.src !== undefined && step.src !== null
 
-      if (hasId && hasSrc)
+      if (wantsHide && (hasId || hasSrc))
+        errors.push(`${at} image step with hide:true cannot also define id/src`)
+
+      if (!wantsHide && hasId && hasSrc)
         errors.push(`${at} image step must use either id or src, not both`)
 
       if (step.transition && !VALID_TRANSITIONS.has(step.transition))
@@ -105,7 +109,7 @@ export function validateScript(script, characters = {}) {
       if (hasId && hasSrc)
         errors.push(`${at} video step must use either id or src, not both`)
 
-      if (!step.stop && !hasId && !hasSrc && !step.track)
+      if (!step.stop && !hasId && !hasSrc)
         warnings.push(`${at} video step has no source — it will stop active playback`)
     }
 

@@ -6,7 +6,7 @@
  * choices with set/inc, call, wait, jump, bgm/sfx/video and end.
  */
 
-import { useUserStorage } from 'vnova-engine'
+import { useEngine } from 'vnova-engine'
 
 export default [
   {
@@ -116,8 +116,8 @@ export default [
       {
         type: 'call',
         fn: () => {
-          const storage = useUserStorage()
-          storage.set('overheat', true)
+          const engine = useEngine()
+          engine.setVar('overheat', true)
         },
       },
       { type: 'jump', target: 'checkpoint' },
@@ -138,7 +138,7 @@ export default [
       { type: 'narrate', text: 'Diagnostic layer projected: packet loss, relay drift, hostile pings.' },
       { type: 'say', character: 'hana', text: 'Pattern found. We can route around the jammer.' },
       { type: 'say', character: 'kenji', text: 'Nice catch.', expression: 'happy' },
-      { type: 'image', src: null, transition: 'fade' },
+      { type: 'image', hide: true, transition: 'fade' },
       { type: 'jump', target: 'checkpoint' },
     ],
   },
@@ -149,11 +149,11 @@ export default [
     steps: [
       {
         type: 'call',
-        fn: (state) => {
-          const storage = useUserStorage()
-          const trust = Number(storage.get('trust', 0))
-          const risk = Number(storage.get('risk', 0))
-          storage.set('tone', trust >= risk ? 'hopeful' : 'tense')
+        fn: () => {
+          const engine = useEngine()
+          const trust = Number(engine.getVar('trust') ?? 0)
+          const risk = Number(engine.getVar('risk') ?? 0)
+          engine.setVar('tone', trust >= risk ? 'hopeful' : 'tense')
         },
       },
       { type: 'scene', id: 'tower-roof', transition: 'slide-left' },

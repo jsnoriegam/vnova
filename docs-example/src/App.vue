@@ -1,5 +1,15 @@
 <script setup>
-import { VNovaRuntime, VNovaStage, VNovaTitleScreen, VNovaSaveModal, VNovaSettingsModal, VNovaBacklogModal, VNovaCreditsScreen, VNovaHud, VNovaTopHud } from '../../src/index.js'
+import {
+  VNovaRuntime,
+  VNovaStage,
+  VNovaTitleScreen,
+  VNovaSaveModal,
+  VNovaSettingsModal,
+  VNovaBacklogModal,
+  VNovaCreditsScreen,
+  VNovaHud,
+  VNovaTopHud,
+} from 'vnova-engine'
 
 import MapChoiceModal from './components/MapChoiceModal.vue'
 import OperatorStoragePanel from './components/OperatorStoragePanel.vue'
@@ -20,6 +30,7 @@ import config from './story/config.js'
     :credits="credits"
     :particles="particles"
     :config="config"
+    :modals="{ 'city-map-route': MapChoiceModal }"
   >
     <!-- The order of these components is important, as they are rendered in the order they are declared. -->
     <VNovaTitleScreen />
@@ -31,7 +42,6 @@ import config from './story/config.js'
       <template #right><button class="vnova-hud-btn--material">Quests</button></template>
     </VNovaTopHud>
     <OperatorStoragePanel />
-    <MapChoiceModal />
     <VNovaCreditsScreen />
     <VNovaBacklogModal />
     <VNovaSettingsModal />

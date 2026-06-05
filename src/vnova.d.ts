@@ -2,7 +2,7 @@
  * vnova-engine — TypeScript declarations
  *
  * Covers the full public API:
- *   createEngine · useVNova · useVNovaAudio · useVNovaStore
+ *   createEngine · useVNovaEngine · useEngine · useUserStorage · useVNovaAudio · useVNovaStore
  *   createQuestEngine · validateScript · expandNestedLabels
  *   VNovaStage · VNovaHud · VNovaTitleScreen
  *   VNovaTopHud
@@ -30,6 +30,17 @@ export declare function createVNovaApp(
   options?: CreateVNovaAppOptions,
 ): VueApp
 
+export declare function registerRuntimeModal(
+  config: VNovaRuntimeConfig | null | undefined,
+  id: string,
+  component: Component,
+): VNovaRuntimeConfig
+
+export declare function registerRuntimeModals(
+  config: VNovaRuntimeConfig | null | undefined,
+  modalMap: Record<string, Component>,
+): VNovaRuntimeConfig
+
 // ─── Script step types ────────────────────────────────────────────────────────
 
 export type BgTransition = 'fade' | 'dissolve' | 'cut' | 'slide-left' | 'slide-right'
@@ -46,8 +57,6 @@ export interface LabelStep {
 
 export interface SceneStep {
   type: 'scene'
-  /** Legacy alias for `id`. */
-  scene?: string
   id?: string
   src?: Url
   color?: CssColor
@@ -58,12 +67,33 @@ export interface SceneStep {
 
 export interface ImageStep {
   type: 'image'
+  /** Clears the active image layer. Preferred over `src: null`. */
+  hide?: boolean
   /** Asset registry key — mutually exclusive with `src`. */
   id?: string
   /** Direct URL — mutually exclusive with `id`. */
   src?: Url | null
   transition?: BgTransition
   fit?: ImageFit
+}
+
+export interface CallStepContextEngine {
+  state: VNovaState
+  store: VNovaState
+  advance: () => void
+  choose: (option: ChoiceOption) => void
+  submitInput: (value: string) => boolean
+  submitSelect: (option: unknown) => boolean
+  closeModal: () => void
+  back: () => boolean
+  jump: (target: string) => void
+  restart: () => void
+  start: () => void
+  exitMenu: () => void
+  getVar: (key: string) => unknown
+  setVar: (key: string, value: unknown) => void
+  getSetting: (key: string) => unknown
+  setSetting: (key: string, value: unknown) => void
 }
 
 export interface ShowStep {
@@ -130,6 +160,8 @@ export interface ChoiceStep {
 export interface ModalStep {
   type: 'modal'
   id: string
+  /** Optional UI registry key. Defaults to `id` when omitted. */
+  ui?: string
   title?: string
   size?: ModalSize
   prompt?: string
@@ -173,9 +205,7 @@ export interface BgmStep {
   stop?: boolean
   /** Asset registry key. */
   id?: string | null
-  /** Legacy alias for `id`. */
-  track?: string | null
-  /** Direct URL — takes precedence over `id`/`track`. */
+  /** Direct URL — takes precedence over `id`. */
   src?: Url
   volume?: number
   loop?: boolean
@@ -184,7 +214,6 @@ export interface BgmStep {
 export interface SfxStep {
   type: 'sfx'
   id?: string
-  track?: string
   src?: Url
   volume?: number
 }
@@ -192,7 +221,6 @@ export interface SfxStep {
 export interface VideoStep {
   type: 'video'
   id?: string | null
-  track?: string | null
   src?: Url | null
   volume?: number
   loop?: boolean
@@ -226,10 +254,11 @@ export interface EndStep {
 export interface CallStep {
   type: 'call'
   fn: (
-    state: VNovaState,
-    context: {
+    state?: VNovaState,
+    context?: {
       jump: (target: string) => void
       moveTo: (index: number) => void
+      engine: CallStepContextEngine
       quest: {
         activate: (id: string) => boolean
         complete: (id: string) => boolean
@@ -354,11 +383,6 @@ export interface VNovaState {
   readonly canBack:      boolean
 }
 
-export interface UseUserStorageOptions {
-  store?: VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>
-  state?: VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>
-}
-
 export interface UserStorageHandle {
   /** Reactive user-defined variables saved in VNova state. */
   vars:   ComputedRef<Record<string, unknown>>
@@ -433,6 +457,12 @@ export interface QuestEngine {
   complete(id: string):   boolean
   fail(id: string):       boolean
   deactivate(id: string): boolean
+  all:           ComputedRef<Record<string, QuestState>>
+  active:        ComputedRef<QuestState[]>
+  completed:     ComputedRef<QuestState[]>
+  failed:        ComputedRef<QuestState[]>
+  status(id: string): QuestStatusValue
+  is(id: string, expectedStatus: QuestStatusValue): boolean
 }
 
 // ─── Audio event ─────────────────────────────────────────────────────────────
@@ -520,10 +550,28 @@ export interface EngineHandle {
   pinia:          import('pinia').Pinia
 }
 
+export interface AuthorEngineHandle {
+  run: (target: string) => boolean
+  jump: (target: string) => boolean
+  next: () => void
+  back: () => boolean
+  restart: () => void
+  start: () => void
+  exitMenu: () => void
+  getVar: (key: string) => unknown
+  setVar: (key: string, value: unknown) => boolean
+  getSetting: (key: string) => unknown
+  setSetting: (key: string, value: unknown) => boolean
+  state: VNovaState
+  store: VNovaState
+}
+
 export declare function createEngine(
   script:  ScriptStep[],
   options?: CreateEngineOptions,
 ): EngineHandle
+
+export declare function useEngine(): AuthorEngineHandle
 
 // ─── BgLayer (useVNova internal, exposed for custom renderers) ────────────────
 
@@ -553,9 +601,15 @@ export interface UseVNovaOptions extends CreateEngineOptions {
 
 export interface VNovaComposable {
   /** Raw Pinia store (reactive). */
-  state:              VNovaState
   store:              VNovaState
+  current:            ComputedRef<ScriptStep | null>
+  awaitingChoice:     ComputedRef<boolean>
+  ended:              ComputedRef<boolean>
   stageArray:         ComputedRef<StageCharacter[]>
+  background:         ComputedRef<BackgroundState>
+  image:              ComputedRef<ImageState>
+  history:            ComputedRef<HistoryItem[]>
+  canBack:            ComputedRef<boolean>
   speakerName:        ComputedRef<string | null>
   speakerColor:       ComputedRef<CssColor | null>
   quests:             ComputedRef<Record<string, QuestState>>
@@ -572,29 +626,22 @@ export interface VNovaComposable {
   submitInput(value: string): boolean
   submitSelect(option: SelectOption): boolean
   closeModal():      void
-  back():             boolean
+  back():            boolean
   jump(target: string): void
-  start():            void
-  restart():          void
-  exitMenu():         void
-  save():             true | undefined
-  load():             boolean
-  clearSave():        void
-  skipTypewriter():   void
+  start():           void
+  restart():         void
+  exitMenu():        void
+  skipTypewriter():  void
   resumeTypewriter(): void
-  listQuests():       QuestState[]
-  getQuest(id: string): QuestState | null
-  evaluateQuests():   boolean
-  setQuestStatus(id: string, status: QuestStatusValue): boolean
   getVar(key: string): unknown
   setVar(key: string, value: unknown): void
   getSetting(key: keyof EngineSettings): unknown
   setSetting(key: keyof EngineSettings, value: unknown): void
   /** The underlying engine handle for advanced use. */
-  engine:             EngineHandle
+  engine:            EngineHandle
 }
 
-export declare function useVNova(
+export declare function useVNovaEngine(
   script:   ScriptStep[],
   options?: UseVNovaOptions,
 ): VNovaComposable
@@ -602,7 +649,6 @@ export declare function useVNova(
 // ─── useUserStorage ──────────────────────────────────────────────────────────
 
 export declare function useUserStorage(
-  options?: UseUserStorageOptions | VNovaState | Ref<VNovaState | null> | ComputedRef<VNovaState | null>,
 ): UserStorageHandle
 
 // ─── useVNovaAudio ────────────────────────────────────────────────────────────
@@ -630,7 +676,24 @@ export declare function useVNovaAudio(
 
 // ─── useVNovaStore (Pinia) ────────────────────────────────────────────────────
 
-export declare function useVNovaStore(): VNovaState
+export declare function useVNovaStore(pinia?: Pinia | null): VNovaState
+
+// ─── useQuestEngine ───────────────────────────────────────────────────────────
+
+export declare function useQuestEngine(): {
+  QS:         typeof QS
+  all:        ComputedRef<Record<string, QuestState>>
+  active:     ComputedRef<QuestState[]>
+  completed:  ComputedRef<QuestState[]>
+  failed:     ComputedRef<QuestState[]>
+  status(id: string): QuestStatusValue
+  is(id: string, expectedStatus: QuestStatusValue): boolean
+  activate(id: string): void
+  complete(id: string): void
+  fail(id: string): void
+  deactivate(id: string): void
+  list(): QuestState[]
+}
 
 // ─── createQuestEngine ────────────────────────────────────────────────────────
 
@@ -696,7 +759,6 @@ export interface VNovaRuntimeContext {
   }
   actions: {
     newGame(): void
-    loadGame(): void
     back(): void
     choose(option: ChoiceOption): void
     submitInput(value: string): boolean
@@ -725,6 +787,12 @@ export interface VNovaRuntimeConfig {
   slotCount?: number
   startLabel?: string
   stage?: UseVNovaOptions
+  ui?: {
+    /** Enables built-in runtime modal rendering even when no custom modal is registered. */
+    autoModal?: boolean
+    /** Maps modal `id` (or `step.ui`) to a Vue component rendered by VNovaRuntime. */
+    modals?: Record<string, Component>
+  }
   /**
    * Replaces built-in audio playback when provided.
    * If omitted, VNovaRuntime plays audio using its internal player.
@@ -758,6 +826,8 @@ export interface VNovaRuntimeProps {
   credits?: CreditsRegistry
   particles?: ParticleRegistry
   config?: VNovaRuntimeConfig
+  /** Direct modal registry shortcut (merged over config.ui.modals). */
+  modals?: Record<string, Component>
   componentResolvers?: Record<string, (input: VNovaRuntimeResolverInput) => VNovaRuntimeResolverResult | null | undefined>
 }
 

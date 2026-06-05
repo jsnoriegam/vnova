@@ -1,25 +1,26 @@
 <script setup>
-import { computed, inject } from 'vue'
+import { computed } from 'vue'
 import { VNovaBaseModal } from 'vnova-engine'
 
-const RUNTIME_KEY = 'vnova-runtime'
-
-const runtime = inject(RUNTIME_KEY, null)
-
-const stageState = computed(() => runtime?.state?.value ?? null)
-const currentStep = computed(() => stageState.value?.current ?? null)
-
-const isOpen = computed(() => {
-  const state = stageState.value
-  const step = currentStep.value
-  return Boolean(state?.awaitingChoice && step?.type === 'modal' && step?.id === 'city-map-route')
+const props = defineProps({
+  id: { type: String, default: 'city-map-route' },
+  open: { type: Boolean, default: false },
+  step: { type: Object, default: () => null },
+  title: { type: String, default: '' },
+  prompt: { type: String, default: '' },
+  options: { type: Array, default: () => [] },
+  actions: { type: Object, default: () => ({}) },
 })
 
-const modalTitle = computed(() => currentStep.value?.title || 'Route Selection Map')
-const modalPrompt = computed(() => currentStep.value?.prompt || 'Select an infiltration point on the map.')
+const isOpen = computed(() => Boolean(props.open))
+const modalTitle = computed(() => props.title || props.step?.title || 'Route Selection Map')
+const modalPrompt = computed(() => props.prompt || props.step?.prompt || 'Select an infiltration point on the map.')
 
 const pins = computed(() => {
-  const options = Array.isArray(currentStep.value?.options) ? currentStep.value.options : []
+  const options = Array.isArray(props.options)
+    ? props.options
+    : (Array.isArray(props.step?.options) ? props.step.options : [])
+
   return options.map((option, index) => {
     const pin = option?.pin && typeof option.pin === 'object' ? option.pin : {}
     const x = Number.isFinite(Number(pin.x)) ? Number(pin.x) : 50
@@ -37,17 +38,17 @@ const pins = computed(() => {
 })
 
 function pick(option) {
-  runtime?.actions?.choose?.(option)
+  props.actions?.choose?.(option)
 }
 
 function closeModal() {
-  runtime?.actions?.closeModal?.()
+  props.actions?.closeModal?.()
 }
 </script>
 
 <template>
   <VNovaBaseModal
-    id="city-map-route"
+    :id="props.id"
     :open="isOpen"
     :title="modalTitle"
     @close="closeModal"

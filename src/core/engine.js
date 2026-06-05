@@ -36,7 +36,17 @@ import { PARTICLE_PRESETS } from './particles.js'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-const noop = () => {}
+const noop = () => { }
+
+let activeEngineHandle = null
+
+export function getActiveEngineHandle() {
+  return activeEngineHandle
+}
+
+function setActiveEngineHandle(handle) {
+  activeEngineHandle = handle ?? null
+}
 
 const TRACKED_STATE_KEYS = [
   'cursor', 'current', 'stage', 'background', 'image',
@@ -50,8 +60,8 @@ function cloneDeep(value) {
 
 function normalizeImageFit(value) {
   if (value === undefined || value === null) return 'both'
-  if (value === 'x' || value === 'width')   return 'width'
-  if (value === 'y' || value === 'height')  return 'height'
+  if (value === 'x' || value === 'width') return 'width'
+  if (value === 'y' || value === 'height') return 'height'
   return 'both'
 }
 
@@ -195,50 +205,42 @@ function mergeWithDefaults(currentValue, defaults) {
 
 function applyInitialStateSchema(store, schema) {
   if (!isPlainObject(schema)) return
-
-  if (schema.vars !== undefined) {
-    const mergedVars = mergeWithDefaults(store.vars, schema.vars)
-    store.setVars(mergedVars)
-  }
-
-  if (schema.quests !== undefined) {
-    const mergedQuests = mergeWithDefaults(store.quests, schema.quests)
-    store.setQuests(mergedQuests)
-  }
+  const mergedVars = mergeWithDefaults(store.vars, schema)
+  store.setVars(mergedVars)
 }
 
 // ─── engine factory ───────────────────────────────────────────────────────────
 
 export function createEngine(script, options = {}) {
   const {
-    characters       = {},
-    assets           = {},
-    credits          = [],
-    particles        = {},
-    quests           = [],
-    onAudio          = noop,
-    onParticles      = noop,
-    onVideo          = noop,
-    onNotify         = noop,
-    onEnd            = noop,
+    characters = {},
+    assets = {},
+    credits = [],
+    particles = {},
+    quests = [],
+    onAudio = noop,
+    onParticles = noop,
+    onVideo = noop,
+    onNotify = noop,
+    onEnd = noop,
     autoAdvanceDelay = 0,
-    initialState     = null,
-    deferStart       = false,
+    initialState = null,
+    deferStart = false,
     // Accept an externally-provided Pinia instance, or create a fresh one.
-    pinia            = null,
+    pinia = null,
   } = options
 
   if (!Array.isArray(script) || script.length === 0)
     throw new Error('[vnova] script must be a non-empty array')
 
   const runtimeScript = expandNestedLabels(script)
-  const labelIndex    = buildIndex(runtimeScript)
+  const labelIndex = buildIndex(runtimeScript)
   const particleRegistry = { ...PARTICLE_PRESETS, ...(particles ?? {}) }
-  let _bgmBaseVolume  = 1
+  let _bgmBaseVolume = 1
 
   // ── Pinia setup ────────────────────────────────────────────────────────────
   const _pinia = pinia ?? getActivePinia() ?? createPinia()
-  const store  = useVNovaStore(_pinia)
+  const store = useVNovaStore(_pinia)
 
   store.resetEngine()
   applyInitialStateSchema(store, initialState)
@@ -255,15 +257,15 @@ export function createEngine(script, options = {}) {
   // ── quest engine ───────────────────────────────────────────────────────────
   const questEngine = createQuestEngine(quests, {
     getContext: () => createQuestContext(store),
-    getState:   () => store.quests,
-    setState:   (next) => store.setQuests(next),
+    getState: () => store.quests,
+    setState: (next) => store.setQuests(next),
   })
   questEngine.reset()
 
   // ── computed conveniences ─────────────────────────────────────────────────
-  const stageArray  = computed(() => store.stageArray)
+  const stageArray = computed(() => store.stageArray)
   const speakerName = computed(() => store.speakerName)
-  const speakerColor= computed(() => store.speakerColor)
+  const speakerColor = computed(() => store.speakerColor)
 
   // ── internal helpers ──────────────────────────────────────────────────────
   let _autoTimer = null
@@ -282,7 +284,7 @@ export function createEngine(script, options = {}) {
     fn()
     questEngine.evaluate()
     const after = snapshotTrackedState(store)
-    const diff  = buildStateDiff(before, after)
+    const diff = buildStateDiff(before, after)
     if (diff.length > 0) store.pushBackDiff(diff)
   }
 
@@ -355,8 +357,8 @@ export function createEngine(script, options = {}) {
   }
 
   function _effectiveVolume(type, baseVolume = 1) {
-    const safeBase   = Number.isFinite(Number(baseVolume)) ? Number(baseVolume) : 1
-    const masterKey  = type === 'bgm' ? 'bgmVolume' : 'sfxVolume'
+    const safeBase = Number.isFinite(Number(baseVolume)) ? Number(baseVolume) : 1
+    const masterKey = type === 'bgm' ? 'bgmVolume' : 'sfxVolume'
     const safeMaster = Number.isFinite(Number(store.settings?.[masterKey] ?? 1))
       ? Number(store.settings[masterKey])
       : 1
@@ -395,16 +397,37 @@ export function createEngine(script, options = {}) {
     onEnd({ reason, toTitle: true })
   }
 
+  const engineContext = Object.freeze({
+    advance,
+    choose,
+    submitInput,
+    submitSelect,
+    closeModal,
+    back,
+    jump,
+    restart,
+    start,
+    exitMenu,
+    getVar,
+    setVar,
+    getSetting,
+    setSetting,
+    // Keep direct state/store aliases for advanced call handlers.
+    state: store,
+    store,
+  })
+
   function _applyStep(step) {
     if (!step) { _finishSession('script-end'); return }
 
     if (step.type === 'label') { _moveTo(store.cursor + 1); return }
-    if (step.type === 'jump')  { _jumpTo(step.target); return }
+    if (step.type === 'jump') { _jumpTo(step.target); return }
     if (step.type === 'call') {
       const startCursor = store.cursor
       const callContext = {
         jump: (target) => _jumpTo(target),
         moveTo: (index) => _moveTo(index),
+        engine: engineContext,
         quest: {
           activate: (id) => questEngine.activate(id),
           complete: (id) => questEngine.complete(id),
@@ -446,8 +469,8 @@ export function createEngine(script, options = {}) {
         return
       }
 
-      const trackId = step.track ?? step.id ?? null
-      const track   = normalizeAssetUrl(step.src ?? resolveAsset('music', trackId, trackId))
+      const trackId = step.id ?? null
+      const track = normalizeAssetUrl(step.src ?? resolveAsset('music', trackId, trackId))
       _bgmBaseVolume = Number.isFinite(Number(step.volume ?? 1)) ? Number(step.volume ?? 1) : 1
       store.setBgm(track)
       onAudio({ type: 'bgm', track, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: step.loop ?? true })
@@ -456,8 +479,8 @@ export function createEngine(script, options = {}) {
     }
 
     if (step.type === 'sfx') {
-      const trackId = step.track ?? step.id ?? null
-      const track   = normalizeAssetUrl(step.src ?? resolveAsset('sounds', trackId, trackId))
+      const trackId = step.id ?? null
+      const track = normalizeAssetUrl(step.src ?? resolveAsset('sounds', trackId, trackId))
       onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', step.volume ?? 1) })
       _moveTo(store.cursor + 1)
       return
@@ -494,7 +517,7 @@ export function createEngine(script, options = {}) {
         return
       }
 
-      const trackId = step.track ?? step.id ?? null
+      const trackId = step.id ?? null
       const track = normalizeAssetUrl(step.src ?? resolveAsset('videos', trackId, trackId))
       if (!track) {
         _stopVideo()
@@ -525,14 +548,14 @@ export function createEngine(script, options = {}) {
     }
 
     if (step.type === 'scene') {
-      const sceneId  = step.id ?? step.scene ?? null
+      const sceneId = step.id ?? null
       const sceneSrc = normalizeAssetUrl(step.src ?? resolveAsset('scenes', sceneId, null))
       // Only stop BGM when explicitly requested — music continues across scenes by default
       if (step.stopMusic) _stopBgm()
       _clearSceneLayers()
       store.setBackground({
-        src:        sceneSrc,
-        color:      step.color      ?? null,
+        src: sceneSrc,
+        color: step.color ?? null,
         transition: step.transition ?? 'fade',
       })
       _moveTo(store.cursor + 1)
@@ -542,11 +565,17 @@ export function createEngine(script, options = {}) {
     if (step.type === 'end') { _finishSession('end-step'); return }
 
     if (step.type === 'image') {
-      const hasId  = step.id  !== undefined && step.id  !== null
+      if (step.hide === true) {
+        store.setImage({ src: null, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      const hasId = step.id !== undefined && step.id !== null
       const hasSrc = step.src !== undefined && step.src !== null
       if (hasId && hasSrc)
         throw new Error('[vnova] image step must provide either "id" or "src", but not both')
-      const imageId  = hasId ? step.id : null
+      const imageId = hasId ? step.id : null
       const imageSrc = hasSrc
         ? normalizeAssetUrl(step.src)
         : (imageId ? resolveAsset('images', imageId, imageId) : null)
@@ -556,16 +585,16 @@ export function createEngine(script, options = {}) {
     }
 
     if (step.type === 'show') {
-      const characterDef   = characters[step.character] ?? {}
-      const variant        = step.variant ?? step.expression ?? 'default'
-      const spriteFromReg  = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
+      const characterDef = characters[step.character] ?? {}
+      const variant = step.variant ?? step.expression ?? 'default'
+      const spriteFromReg = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
       store.showCharacter({
         character: step.character,
         data: {
-          id:         step.character,
-          position:   step.position   ?? 'center',
+          id: step.character,
+          position: step.position ?? 'center',
           expression: variant,
-          sprite:     normalizeAssetUrl(step.sprite ?? spriteFromReg),
+          sprite: normalizeAssetUrl(step.sprite ?? spriteFromReg),
         },
       })
       _moveTo(store.cursor + 1)
@@ -782,9 +811,9 @@ export function createEngine(script, options = {}) {
     _finishSession('exit-menu')
   }
 
-  function getVar(key)          { return store.vars[key] }
-  function setVar(key, value)   { store.setVar({ key, value }) }
-  function getSetting(key)      { return store.settings?.[key] }
+  function getVar(key) { return store.vars[key] }
+  function setVar(key, value) { store.setVar({ key, value }) }
+  function getSetting(key) { return store.settings?.[key] }
   function setSetting(key, value) {
     store.setSetting({ key, value })
 
@@ -802,7 +831,7 @@ export function createEngine(script, options = {}) {
   // boot
   if (!deferStart) _applyStep(runtimeScript[0])
 
-  return {
+  const engineHandle = {
     // Expose the raw Pinia store so useVNova and advanced users can subscribe
     store,
     // Keep `state` as an alias so call steps and legacy code still work
@@ -811,11 +840,11 @@ export function createEngine(script, options = {}) {
     stageArray,
     speakerName,
     speakerColor,
-    quests:        computed(() => store.quests),
-    listQuests:    questEngine.list,
-    getQuest:      questEngine.get,
-    evaluateQuests:questEngine.evaluate,
-    setQuestStatus:questEngine.setStatus,
+    quests: computed(() => store.quests),
+    listQuests: questEngine.list,
+    getQuest: questEngine.get,
+    evaluateQuests: questEngine.evaluate,
+    setQuestStatus: questEngine.setStatus,
     advance,
     choose,
     submitInput,
@@ -833,4 +862,7 @@ export function createEngine(script, options = {}) {
     // expose pinia instance for apps that want to install it themselves
     pinia: _pinia,
   }
+
+  setActiveEngineHandle(engineHandle)
+  return engineHandle
 }
