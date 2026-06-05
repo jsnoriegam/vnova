@@ -15,6 +15,9 @@ const SIGN_SALTS = {
 }
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
+const HAS_GZIP_STREAMS =
+  typeof CompressionStream === 'function' &&
+  typeof DecompressionStream === 'function'
 
 function storageKey(saveKey, slot) {
   return `${saveKey}:slot:${slot}`
@@ -38,7 +41,7 @@ function _fromBase64(value) {
 }
 
 async function _gzip(bytes) {
-  if (typeof CompressionStream !== 'function') {
+  if (!HAS_GZIP_STREAMS) {
     return { compression: 'none', bytes }
   }
   const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))
@@ -49,10 +52,46 @@ async function _gzip(bytes) {
 async function _gunzip(bytes, compression) {
   if (!compression || compression === 'none') return bytes
   if (compression !== 'gzip') throw new Error(`Unsupported compression: ${compression}`)
-  if (typeof DecompressionStream !== 'function') throw new Error('Gzip decompression not supported')
+  if (!HAS_GZIP_STREAMS) throw new Error('Gzip decompression not supported')
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
   const buffer = await new Response(stream).arrayBuffer()
   return new Uint8Array(buffer)
+}
+
+async function _readSaveFromStorage({ saveKey, slot }) {
+  const key = storageKey(saveKey, slot)
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('Invalid save payload in storage')
+  }
+
+  const isEnvelope = parsed?.format === FILE_FORMAT
+  const data = isEnvelope
+    ? await _unpackSignedFile({ text: raw, expectedKind: 'save' })
+    : parsed
+
+  const shouldRepack =
+    Boolean(data?.snapshot) &&
+    (
+      !isEnvelope ||
+      (HAS_GZIP_STREAMS && parsed?.compression !== 'gzip')
+    )
+
+  if (shouldRepack) {
+    const packed = await _packSignedFile({
+      kind: 'save',
+      saveKey,
+      data,
+    })
+    localStorage.setItem(key, packed)
+  }
+
+  return data
 }
 
 async function _hmacKey(saveKey, keyVersion = SIGN_KEY_VERSION) {
@@ -145,6 +184,7 @@ function buildPayload(store, thumbnail = null) {
       stage:          store.stage,
       background:     store.background,
       image:          store.image,
+      video:          store.video,
       bgm:            store.bgm,
       particles:      store.particles,
       vars:           store.vars,
@@ -232,11 +272,10 @@ async function captureThumbnail(stageEl) {
   }
 }
 
-function readSlotMeta(saveKey, slot) {
+async function readSlotMeta(saveKey, slot) {
   try {
-    const raw = localStorage.getItem(storageKey(saveKey, slot))
-    if (!raw) return null
-    const data = JSON.parse(raw)
+    const data = await _readSaveFromStorage({ saveKey, slot })
+    if (!data) return null
     return {
       slot,
       label:         `Slot ${slot}`,
@@ -273,9 +312,7 @@ export function useVNovaSaves(options = {}) {
 
   // Plain array ref — no readonly wrapper, no computed on top
   const lastFileError = ref(null)
-  const slots = ref(
-    Array.from({ length: slotCount }, (_, i) => readSlotMeta(saveKey, i + 1))
-  )
+  const slots = ref(Array.from({ length: slotCount }, () => null))
 
   function _setFileError(code, message) {
     lastFileError.value = { code, message }
@@ -285,19 +322,21 @@ export function useVNovaSaves(options = {}) {
     lastFileError.value = null
   }
 
-  function _refreshSlot(slot) {
-    slots.value[slot - 1] = readSlotMeta(saveKey, slot)
+  async function _refreshSlot(slot) {
+    slots.value[slot - 1] = await readSlotMeta(saveKey, slot)
   }
 
-  function _refreshAll() {
-    for (let i = 0; i < slotCount; i++) {
-      slots.value[i] = readSlotMeta(saveKey, i + 1)
-    }
+  async function _refreshAll() {
+    const next = await Promise.all(
+      Array.from({ length: slotCount }, (_, i) => readSlotMeta(saveKey, i + 1))
+    )
+    slots.value = next
   }
 
   // ── save ─────────────────────────────────────────────────────────────────
   const saving = ref(false)
   const hasSave = computed(() => slots.value.some(Boolean))
+  void _refreshAll()
 
   async function saveSlot(slot) {
     if (saving.value) return false
@@ -307,8 +346,13 @@ export function useVNovaSaves(options = {}) {
       if (!store) return false
       const thumbnail = await captureThumbnail(resolveStageElement(stageRef))
       const payload   = buildPayload(store, thumbnail)
-      localStorage.setItem(storageKey(saveKey, slot), JSON.stringify(payload))
-      _refreshSlot(slot)
+      const packed = await _packSignedFile({
+        kind: 'save',
+        saveKey,
+        data: payload,
+      })
+      localStorage.setItem(storageKey(saveKey, slot), packed)
+      await _refreshSlot(slot)
       return true
     } catch (e) {
       console.warn('[vnova] saveSlot failed:', e)
@@ -319,13 +363,12 @@ export function useVNovaSaves(options = {}) {
   }
 
   // ── load ──────────────────────────────────────────────────────────────────
-  function loadSlot(slot) {
+  async function loadSlot(slot) {
     try {
       const store = resolveStore()
       if (!store) return false
-      const raw = localStorage.getItem(storageKey(saveKey, slot))
-      if (!raw) return false
-      const data = JSON.parse(raw)
+      const data = await _readSaveFromStorage({ saveKey, slot })
+      if (!data) return false
       if (data?.snapshot) {
         if (typeof store.__vnovaPrepareLoad === 'function') {
           store.__vnovaPrepareLoad()
@@ -346,13 +389,13 @@ export function useVNovaSaves(options = {}) {
   // ── delete ────────────────────────────────────────────────────────────────
   function deleteSlot(slot) {
     localStorage.removeItem(storageKey(saveKey, slot))
-    _refreshSlot(slot)
+    void _refreshSlot(slot)
   }
 
   function clearAll() {
     for (let i = 1; i <= slotCount; i++)
       localStorage.removeItem(storageKey(saveKey, i))
-    _refreshAll()
+    void _refreshAll()
   }
 
   // ── export / import ───────────────────────────────────────────────────────
@@ -362,8 +405,8 @@ export function useVNovaSaves(options = {}) {
       const allSlots = {}
       for (let i = 1; i <= slotCount; i++) {
         try {
-          const raw = localStorage.getItem(storageKey(saveKey, i))
-          if (raw) allSlots[i] = JSON.parse(raw)
+          const data = await _readSaveFromStorage({ saveKey, slot: i })
+          if (data) allSlots[i] = data
         } catch {}
       }
       const content = await _packSignedFile({
@@ -402,9 +445,14 @@ export function useVNovaSaves(options = {}) {
               const slot = Number(slotStr)
               if (!Number.isInteger(slot) || slot < 1 || slot > slotCount) continue
               if (!payload?.snapshot) continue
-              localStorage.setItem(storageKey(saveKey, slot), JSON.stringify(payload))
+              const packed = await _packSignedFile({
+                kind: 'save',
+                saveKey,
+                data: payload,
+              })
+              localStorage.setItem(storageKey(saveKey, slot), packed)
             }
-            _refreshAll()
+            await _refreshAll()
             _clearFileError()
             resolve(true)
           })

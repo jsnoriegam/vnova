@@ -49,7 +49,7 @@ function setActiveEngineHandle(handle) {
 }
 
 const TRACKED_STATE_KEYS = [
-  'cursor', 'current', 'stage', 'background', 'image',
+  'cursor', 'current', 'stage', 'background', 'image', 'video',
   'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'history',
 ]
 
@@ -377,6 +377,7 @@ export function createEngine(script, options = {}) {
   }
 
   function _stopVideo() {
+    store.setVideo(null)
     onVideo({ action: 'stop', track: null, volume: 0, loop: false, muted: false })
   }
 
@@ -525,13 +526,17 @@ export function createEngine(script, options = {}) {
         return
       }
 
-      onVideo({
+      const controls = step.controls === 'displayable' || step.controls === true
+      const videoEvent = {
         action: 'play',
         track,
         volume: step.volume ?? 1,
         loop: step.loop ?? false,
         muted: step.muted ?? false,
-      })
+        controls,
+      }
+      store.setVideo(videoEvent)
+      onVideo(videoEvent)
       _moveTo(store.cursor + 1)
       return
     }

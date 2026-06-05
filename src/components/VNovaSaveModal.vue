@@ -73,9 +73,9 @@ function cancelOverwrite() {
   pendingSlot.value = null
 }
 
-function handleLoad(slot) {
+async function handleLoad(slot) {
   if (!slots.value[slot - 1]) return
-  const ok = saves.loadSlot(slot)
+  const ok = await saves.loadSlot(slot)
   if (ok) { _notify(`Slot ${slot} loaded`); emit('loaded', slot); emit('close') }
   else    { _notify('Load failed', 'err') }
 }

@@ -14,11 +14,19 @@ const cloneDeep = (value) => {
 
 const defaultBackground = () => ({ src: null, color: null, transition: 'cut' })
 const defaultImage      = () => ({ src: null, transition: 'cut', fit: 'both' })
+const defaultVideo      = () => null
+const normalizeSpacebarFastForward = (value) => {
+  if (value === true || value === 'true' || value === 'on' || value === 'fullspeed') return 'fullspeed'
+  if (value === false || value === 'false' || value === 'off') return 'off'
+  if (value === 'throttled') return 'throttled'
+  return 'fullspeed'
+}
 const defaultSettings   = () => ({
   typewriterSpeed: 30,
   bgmVolume: 0.5,
   sfxVolume: 0.5,
   textSize: 'medium',
+  spacebarFastForward: 'fullspeed',
 })
 
 export const useVNovaStore = defineStore('vnova', {
@@ -28,6 +36,7 @@ export const useVNovaStore = defineStore('vnova', {
     stage:          {},
     background:     defaultBackground(),
     image:          defaultImage(),
+    video:          defaultVideo(),
     bgm:            null,
     particles:      null,
     vars:           {},
@@ -67,6 +76,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.stage          = {}
       this.background     = defaultBackground()
       this.image          = defaultImage()
+      this.video          = defaultVideo()
       this.bgm            = null
       this.particles      = null
       this.vars           = {}
@@ -84,6 +94,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.stage          = snapshot.stage          ?? {}
       this.background     = snapshot.background     ?? defaultBackground()
       this.image          = snapshot.image          ?? defaultImage()
+      this.video          = snapshot.video          ?? defaultVideo()
       this.bgm            = snapshot.bgm            ?? null
       this.particles      = snapshot.particles      ?? null
       this.vars           = snapshot.vars           ?? {}
@@ -92,7 +103,11 @@ export const useVNovaStore = defineStore('vnova', {
       this.ended          = Boolean(snapshot.ended)
       this.history        = Array.isArray(snapshot.history)   ? snapshot.history   : []
       this.backStack      = Array.isArray(snapshot.backStack) ? snapshot.backStack : []
-      this.settings       = { ...defaultSettings(), ...(snapshot.settings ?? {}) }
+      this.settings       = {
+        ...defaultSettings(),
+        ...(snapshot.settings ?? {}),
+        spacebarFastForward: normalizeSpacebarFastForward(snapshot.settings?.spacebarFastForward),
+      }
     },
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -104,6 +119,7 @@ export const useVNovaStore = defineStore('vnova', {
     // ── Scene ────────────────────────────────────────────────────────────────
     setBackground(bg)           { this.background = bg },
     setImage(img)               { this.image = img },
+    setVideo(video)             { this.video = video },
     setBgm(track)               { this.bgm = track },
     setParticles(particles)     { this.particles = particles },
     setCharacters(characters)   { this.characters = characters },
@@ -139,7 +155,8 @@ export const useVNovaStore = defineStore('vnova', {
 
     // ── Settings ─────────────────────────────────────────────────────────────
     setSetting({ key, value }) {
-      this.settings = { ...this.settings, [key]: value }
+      const nextValue = key === 'spacebarFastForward' ? normalizeSpacebarFastForward(value) : value
+      this.settings = { ...this.settings, [key]: nextValue }
     },
 
     // ── History / backstack ──────────────────────────────────────────────────

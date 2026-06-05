@@ -111,6 +111,9 @@ export function validateScript(script, characters = {}) {
 
       if (!step.stop && !hasId && !hasSrc)
         warnings.push(`${at} video step has no source — it will stop active playback`)
+
+      if (step.controls !== undefined && step.controls !== true && step.controls !== false && step.controls !== 'displayable')
+        warnings.push(`${at} video controls should be boolean or "displayable"`)
     }
 
     if (step.type === 'jump') {

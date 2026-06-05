@@ -225,6 +225,7 @@ export interface VideoStep {
   volume?: number
   loop?: boolean
   muted?: boolean
+  controls?: boolean | 'displayable'
   stop?: boolean
 }
 
@@ -347,7 +348,10 @@ export interface EngineSettings {
   bgmVolume:       number
   sfxVolume:       number
   textSize:        'small' | 'medium' | 'large'
+  spacebarFastForward: 'fullspeed' | 'throttled' | 'off'
 }
+
+export type SpacebarFastForwardSetting = 'fullspeed' | 'throttled' | 'off'
 
 export interface QuestState {
   id:          string
@@ -365,6 +369,7 @@ export interface VNovaState {
   stage:          Record<string, StageCharacter>
   background:     BackgroundState
   image:          ImageState
+  video:          VideoEvent | null
   bgm:            Url | null
   particles:      { action: 'play' | 'stop'; id: string | null; config: ParticlePreset | null } | null
   vars:           Record<string, unknown>
@@ -480,6 +485,7 @@ export interface VideoEvent {
   volume: number
   loop: boolean
   muted: boolean
+  controls?: boolean
 }
 
 export interface ParticlesEvent {
@@ -591,6 +597,7 @@ export interface UseVNovaOptions extends CreateEngineOptions {
   typewriterSpeed?:   Milliseconds
   typewriterEnabled?: boolean
   keyboardEnabled?:   boolean
+  spacebarFastForward?: SpacebarFastForwardSetting | boolean | 'on'
   /** Optional color used by disabled choice helper text (`disabledText`). */
   choiceDisabledTextColor?: CssColor
   /** localStorage key for save/load. Required to enable save functionality. */

@@ -32,6 +32,15 @@ import { createEngine } from '../core/engine.js'
 const noop = () => {}
 const BG_DURATION_MS = 400
 
+const SPACEBAR_FAST_FORWARD_MODES = new Set(['fullspeed', 'throttled', 'off'])
+
+function normalizeSpacebarFastForwardMode(value) {
+  if (value === true || value === 'true' || value === 'on' || value === 'fullspeed') return 'fullspeed'
+  if (value === false || value === 'false' || value === 'off') return 'off'
+  if (value === 'throttled') return 'throttled'
+  return 'fullspeed'
+}
+
 export function useVNovaEngine(script, options = {}) {
   const {
     characters       = {},
@@ -43,6 +52,7 @@ export function useVNovaEngine(script, options = {}) {
     typewriterSpeed  = 30,
     typewriterEnabled = true,
     keyboardEnabled  = true,
+    spacebarFastForward = 'fullspeed',
     autoAdvanceDelay = 0,
     onAudio          = noop,
     onParticles      = noop,
@@ -94,10 +104,17 @@ export function useVNovaEngine(script, options = {}) {
   const displayedText = ref('')
   const textComplete  = ref(false)
   let _twTimer            = null
+  let _twRunId            = 0
   let _autoContinueTimer  = null
   let _suspendNextAuto    = false
 
-  function _clearTw()          { if (_twTimer !== null)           { clearTimeout(_twTimer);           _twTimer = null } }
+  function _clearTw() {
+    _twRunId += 1
+    if (_twTimer !== null) {
+      clearTimeout(_twTimer)
+      _twTimer = null
+    }
+  }
   function _clearAutoContinue() { if (_autoContinueTimer !== null) { clearTimeout(_autoContinueTimer); _autoContinueTimer = null } }
 
   function _speed() {
@@ -108,6 +125,7 @@ export function useVNovaEngine(script, options = {}) {
   function _runTypewriter(fullText, startIndex = 0, initialText = '') {
     _clearTw()
     _clearAutoContinue()
+    const runId = _twRunId
     if (!typewriterEnabled || !fullText) {
       displayedText.value = fullText ?? ''
       textComplete.value  = true
@@ -126,6 +144,7 @@ export function useVNovaEngine(script, options = {}) {
     textComplete.value = false
     let i = safe
     function tick() {
+      if (runId !== _twRunId) return
       displayedText.value += chars[i++]
       if (i >= chars.length) { _twTimer = null; textComplete.value = true; return }
       _twTimer = setTimeout(tick, _speed())
@@ -163,9 +182,18 @@ export function useVNovaEngine(script, options = {}) {
 
   watch(() => store.current, (step) => {
     _clearAutoContinue()
-    if (!step) return
+    if (!step) {
+      displayedText.value = ''
+      textComplete.value = true
+      return
+    }
     if (step.type === 'say' || step.type === 'think' || step.type === 'narrate') {
       _runTypewriter(step.text ?? '')
+    } else {
+      // Non-dialogue steps should never block interact() waiting for typewriter.
+      _clearTw()
+      displayedText.value = ''
+      textComplete.value = true
     }
     if (_suspendNextAuto) _suspendNextAuto = false
   }, { immediate: true })
@@ -242,8 +270,13 @@ export function useVNovaEngine(script, options = {}) {
 
   // ── Interacción ───────────────────────────────────────────────────────────
   function interact() {
+    const step = store.current
     if (store.ended || store.awaitingChoice) return
-    if (!textComplete.value) { skipTypewriter(); return }
+    const isDialogueStep =
+      step?.type === 'say' ||
+      step?.type === 'think' ||
+      step?.type === 'narrate'
+    if (isDialogueStep && !textComplete.value) { skipTypewriter(); return }
     advance()
   }
 
@@ -260,7 +293,15 @@ export function useVNovaEngine(script, options = {}) {
   // ── Teclado ───────────────────────────────────────────────────────────────
   function handleKeydown(e) {
     if (!unref(keyboardEnabled)) return
-    if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); interact() }
+    if (e.key === ' ') {
+      e.preventDefault()
+      const mode = normalizeSpacebarFastForwardMode(getSetting('spacebarFastForward') ?? spacebarFastForward)
+      if (mode === 'off') return
+      if (mode === 'throttled' && e.repeat) return
+      interact()
+      return
+    }
+    if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); interact(); return }
     if (e.key === 'ArrowLeft') { e.preventDefault(); backWithGuards() }
   }
 

@@ -253,6 +253,15 @@ defineExpose({
     <div class="vnova-image" :class="{ 'vnova-image--transitioning': imageTransitioning }" :style="imageStyle"
       aria-hidden="true" />
 
+    <div v-if="state.video?.action === 'play' && state.video?.track" class="vnova-video" @click.stop @touchend.stop>
+      <video class="vnova-video__media"
+        :key="`${state.video.track}|${state.video.volume}|${state.video.loop}|${state.video.muted}|${state.video.controls}`"
+        :src="state.video.track" :loop="state.video.loop === true" :muted="state.video.muted === true"
+        :controls="state.video.controls === true" autoplay playsinline preload="auto"
+        @loadedmetadata="(event) => { event.target.volume = Number(state.video?.volume ?? 1) }"
+        @canplay="(event) => { event.target.volume = Number(state.video?.volume ?? 1) }" />
+    </div>
+
     <div class="vnova-sprites" aria-hidden="true">
       <transition-group name="vnova-sprite">
         <div v-for="char in stageArray" :key="char.id" :class="[
@@ -410,6 +419,20 @@ defineExpose({
   opacity: 1;
   pointer-events: none;
   z-index: 2;
+}
+
+.vnova-video {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.vnova-video__media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .vnova-image--transitioning {

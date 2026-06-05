@@ -214,6 +214,7 @@ export default defineComponent({
     const bgmVolume = computed(() => Number(stageState.value?.settings?.bgmVolume ?? 0.5))
     const sfxVolume = computed(() => Number(stageState.value?.settings?.sfxVolume ?? 0.5))
     const typewriterSpeed = computed(() => Number(stageState.value?.settings?.typewriterSpeed ?? 30))
+    const spacebarFastForward = computed(() => stageState.value?.settings?.spacebarFastForward ?? 'fullspeed')
     const textSize = computed(() => stageState.value?.settings?.textSize ?? 'medium')
 
     function queueStageAction(action) {
@@ -563,6 +564,7 @@ export default defineComponent({
             bgmVolume: bgmVolume.value,
             sfxVolume: sfxVolume.value,
             typewriterSpeed: typewriterSpeed.value,
+            spacebarFastForward: spacebarFastForward.value,
             textSize: textSize.value,
           },
           listeners: {
@@ -573,6 +575,7 @@ export default defineComponent({
             'onUpdate:bgmVolume': (value) => handleSetSetting('bgmVolume', value),
             'onUpdate:sfxVolume': (value) => handleSetSetting('sfxVolume', value),
             'onUpdate:typewriterSpeed': (value) => handleSetSetting('typewriterSpeed', value),
+            'onUpdate:spacebarFastForward': (value) => handleSetSetting('spacebarFastForward', value),
             'onUpdate:textSize': (value) => handleSetSetting('textSize', value),
           },
         }

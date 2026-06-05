@@ -4,6 +4,11 @@ const props = defineProps({
   bgmVolume: { type: Number, default: 0.5 },
   sfxVolume: { type: Number, default: 0.5 },
   typewriterSpeed: { type: Number, default: 30 },
+  spacebarFastForward: {
+    type: String,
+    default: 'fullspeed',
+    validator: (value) => ['fullspeed', 'throttled', 'off'].includes(value),
+  },
   textSize: {
     type: String,
     default: 'medium',
@@ -16,6 +21,7 @@ const emit = defineEmits([
   'update:bgm-volume',
   'update:sfx-volume',
   'update:typewriter-speed',
+  'update:spacebar-fast-forward',
   'update:text-size',
 ])
 
@@ -29,6 +35,10 @@ function onSfxInput(event) {
 
 function onTypewriterInput(event) {
   emit('update:typewriter-speed', Number(event.target.value))
+}
+
+function onSpacebarFastForwardSelect(mode) {
+  emit('update:spacebar-fast-forward', mode)
 }
 
 function onTextSizeSelect(size) {
@@ -66,6 +76,39 @@ function onTextSizeSelect(size) {
               :value="props.typewriterSpeed"
               @input="onTypewriterInput"
             />
+          </div>
+
+          <div class="vnova-setting-group vnova-setting-group--toggle">
+            <label>Spacebar Fast-Forward</label>
+            <div class="vnova-segmented-control" role="radiogroup" aria-label="Spacebar fast-forward mode">
+              <button
+                type="button"
+                class="vnova-segment-btn"
+                :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'fullspeed' }"
+                @click="onSpacebarFastForwardSelect('fullspeed')"
+              >
+                Fullspeed
+              </button>
+              <button
+                type="button"
+                class="vnova-segment-btn"
+                :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'throttled' }"
+                @click="onSpacebarFastForwardSelect('throttled')"
+              >
+                Throttled
+              </button>
+              <button
+                type="button"
+                class="vnova-segment-btn"
+                :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'off' }"
+                @click="onSpacebarFastForwardSelect('off')"
+              >
+                Off
+              </button>
+            </div>
+            <small class="vnova-setting-help">
+              `on` and `true` map to Fullspeed. `off` and `false` map to Off.
+            </small>
           </div>
 
           <div class="vnova-setting-group">
@@ -113,6 +156,14 @@ function onTextSizeSelect(size) {
   font-size: 0.85rem;
   color: var(--vnova-color-muted);
   margin-bottom: 0.5rem;
+}
+
+.vnova-setting-help {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--vnova-color-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .vnova-setting-group input[type='range'] {
