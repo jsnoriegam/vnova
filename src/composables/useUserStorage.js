@@ -23,6 +23,7 @@
 
 import { computed } from 'vue'
 import { useVNovaStore } from '../core/store.js'
+import { useQuestEngine } from './useQuestEngine.js'
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]'
@@ -40,7 +41,12 @@ function splitPath(path) {
 
 export function useUserStorage() {
   const store = useVNovaStore()
+  const quests = useQuestEngine()
   const vars  = computed(() => store.vars ?? {})
+
+  function _evaluateQuests() {
+    quests.evaluate()
+  }
 
   function get(path, fallback = undefined) {
     const parts = splitPath(path)
@@ -63,6 +69,7 @@ export function useUserStorage() {
     if (parts.length === 0) return false
     if (parts.length === 1) {
       store.setVar({ key: parts[0], value })
+      _evaluateQuests()
       return true
     }
     const root = isPlainObject(store.vars) ? cloneDeep(store.vars) : {}
@@ -74,6 +81,7 @@ export function useUserStorage() {
     }
     cursor[parts[parts.length - 1]] = value
     store.setVars(root)
+    _evaluateQuests()
     return true
   }
 
@@ -108,11 +116,13 @@ export function useUserStorage() {
     if (!(key in cursor)) return false
     delete cursor[key]
     store.setVars(root)
+    _evaluateQuests()
     return true
   }
 
   function clear() {
     store.setVars({})
+    _evaluateQuests()
     return true
   }
 

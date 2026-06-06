@@ -256,7 +256,6 @@ export function createEngine(script, options = {}) {
 
   // ── quest engine ───────────────────────────────────────────────────────────
   const questEngine = createQuestEngine(quests, {
-    getContext: () => createQuestContext(store),
     getState: () => store.quests,
     setState: (next) => store.setQuests(next),
   })
@@ -282,7 +281,6 @@ export function createEngine(script, options = {}) {
   function _runTrackedMove(fn) {
     const before = snapshotTrackedState(store)
     fn()
-    questEngine.evaluate()
     const after = snapshotTrackedState(store)
     const diff = buildStateDiff(before, after)
     if (diff.length > 0) store.pushBackDiff(diff)
@@ -846,9 +844,9 @@ export function createEngine(script, options = {}) {
     speakerName,
     speakerColor,
     quests: computed(() => store.quests),
+    questDefinitions: questEngine.definitions,
     listQuests: questEngine.list,
     getQuest: questEngine.get,
-    evaluateQuests: questEngine.evaluate,
     setQuestStatus: questEngine.setStatus,
     advance,
     choose,

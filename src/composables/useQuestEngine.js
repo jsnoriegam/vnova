@@ -22,17 +22,35 @@
  */
 
 import { computed } from 'vue'
+import { getActiveEngineHandle } from '../core/engine.js'
+import { QUEST_STATUS } from '../core/quests.js'
 import { useVNovaStore } from '../core/store.js'
 
-export const QS = Object.freeze({
-  INACTIVE:  'inactive',
-  ACTIVE:    'active',
-  COMPLETED: 'completed',
-  FAILED:    'failed',
-})
+export const QS = QUEST_STATUS
+
+function safeRun(fn, fallback = false) {
+  if (typeof fn !== 'function') return fallback
+  try {
+    return fn()
+  } catch (error) {
+    console.warn('[vnova] quest hook failed:', error)
+    return fallback
+  }
+}
 
 export function useQuestEngine() {
   const store = useVNovaStore()
+
+  const getQuestDefinitions = () => {
+    const defs = getActiveEngineHandle()?.questDefinitions
+    return Array.isArray(defs) ? defs : []
+  }
+
+  const setQuestStatusFromEngine = (id, nextStatus) => {
+    const setter = getActiveEngineHandle()?.setQuestStatus
+    if (typeof setter === 'function') return Boolean(setter(id, nextStatus))
+    return false
+  }
 
   const all = computed(() => store.quests ?? {})
 
@@ -45,20 +63,50 @@ export function useQuestEngine() {
   }
 
   function _set(id, newStatus) {
+    if (setQuestStatusFromEngine(id, newStatus)) return true
     const current = store.quests ?? {}
+    if (!current[id]) return false
+    if (current[id].status === newStatus) return false
     store.setQuests({
       ...current,
-      [id]: { ...(current[id] ?? {}), status: newStatus },
+      [id]: { ...(current[id] ?? {}), status: newStatus, updatedAt: Date.now() },
     })
+    return true
   }
 
-  function activate(id)   { _set(id, QS.ACTIVE) }
-  function complete(id)   { _set(id, QS.COMPLETED) }
-  function fail(id)       { _set(id, QS.FAILED) }
-  function deactivate(id) { _set(id, QS.INACTIVE) }
+  function activate(id)   { return _set(id, QS.ACTIVE) }
+  function complete(id)   { return _set(id, QS.COMPLETED) }
+  function fail(id)       { return _set(id, QS.FAILED) }
+  function deactivate(id) { return _set(id, QS.INACTIVE) }
 
   function list() {
     return Object.entries(all.value).map(([id, data]) => ({ id, ...data }))
+  }
+
+  function evaluate(id) {
+    const definitions = getQuestDefinitions()
+    const candidates = typeof id === 'string' && id.length > 0
+      ? definitions.filter((def) => def?.id === id)
+      : definitions
+    if (candidates.length === 0) return false
+
+    let changed = false
+    for (const def of candidates) {
+      const quest = all.value[def.id]
+      if (!quest || quest.status !== QS.ACTIVE) continue
+
+      const shouldFail = Boolean(safeRun(def.failIf, false))
+      if (shouldFail) {
+        changed = fail(def.id) || changed
+        continue
+      }
+
+      const shouldComplete = Boolean(safeRun(def.doneIf, false))
+      if (shouldComplete) {
+        changed = complete(def.id) || changed
+      }
+    }
+    return changed
   }
 
   const active    = computed(() => list().filter(q => q.status === QS.ACTIVE))
@@ -78,5 +126,6 @@ export function useQuestEngine() {
     fail,
     deactivate,
     list,
+    evaluate,
   }
 }

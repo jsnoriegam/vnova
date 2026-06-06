@@ -28,6 +28,7 @@
 
 import { ref, computed, watch, onMounted, onUnmounted, unref } from 'vue'
 import { createEngine } from '../core/engine.js'
+import { plainText, sliceRichText } from '../utils/richText.js'
 
 const noop = () => {}
 const BG_DURATION_MS = 400
@@ -122,7 +123,7 @@ export function useVNovaEngine(script, options = {}) {
     return Math.max(1, Number.isFinite(s) ? s : typewriterSpeed)
   }
 
-  function _runTypewriter(fullText, startIndex = 0, initialText = '') {
+  function _runTypewriter(fullText, startIndex = 0) {
     _clearTw()
     _clearAutoContinue()
     const runId = _twRunId
@@ -131,11 +132,11 @@ export function useVNovaEngine(script, options = {}) {
       textComplete.value  = true
       return
     }
-    const chars = [...fullText]
-    const safe  = Math.max(0, Math.min(Number(startIndex) || 0, chars.length))
-    displayedText.value = safe > 0 ? (initialText ?? '') : ''
+    const total = [...plainText(fullText)].length
+    const safe  = Math.max(0, Math.min(Number(startIndex) || 0, total))
+    displayedText.value = safe > 0 ? sliceRichText(fullText, safe) : ''
 
-    if (safe >= chars.length) {
+    if (safe >= total) {
       displayedText.value = fullText
       textComplete.value  = true
       return
@@ -145,8 +146,9 @@ export function useVNovaEngine(script, options = {}) {
     let i = safe
     function tick() {
       if (runId !== _twRunId) return
-      displayedText.value += chars[i++]
-      if (i >= chars.length) { _twTimer = null; textComplete.value = true; return }
+      i++
+      displayedText.value = sliceRichText(fullText, i)
+      if (i >= total) { _twTimer = null; textComplete.value = true; return }
       _twTimer = setTimeout(tick, _speed())
     }
     _twTimer = setTimeout(tick, _speed())
@@ -167,8 +169,8 @@ export function useVNovaEngine(script, options = {}) {
     if (step?.type !== 'say' && step?.type !== 'think' && step?.type !== 'narrate') return
     const fullText = step.text ?? ''
     if (!typewriterEnabled || !fullText) { displayedText.value = fullText; textComplete.value = true; return }
-    const rendered = [...(displayedText.value ?? '')].length
-    _runTypewriter(fullText, rendered, displayedText.value ?? '')
+    const rendered = [...plainText(displayedText.value ?? '')].length
+    _runTypewriter(fullText, rendered)
   }
 
   function _autoContinueDelay(step) {

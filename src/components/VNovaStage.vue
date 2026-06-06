@@ -33,6 +33,7 @@ import { useVNovaEngine } from '../composables/useVNovaEngine.js'
 import { useUserStorage } from '../composables/useUserStorage.js'
 import { useQuestEngine } from '../composables/useQuestEngine.js'
 import { useVNovaSaves } from '../composables/useVNovaSaves.js'
+import VNovaRichText from './VNovaRichText.vue'
 
 /**
  * Props:
@@ -287,7 +288,7 @@ defineExpose({
           {{ speakerName }}
         </div>
 
-        <p class="vnova-text" :class="{ 'vnova-text--think': state.current?.type === 'think' }">{{ displayedText }}</p>
+        <p class="vnova-text" :class="{ 'vnova-text--think': state.current?.type === 'think' }"><VNovaRichText :text="displayedText" /></p>
 
         <span v-if="textComplete" class="vnova-hint" aria-hidden="true">▼</span>
       </div>

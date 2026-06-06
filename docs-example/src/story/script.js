@@ -18,11 +18,11 @@ export default [
       { type: 'bgm', id: 'grid', volume: 0.6, loop: true },
       { type: 'video', id: 'ui-loop', muted: true, loop: true },
 
-      { type: 'narrate', text: 'Year 2147. The city runs on memory and borrowed time.' },
+      { type: 'narrate', text: 'Year [b]2147[/b]. The city runs on [i]memory[/i] and [color=#e06c75]borrowed time[/color].' },
       { type: 'show', character: 'hana', position: 'left', expression: 'neutral' },
       { type: 'show', character: 'kenji', position: 'right', expression: 'concerned' },
 
-      { type: 'say', character: 'kenji', text: 'Signal lock is unstable. We have one chance to transmit.' },
+      { type: 'say', character: 'kenji', text: 'Signal lock is [color=#e5c07b]unstable[/color]. We have [b]one chance[/b] to transmit.' },
       {
         type: 'notify',
         status: 'warning',
@@ -161,7 +161,7 @@ export default [
       { type: 'bgm', id: 'glow', volume: 0.5, loop: true },
       { type: 'video', stop: true },
 
-      { type: 'narrate', text: 'The relay tower wakes. Neon rain cuts across the skyline.' },
+      { type: 'narrate', text: 'The relay tower [b]wakes[/b]. [color=#61afef]Neon rain[/color] cuts across the [i]skyline[/i].' },
       {
         type: 'choice',
         prompt: 'Final broadcast mode:',
@@ -214,7 +214,9 @@ export default [
     steps: [
       { type: 'particles', stop: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
-      { type: 'narrate', text: 'By sunrise, the city is different. Not healed, but awake.' },
+      { type: 'narrate', text: 'By sunrise, the city is [b]different[/b]. Not [i]healed[/i], but [color=#98c379]awake[/color].' },
+      // Rich text showcase: bold + italic + color combined
+      { type: 'narrate', text: '[b][color=#61afef]Rich text demo:[/color][/b] [i]cursiva[/i], [b]negrita[/b], [color=#e06c75]color[/color], y [b][i]negrita+cursiva[/i][/b].' },
       { type: 'say', character: 'hana', text: 'Same mission tomorrow?' },
       { type: 'say', character: 'kenji', text: 'Always.' },
       { type: 'end' },

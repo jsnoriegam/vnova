@@ -27,10 +27,10 @@ function asFn(maybeFn) {
   return typeof maybeFn === 'function' ? maybeFn : null
 }
 
-function safeRun(fn, context, fallback = false) {
+function safeRun(fn, fallback = false) {
   if (!fn) return fallback
   try {
-    return fn(context)
+    return fn()
   } catch (error) {
     console.warn('[vnova] quest hook failed:', error)
     return fallback
@@ -113,7 +113,6 @@ function buildInitialState(defById) {
 
 export function createQuestEngine(definitions = [], options = {}) {
   const {
-    getContext = () => ({}),
     getState = null,
     setState = null,
     now = () => Date.now(),
@@ -158,7 +157,6 @@ export function createQuestEngine(definitions = [], options = {}) {
   function setStatus(id, status) {
     const nextStatus = normalizeStatus(status)
     const current = readState()
-    const context = getContext()
     const definition = definitionMap[id]
     if (!current[id]) return false
     if (current[id].status === nextStatus) return false
@@ -167,12 +165,12 @@ export function createQuestEngine(definitions = [], options = {}) {
     current[id].updatedAt = now()
 
     if (nextStatus === QUEST_STATUS.COMPLETED) {
-      safeRun(definition?.reward, context)
+      safeRun(definition?.reward)
       _applyTransition(current, definition?.onComplete)
     }
 
     if (nextStatus === QUEST_STATUS.FAILED) {
-      safeRun(definition?.penalty, context)
+      safeRun(definition?.penalty)
       _applyTransition(current, definition?.onFail)
     }
 
@@ -212,44 +210,10 @@ export function createQuestEngine(definitions = [], options = {}) {
     return changed
   }
 
-  function evaluate() {
-    const current = readState()
-    const context = getContext()
-    let changed = false
-
-    Object.values(definitionMap).forEach((def) => {
-      const quest = current[def.id]
-      if (!quest || quest.status !== QUEST_STATUS.ACTIVE) return
-
-      const shouldFail = Boolean(safeRun(def.failIf, context, false))
-      if (shouldFail) {
-        quest.status = QUEST_STATUS.FAILED
-        quest.updatedAt = now()
-        safeRun(def.penalty, context)
-        _applyTransition(current, def.onFail)
-        changed = true
-        return
-      }
-
-      const shouldComplete = Boolean(safeRun(def.doneIf, context, false))
-      if (shouldComplete) {
-        quest.status = QUEST_STATUS.COMPLETED
-        quest.updatedAt = now()
-        safeRun(def.reward, context)
-        _applyTransition(current, def.onComplete)
-        changed = true
-      }
-    })
-
-    if (changed) writeState(current)
-    return changed
-  }
-
   return {
     QS: QUEST_STATUS,
     definitions: Object.values(definitionMap),
     reset,
-    evaluate,
     list,
     get,
     setStatus,

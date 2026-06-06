@@ -428,10 +428,10 @@ export interface QuestDefinition {
   description?:   string
   category?:      string
   initialStatus?: QuestStatusValue
-  failIf?:        (store: QuestContext) => boolean
-  doneIf?:        (store: QuestContext) => boolean
-  reward?:        (store: QuestContext) => void
-  penalty?:       (store: QuestContext) => void
+  failIf?:        () => boolean
+  doneIf?:        () => boolean
+  reward?:        () => void
+  penalty?:       () => void
   onComplete?:    QuestTransitionRule
   onFail?:        QuestTransitionRule
 }
@@ -457,7 +457,6 @@ export interface QuestEngine {
   list():     QuestState[]
   get(id: string): QuestState | null
   setStatus(id: string, status: QuestStatusValue): boolean
-  evaluate(): boolean
   activate(id: string):   boolean
   complete(id: string):   boolean
   fail(id: string):       boolean
@@ -535,9 +534,9 @@ export interface EngineHandle {
   speakerName:    ComputedRef<string | null>
   speakerColor:   ComputedRef<CssColor | null>
   quests:         ComputedRef<Record<string, QuestState>>
+  questDefinitions: QuestDefinition[]
   listQuests:     () => QuestState[]
   getQuest:       (id: string) => QuestState | null
-  evaluateQuests: () => boolean
   setQuestStatus: (id: string, status: QuestStatusValue) => boolean
   advance():      void
   choose(option: ChoiceOption): void
@@ -695,17 +694,17 @@ export declare function useQuestEngine(): {
   failed:     ComputedRef<QuestState[]>
   status(id: string): QuestStatusValue
   is(id: string, expectedStatus: QuestStatusValue): boolean
-  activate(id: string): void
-  complete(id: string): void
-  fail(id: string): void
-  deactivate(id: string): void
+  activate(id: string): boolean
+  complete(id: string): boolean
+  fail(id: string): boolean
+  deactivate(id: string): boolean
   list(): QuestState[]
+  evaluate(id?: string): boolean
 }
 
 // ─── createQuestEngine ────────────────────────────────────────────────────────
 
 export interface CreateQuestEngineOptions {
-  getContext?: () => QuestContext
   getState?:   () => Record<string, QuestState>
   setState?:   (next: Record<string, QuestState>) => void
   now?:        () => number
@@ -863,7 +862,6 @@ export interface VNovaStageExposed {
   history:      ComputedRef<ScriptStep[]>
   listQuests(): QuestState[]
   getQuest(id: string): QuestState | null
-  evaluateQuests(): boolean
   setQuestStatus(id: string, status: QuestStatusValue): boolean
   getVar(key: string): unknown
   setVar(key: string, value: unknown): void
