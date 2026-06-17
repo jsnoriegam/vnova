@@ -565,7 +565,7 @@ export function useVNovaSaves(options = {}) {
 
   return {
     slots,
-      hasSave,
+    hasSave,
     saving,
     saveSlot,
     loadSlot,

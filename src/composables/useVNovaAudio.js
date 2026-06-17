@@ -115,7 +115,9 @@ export function useVNovaAudio(initialOptions = {}) {
     sourceNode.connect(gainNode)
     gainNode.connect(_ensureBgmMaster(ctx))
 
-    try { await el.play() } catch { /* autoplay blocked — will play on next interaction */ }
+    try { await el.play() } catch (e) {
+      if (import.meta.env?.DEV) console.warn('[vnova] BGM autoplay blocked:', e.message)
+    }
 
     return { el, gainNode, src, sourceNode }
   }

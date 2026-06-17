@@ -32,6 +32,7 @@ const TAG_REGISTRY = {
 // Regex source construido una sola vez a partir del registro
 const _tagNames  = Object.keys(TAG_REGISTRY).join('|')
 const _TAG_RE_SRC = `\\[(\\/?)(?:(${_tagNames})(?:=([^\\]]+))?)\\]`
+const _TAG_RE = new RegExp(_TAG_RE_SRC, 'gi')
 
 // ── API pública ────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ const _TAG_RE_SRC = `\\[(\\/?)(?:(${_tagNames})(?:=([^\\]]+))?)\\]`
 export function parseRichText(str) {
   if (!str) return []
 
-  const re     = new RegExp(_TAG_RE_SRC, 'gi')
+  const re     = new RegExp(_TAG_RE.source, 'gi')
   const tokens = []
   const stack  = [] // { name, value }
   let lastIndex = 0
@@ -85,7 +86,7 @@ export function parseRichText(str) {
  */
 export function plainText(str) {
   if (!str) return ''
-  return str.replace(new RegExp(_TAG_RE_SRC, 'gi'), '')
+  return str.replace(new RegExp(_TAG_RE.source, 'gi'), '')
 }
 
 /**
@@ -100,7 +101,7 @@ export function plainText(str) {
 export function sliceRichText(str, n) {
   if (!str || n <= 0) return ''
 
-  const re       = new RegExp(_TAG_RE_SRC, 'gi')
+  const re       = new RegExp(_TAG_RE.source, 'gi')
   let result     = ''
   let visible    = 0
   let lastIndex  = 0

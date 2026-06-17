@@ -24,6 +24,8 @@ import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
 import { useVNovaAudio } from '../composables/useVNovaAudio.js'
+import { cloneDeep } from '../utils/clone.js'
+import { isPlainObject } from '../utils/predicates.js'
 import '../utils/particles.js'
 import { showNotify } from '../utils/notify.js'
 
@@ -128,12 +130,7 @@ function maybeUnref(value) {
 }
 
 function cloneJson(value) {
-  if (value === null || value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
-
-function isPlainObject(value) {
-  return Object.prototype.toString.call(value) === '[object Object]'
+  return cloneDeep(value)
 }
 
 function isRenderableComponent(value) {
@@ -445,19 +442,22 @@ export default defineComponent({
       })
     }
 
-    const stageOptions = computed(() => ({
-      assets: props.assets,
-      credits: props.credits,
-      particles: props.particles,
-      saveKey: saveKey.value,
-      slotCount: slotCount.value,
-      deferStart: titleOpen.value,
-      ...(props.config?.stage || {}),
-      onAudio: handleAudio,
-      onParticles: handleParticles,
-      onVideo: asFunction(props.config?.onVideo) || (() => { }),
-      onNotify: handleNotify,
-    }))
+    const stageOptions = computed(() => {
+      const opts = {
+        assets: props.assets,
+        credits: props.credits,
+        particles: props.particles,
+        saveKey: saveKey.value,
+        slotCount: slotCount.value,
+        deferStart: titleOpen.value,
+        ...(props.config?.stage || {}),
+        onAudio: handleAudio,
+        onParticles: handleParticles,
+        onVideo: asFunction(props.config?.onVideo) || (() => { }),
+        onNotify: handleNotify,
+      }
+      return opts
+    })
 
     const runtimeContext = {
       state: stageState,
@@ -504,20 +504,23 @@ export default defineComponent({
       builtInAudio.stopAll()
     })
 
-    function builtInDefinitionFor(vnode) {
-      if (matchesComponent(vnode, VNovaStage, BUILTIN_NAMES.stage)) {
-        return {
+    const BUILTIN_DEFITIONS = [
+      {
+        ref: VNovaStage,
+        names: BUILTIN_NAMES.stage,
+        build: () => ({
           props: {
             script: props.script,
             characters: props.characters,
             config: stageOptions.value,
             ref: builtInStageRef,
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaTitleScreen, BUILTIN_NAMES.title)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaTitleScreen,
+        names: BUILTIN_NAMES.title,
+        build: () => ({
           props: {
             visible: titleOpen.value,
             hasSave: hasSave.value,
@@ -532,11 +535,12 @@ export default defineComponent({
             onOpenSettings: handleOpenSettings,
             onOpenCredits: handleOpenCredits,
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaHud, BUILTIN_NAMES.hud)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaHud,
+        names: BUILTIN_NAMES.hud,
+        build: () => ({
           props: {
             canBack: canBack.value,
             audioLog: audioLog.value,
@@ -554,11 +558,12 @@ export default defineComponent({
             onRestart: handleRestart,
             onExitMenu: handleExitMenu,
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaSettingsModal, BUILTIN_NAMES.settings)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaSettingsModal,
+        names: BUILTIN_NAMES.settings,
+        build: () => ({
           props: {
             open: settingsOpen.value,
             bgmVolume: bgmVolume.value,
@@ -578,11 +583,12 @@ export default defineComponent({
             'onUpdate:spacebarFastForward': (value) => handleSetSetting('spacebarFastForward', value),
             'onUpdate:textSize': (value) => handleSetSetting('textSize', value),
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaSaveModal, BUILTIN_NAMES.save)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaSaveModal,
+        names: BUILTIN_NAMES.save,
+        build: () => ({
           props: {
             open: saveOpen.value,
             mode: saveMode.value,
@@ -608,11 +614,12 @@ export default defineComponent({
               callStage('resumeTypewriter')
             },
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaBacklogModal, BUILTIN_NAMES.backlog)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaBacklogModal,
+        names: BUILTIN_NAMES.backlog,
+        build: () => ({
           props: {
             open: backlogOpen.value,
             history: history.value,
@@ -624,11 +631,12 @@ export default defineComponent({
               callStage('resumeTypewriter')
             },
           },
-        }
-      }
-
-      if (matchesComponent(vnode, VNovaCreditsScreen, BUILTIN_NAMES.credits)) {
-        return {
+        }),
+      },
+      {
+        ref: VNovaCreditsScreen,
+        names: BUILTIN_NAMES.credits,
+        build: () => ({
           props: {
             open: creditsOpen.value,
             credits: props.credits,
@@ -640,9 +648,16 @@ export default defineComponent({
               callStage('resumeTypewriter')
             },
           },
+        }),
+      },
+    ]
+
+    function builtInDefinitionFor(vnode) {
+      for (const entry of BUILTIN_DEFITIONS) {
+        if (matchesComponent(vnode, entry.ref, entry.names)) {
+          return entry.build()
         }
       }
-
       return null
     }
 

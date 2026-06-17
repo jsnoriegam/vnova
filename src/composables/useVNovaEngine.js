@@ -29,18 +29,10 @@
 import { ref, computed, watch, onMounted, onUnmounted, unref } from 'vue'
 import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
+import { normalizeSpacebarFastForward } from '../utils/normalize.js'
 
 const noop = () => {}
 const BG_DURATION_MS = 400
-
-const SPACEBAR_FAST_FORWARD_MODES = new Set(['fullspeed', 'throttled', 'off'])
-
-function normalizeSpacebarFastForwardMode(value) {
-  if (value === true || value === 'true' || value === 'on' || value === 'fullspeed') return 'fullspeed'
-  if (value === false || value === 'false' || value === 'off') return 'off'
-  if (value === 'throttled') return 'throttled'
-  return 'fullspeed'
-}
 
 export function useVNovaEngine(script, options = {}) {
   const {
@@ -297,7 +289,7 @@ export function useVNovaEngine(script, options = {}) {
     if (!unref(keyboardEnabled)) return
     if (e.key === ' ') {
       e.preventDefault()
-      const mode = normalizeSpacebarFastForwardMode(getSetting('spacebarFastForward') ?? spacebarFastForward)
+      const mode = normalizeSpacebarFastForward(getSetting('spacebarFastForward') ?? spacebarFastForward)
       if (mode === 'off') return
       if (mode === 'throttled' && e.repeat) return
       interact()

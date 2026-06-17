@@ -6,21 +6,12 @@
  */
 
 import { defineStore } from 'pinia'
-
-const cloneDeep = (value) => {
-  if (value === null || value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
+import { cloneDeep } from '../utils/clone.js'
+import { normalizeSpacebarFastForward } from '../utils/normalize.js'
 
 const defaultBackground = () => ({ src: null, color: null, transition: 'cut' })
 const defaultImage      = () => ({ src: null, transition: 'cut', fit: 'both' })
 const defaultVideo      = () => null
-const normalizeSpacebarFastForward = (value) => {
-  if (value === true || value === 'true' || value === 'on' || value === 'fullspeed') return 'fullspeed'
-  if (value === false || value === 'false' || value === 'off') return 'off'
-  if (value === 'throttled') return 'throttled'
-  return 'fullspeed'
-}
 const defaultSettings   = () => ({
   typewriterSpeed: 30,
   bgmVolume: 0.5,

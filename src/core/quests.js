@@ -18,10 +18,7 @@ export const QUEST_CATEGORIES = Object.freeze({
 
 const VALID_STATUSES = new Set(Object.values(QUEST_STATUS))
 
-function cloneDeep(value) {
-  if (value === null || value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
+import { cloneDeep } from '../utils/clone.js'
 
 function asFn(maybeFn) {
   return typeof maybeFn === 'function' ? maybeFn : null

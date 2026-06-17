@@ -3,6 +3,8 @@ import { createPinia, getActivePinia } from 'pinia'
 import { useVNovaStore } from './store.js'
 import { createQuestEngine } from './quests.js'
 import { PARTICLE_PRESETS } from './particles.js'
+import { cloneDeep } from '../utils/clone.js'
+import { isPlainObject } from '../utils/predicates.js'
 
 /**
  * vnova-engine — core/engine.js
@@ -53,11 +55,6 @@ const TRACKED_STATE_KEYS = [
   'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'history',
 ]
 
-function cloneDeep(value) {
-  if (value === null || value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
-
 function normalizeImageFit(value) {
   if (value === undefined || value === null) return 'both'
   if (value === 'x' || value === 'width') return 'width'
@@ -91,17 +88,22 @@ function normalizeAssetUrl(value) {
 }
 
 function snapshotTrackedState(store) {
-  return TRACKED_STATE_KEYS.reduce((acc, key) => {
-    acc[key] = cloneDeep(store[key])
-    return acc
-  }, {})
+  const snapshot = {}
+  for (const key of TRACKED_STATE_KEYS) {
+    const val = store[key]
+    snapshot[key] = val !== null && typeof val === 'object' ? cloneDeep(val) : val
+  }
+  return snapshot
 }
 
 function buildStateDiff(before, after) {
   const diff = []
   for (const key of TRACKED_STATE_KEYS) {
-    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
-      diff.push({ key, before: cloneDeep(before[key]), after: cloneDeep(after[key]) })
+    const a = before[key]
+    const b = after[key]
+    if (a === b) continue
+    if (JSON.stringify(a) !== JSON.stringify(b)) {
+      diff.push({ key, before: cloneDeep(a), after: cloneDeep(b) })
     }
   }
   return diff
@@ -113,10 +115,6 @@ function buildIndex(script) {
     if (step.type === 'label') map.set(step.id, i)
   })
   return map
-}
-
-function isPlainObject(value) {
-  return Object.prototype.toString.call(value) === '[object Object]'
 }
 
 function splitPath(path) {
@@ -244,6 +242,7 @@ export function createEngine(script, options = {}) {
 
   store.resetEngine()
   applyInitialStateSchema(store, initialState)
+
   store.setCharacters(characters)
   store.setCredits(credits)
 
@@ -419,262 +418,259 @@ export function createEngine(script, options = {}) {
   function _applyStep(step) {
     if (!step) { _finishSession('script-end'); return }
 
-    if (step.type === 'label') { _moveTo(store.cursor + 1); return }
-    if (step.type === 'jump') { _jumpTo(step.target); return }
-    if (step.type === 'call') {
-      const startCursor = store.cursor
-      const callContext = {
-        jump: (target) => _jumpTo(target),
-        moveTo: (index) => _moveTo(index),
-        engine: engineContext,
-        quest: {
-          activate: (id) => questEngine.activate(id),
-          complete: (id) => questEngine.complete(id),
-          fail: (id) => questEngine.fail(id),
-          deactivate: (id) => questEngine.deactivate(id),
-          setStatus: (id, status) => questEngine.setStatus(id, status),
-        },
-      }
+    switch (step.type) {
+      case 'label':
+        _moveTo(store.cursor + 1)
+        return
 
-      const outcome = (step.fn ?? noop)(store, callContext)
+      case 'jump':
+        _jumpTo(step.target)
+        return
 
-      if (store.cursor !== startCursor) return
-      if (typeof outcome === 'string') { _jumpTo(outcome); return }
-
-      if (isPlainObject(outcome)) {
-        if (typeof outcome.jump === 'string' && outcome.jump.length > 0) {
-          _jumpTo(outcome.jump)
-          return
+      case 'call': {
+        const startCursor = store.cursor
+        const callContext = {
+          jump: (target) => _jumpTo(target),
+          moveTo: (index) => _moveTo(index),
+          engine: engineContext,
+          quest: {
+            activate: (id) => questEngine.activate(id),
+            complete: (id) => questEngine.complete(id),
+            fail: (id) => questEngine.fail(id),
+            deactivate: (id) => questEngine.deactivate(id),
+            setStatus: (id, status) => questEngine.setStatus(id, status),
+          },
         }
 
-        if (Number.isInteger(outcome.moveTo)) {
-          _moveTo(outcome.moveTo)
-          return
-        }
+        const outcome = (step.fn ?? noop)(store, callContext)
 
-        if (outcome.stay === true) {
-          return
-        }
-      }
+        if (store.cursor !== startCursor) return
+        if (typeof outcome === 'string') { _jumpTo(outcome); return }
 
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'bgm') {
-      if (step.stop === true) {
-        _stopBgm()
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const trackId = step.id ?? null
-      const track = normalizeAssetUrl(step.src ?? resolveAsset('music', trackId, trackId))
-      _bgmBaseVolume = Number.isFinite(Number(step.volume ?? 1)) ? Number(step.volume ?? 1) : 1
-      store.setBgm(track)
-      onAudio({ type: 'bgm', track, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: step.loop ?? true })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'sfx') {
-      const trackId = step.id ?? null
-      const track = normalizeAssetUrl(step.src ?? resolveAsset('sounds', trackId, trackId))
-      onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', step.volume ?? 1) })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'particles') {
-      const shouldStop = step.stop === true || step.id === null
-      if (shouldStop) {
-        _stopParticles()
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const particleId = step.id ?? null
-      const config = step.config ?? (particleId ? particleRegistry[particleId] ?? null : null)
-      if (!config) {
-        _stopParticles()
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const particleEvent = { action: 'play', id: particleId, config: cloneDeep(config) }
-      store.setParticles(particleEvent)
-      onParticles(particleEvent)
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'video') {
-      const shouldStop = step.stop === true
-      if (shouldStop) {
-        _stopVideo()
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const trackId = step.id ?? null
-      const track = normalizeAssetUrl(step.src ?? resolveAsset('videos', trackId, trackId))
-      if (!track) {
-        _stopVideo()
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const controls = step.controls === 'displayable' || step.controls === true
-      const videoEvent = {
-        action: 'play',
-        track,
-        volume: step.volume ?? 1,
-        loop: step.loop ?? false,
-        muted: step.muted ?? false,
-        controls,
-      }
-      store.setVideo(videoEvent)
-      onVideo(videoEvent)
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'notify') {
-      const resolvedNotify = _interpolateDeep(step)
-      onNotify({
-        status: resolvedNotify.status ?? 'info',
-        title: resolvedNotify.title ?? '',
-        text: resolvedNotify.text ?? '',
-      })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'scene') {
-      const sceneId = step.id ?? null
-      const sceneSrc = normalizeAssetUrl(step.src ?? resolveAsset('scenes', sceneId, null))
-      // Only stop BGM when explicitly requested — music continues across scenes by default
-      if (step.stopMusic) _stopBgm()
-      _clearSceneLayers()
-      store.setBackground({
-        src: sceneSrc,
-        color: step.color ?? null,
-        transition: step.transition ?? 'fade',
-      })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'end') { _finishSession('end-step'); return }
-
-    if (step.type === 'image') {
-      if (step.hide === true) {
-        store.setImage({ src: null, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
-        _moveTo(store.cursor + 1)
-        return
-      }
-
-      const hasId = step.id !== undefined && step.id !== null
-      const hasSrc = step.src !== undefined && step.src !== null
-      if (hasId && hasSrc)
-        throw new Error('[vnova] image step must provide either "id" or "src", but not both')
-      const imageId = hasId ? step.id : null
-      const imageSrc = hasSrc
-        ? normalizeAssetUrl(step.src)
-        : (imageId ? resolveAsset('images', imageId, imageId) : null)
-      store.setImage({ src: imageSrc, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'show') {
-      const characterDef = characters[step.character] ?? {}
-      const variant = step.variant ?? step.expression ?? 'default'
-      const spriteFromReg = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
-      store.showCharacter({
-        character: step.character,
-        data: {
-          id: step.character,
-          position: step.position ?? 'center',
-          expression: variant,
-          sprite: normalizeAssetUrl(step.sprite ?? spriteFromReg),
-        },
-      })
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'hide') {
-      store.hideCharacter(step.character ?? null)
-      _moveTo(store.cursor + 1)
-      return
-    }
-
-    if (step.type === 'wait') {
-      store.setCurrent(step)
-      _scheduleAuto(step.ms ?? 1000)
-      return
-    }
-
-    if (step.type === 'input') {
-      const resolvedInput = _interpolateDeep(step)
-      store.setCurrent(resolvedInput)
-      store.setAwaitingChoice(true)
-      store.pushHistory(resolvedInput)
-      return
-    }
-
-    if (step.type === 'select') {
-      const resolvedSelect = _interpolateDeep(step)
-      store.setCurrent(resolvedSelect)
-      store.setAwaitingChoice(true)
-      store.pushHistory(resolvedSelect)
-      return
-    }
-
-    if (step.type === 'modal') {
-      const resolvedModal = _interpolateDeep(step)
-      store.setCurrent(resolvedModal)
-      store.pushHistory(resolvedModal)
-
-      const hasOptions = Array.isArray(resolvedModal.options) && resolvedModal.options.length > 0
-      store.setAwaitingChoice(hasOptions)
-      return
-    }
-
-    if (step.type === 'choice') {
-      const visibleOptions = (step.options ?? [])
-        .filter((option) => evaluateChoiceCondition(option, store))
-        .map((option) => {
-          const serializableOption = stripChoiceRuntimeFields(option)
-          if (!isPlainObject(serializableOption)) return serializableOption
-          return {
-            ...serializableOption,
-            disabled: evaluateChoiceDisabled(option, store),
+        if (isPlainObject(outcome)) {
+          if (typeof outcome.jump === 'string' && outcome.jump.length > 0) {
+            _jumpTo(outcome.jump)
+            return
           }
-        })
-      if (visibleOptions.length === 0) {
+          if (Number.isInteger(outcome.moveTo)) {
+            _moveTo(outcome.moveTo)
+            return
+          }
+          if (outcome.stay === true) return
+        }
+
         _moveTo(store.cursor + 1)
         return
       }
 
-      const resolvedChoice = _interpolateDeep({ ...step, options: visibleOptions })
-      store.setCurrent(resolvedChoice)
-      store.setAwaitingChoice(true)
-      store.pushHistory(resolvedChoice)
-      return
-    }
+      case 'bgm': {
+        if (step.stop === true) {
+          _stopBgm()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const trackId = step.id ?? null
+        const track = normalizeAssetUrl(step.src ?? resolveAsset('music', trackId, trackId))
+        _bgmBaseVolume = Number.isFinite(Number(step.volume ?? 1)) ? Number(step.volume ?? 1) : 1
+        store.setBgm(track)
+        onAudio({ type: 'bgm', track, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: step.loop ?? true })
+        _moveTo(store.cursor + 1)
+        return
+      }
 
-    if (step.type === 'say' || step.type === 'think' || step.type === 'narrate') {
-      const resolvedLine = _interpolateDeep(step)
-      store.setCurrent(resolvedLine)
-      store.pushHistory(resolvedLine)
-      if (autoAdvanceDelay > 0) _scheduleAuto(autoAdvanceDelay)
-      return
-    }
+      case 'sfx': {
+        const trackId = step.id ?? null
+        const track = normalizeAssetUrl(step.src ?? resolveAsset('sounds', trackId, trackId))
+        onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', step.volume ?? 1) })
+        _moveTo(store.cursor + 1)
+        return
+      }
 
-    if (import.meta.env?.DEV) console.warn('[vnova] unknown step type:', step.type, step)
-    _moveTo(store.cursor + 1)
+      case 'particles': {
+        const shouldStop = step.stop === true || step.id === null
+        if (shouldStop) {
+          _stopParticles()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const particleId = step.id ?? null
+        const config = step.config ?? (particleId ? particleRegistry[particleId] ?? null : null)
+        if (!config) {
+          _stopParticles()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const particleEvent = { action: 'play', id: particleId, config: cloneDeep(config) }
+        store.setParticles(particleEvent)
+        onParticles(particleEvent)
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'video': {
+        if (step.stop === true) {
+          _stopVideo()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const trackId = step.id ?? null
+        const track = normalizeAssetUrl(step.src ?? resolveAsset('videos', trackId, trackId))
+        if (!track) {
+          _stopVideo()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const controls = step.controls === 'displayable' || step.controls === true
+        const videoEvent = {
+          action: 'play',
+          track,
+          volume: step.volume ?? 1,
+          loop: step.loop ?? false,
+          muted: step.muted ?? false,
+          controls,
+        }
+        store.setVideo(videoEvent)
+        onVideo(videoEvent)
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'notify': {
+        const resolvedNotify = _interpolateDeep(step)
+        onNotify({
+          status: resolvedNotify.status ?? 'info',
+          title: resolvedNotify.title ?? '',
+          text: resolvedNotify.text ?? '',
+        })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'scene': {
+        const sceneId = step.id ?? null
+        const sceneSrc = normalizeAssetUrl(step.src ?? resolveAsset('scenes', sceneId, null))
+        if (step.stopMusic) _stopBgm()
+        _clearSceneLayers()
+        store.setBackground({
+          src: sceneSrc,
+          color: step.color ?? null,
+          transition: step.transition ?? 'fade',
+        })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'end':
+        _finishSession('end-step')
+        return
+
+      case 'image': {
+        if (step.hide === true) {
+          store.setImage({ src: null, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const hasId = step.id !== undefined && step.id !== null
+        const hasSrc = step.src !== undefined && step.src !== null
+        if (hasId && hasSrc)
+          throw new Error('[vnova] image step must provide either "id" or "src", but not both')
+        const imageId = hasId ? step.id : null
+        const imageSrc = hasSrc
+          ? normalizeAssetUrl(step.src)
+          : (imageId ? resolveAsset('images', imageId, imageId) : null)
+        store.setImage({ src: imageSrc, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'show': {
+        const characterDef = characters[step.character] ?? {}
+        const variant = step.variant ?? step.expression ?? 'default'
+        const spriteFromReg = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
+        store.showCharacter({
+          character: step.character,
+          data: {
+            id: step.character,
+            position: step.position ?? 'center',
+            expression: variant,
+            sprite: normalizeAssetUrl(step.sprite ?? spriteFromReg),
+          },
+        })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'hide':
+        store.hideCharacter(step.character ?? null)
+        _moveTo(store.cursor + 1)
+        return
+
+      case 'wait':
+        store.setCurrent(step)
+        _scheduleAuto(step.ms ?? 1000)
+        return
+
+      case 'input': {
+        const resolvedInput = _interpolateDeep(step)
+        store.setCurrent(resolvedInput)
+        store.setAwaitingChoice(true)
+        store.pushHistory(resolvedInput)
+        return
+      }
+
+      case 'select': {
+        const resolvedSelect = _interpolateDeep(step)
+        store.setCurrent(resolvedSelect)
+        store.setAwaitingChoice(true)
+        store.pushHistory(resolvedSelect)
+        return
+      }
+
+      case 'modal': {
+        const resolvedModal = _interpolateDeep(step)
+        store.setCurrent(resolvedModal)
+        store.pushHistory(resolvedModal)
+        const hasOptions = Array.isArray(resolvedModal.options) && resolvedModal.options.length > 0
+        store.setAwaitingChoice(hasOptions)
+        return
+      }
+
+      case 'choice': {
+        const visibleOptions = (step.options ?? [])
+          .filter((option) => evaluateChoiceCondition(option, store))
+          .map((option) => {
+            const serializableOption = stripChoiceRuntimeFields(option)
+            if (!isPlainObject(serializableOption)) return serializableOption
+            return {
+              ...serializableOption,
+              disabled: evaluateChoiceDisabled(option, store),
+            }
+          })
+        if (visibleOptions.length === 0) {
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const resolvedChoice = _interpolateDeep({ ...step, options: visibleOptions })
+        store.setCurrent(resolvedChoice)
+        store.setAwaitingChoice(true)
+        store.pushHistory(resolvedChoice)
+        return
+      }
+
+      case 'say':
+      case 'think':
+      case 'narrate': {
+        const resolvedLine = _interpolateDeep(step)
+        store.setCurrent(resolvedLine)
+        store.pushHistory(resolvedLine)
+        if (autoAdvanceDelay > 0) _scheduleAuto(autoAdvanceDelay)
+        return
+      }
+
+      default:
+        if (import.meta.env?.DEV) console.warn('[vnova] unknown step type:', step.type, step)
+        _moveTo(store.cursor + 1)
+    }
   }
 
   function _moveTo(index) {
