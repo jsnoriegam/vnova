@@ -322,3 +322,15 @@ yarn build:lib
 
 - dev usa docs-example como root de Vite.
 - build:lib genera dist/vnova.es.js y dist/vnova.umd.js.
+
+---
+
+## Soporte
+
+Si este proyecto te resulta útil, puedes apoyar su desarrollo invitándome a un café:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jsnoriegam)
+
+## Licencia
+
+Este proyecto está bajo la Licencia Apache 2.0. Para más información, consulta el archivo [LICENSE](LICENSE).
