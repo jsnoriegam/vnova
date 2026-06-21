@@ -5,9 +5,10 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const projectRoot = path.join(__dirname, '..')
 
-const srcDir = path.join(__dirname, 'docs-example/src/assets')
-const publicDir = path.join(__dirname, 'docs-example/public/assets')
+const srcDir = path.join(projectRoot, 'docs-example/src/assets')
+const publicDir = path.join(projectRoot, 'docs-example/public/assets')
 
 function copyDir(src, dest) {
   if (!fs.existsSync(src)) return

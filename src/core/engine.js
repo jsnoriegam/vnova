@@ -53,7 +53,7 @@ const noop = () => { }
 let activeEngineHandle = null
 
 function warnDeprecated(message) {
-  if (import.meta.env?.DEV) {
+  if (import.meta.env.DEV) {
     console.warn(`[vnova] DEPRECATED: ${message}`)
   }
 }
@@ -92,7 +92,23 @@ function isAbsoluteAssetUrl(value) {
 function normalizeAssetUrl(value) {
   if (typeof value !== 'string') return value
   const raw = value.trim()
-  if (!raw || isAbsoluteAssetUrl(raw)) return raw
+  if (!raw) return raw
+  
+  // Already absolute URL (http, https, data, blob, file)
+  if (raw.startsWith('http://') || raw.startsWith('https://') || 
+      raw.startsWith('data:') || raw.startsWith('blob:') || raw.startsWith('file:')) {
+    return raw
+  }
+  
+  // For paths starting with /, prepend base URL if available
+  if (raw.startsWith('/')) {
+    const base = import.meta.env.BASE_URL || ''
+    // Avoid double slashes
+    if (base && !base.endsWith('/')) {
+      return base + raw
+    }
+    return base + raw
+  }
 
   // Vite-friendly fallback: treat relative author paths as files under /src.
   if (raw.startsWith('./') || raw.startsWith('../')) {
@@ -771,7 +787,7 @@ export function createEngine(script, options = {}) {
       }
 
       default:
-        if (import.meta.env?.DEV) console.warn('[vnova] unknown step type:', step.type, step)
+        if (import.meta.env.DEV) console.warn('[vnova] unknown step type:', step.type, step)
         _moveTo(store.cursor + 1)
     }
   }

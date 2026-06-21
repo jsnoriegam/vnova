@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-demo
+docs-example/public
 docs/.vitepress/dist
 docs/.vitepress/cache
 yarn.lock

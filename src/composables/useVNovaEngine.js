@@ -95,7 +95,7 @@ export function useVNovaEngine(script, options = {}) {
       case 'pulse':
         return createPulseEffect(element, effectOptions)
       default:
-        if (import.meta.env?.DEV) {
+        if (import.meta.env.DEV) {
           console.warn(`[vnova] unknown effect: ${name}`)
         }
     }
