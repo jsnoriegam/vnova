@@ -4,7 +4,7 @@ import vnovaPlugin from './vite-plugin/index.js'
 
 export default defineConfig({
   root: 'docs-example',
-  base: '/vnova/',
+  base: '/vnova/demo/',
   plugins: [
     vue(),
     vnovaPlugin({
