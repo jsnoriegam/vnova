@@ -102,12 +102,11 @@ function normalizeAssetUrl(value) {
   
   // For paths starting with /, prepend base URL if available
   if (raw.startsWith('/')) {
-    const base = import.meta.env.BASE_URL || ''
-    // Avoid double slashes: if base ends with /, remove leading / from raw
-    if (base.endsWith('/')) {
-      return base + raw.slice(1)
+    const base = (import.meta.env.BASE_URL || '').replace(/\/$/, '') // Remove trailing slash
+    if (base) {
+      return base + raw
     }
-    return base + raw
+    return raw
   }
 
   // Vite-friendly fallback: treat relative author paths as files under /src.
@@ -119,11 +118,11 @@ function normalizeAssetUrl(value) {
   // For relative paths without leading slash (e.g., 'characters/hana.png'),
   // prepend base URL to ensure they work in GitHub Pages and other static hosts
   if (!raw.startsWith('/') && !raw.startsWith('.')) {
-    const base = import.meta.env.BASE_URL || ''
-    if (base.endsWith('/')) {
-      return base + raw
+    const base = (import.meta.env.BASE_URL || '').replace(/\/$/, '') // Remove trailing slash
+    if (base) {
+      return base + '/' + raw
     }
-    return base + '/' + raw
+    return raw
   }
 
   return raw
