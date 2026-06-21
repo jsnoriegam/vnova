@@ -116,6 +116,16 @@ function normalizeAssetUrl(value) {
     return `/src/${stripped}`
   }
 
+  // For relative paths without leading slash (e.g., 'characters/hana.png'),
+  // prepend base URL to ensure they work in GitHub Pages and other static hosts
+  if (!raw.startsWith('/') && !raw.startsWith('.')) {
+    const base = import.meta.env.BASE_URL || ''
+    if (base.endsWith('/')) {
+      return base + raw
+    }
+    return base + '/' + raw
+  }
+
   return raw
 }
 
