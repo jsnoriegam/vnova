@@ -103,9 +103,9 @@ function normalizeAssetUrl(value) {
   // For paths starting with /, prepend base URL if available
   if (raw.startsWith('/')) {
     const base = import.meta.env.BASE_URL || ''
-    // Avoid double slashes
-    if (base && !base.endsWith('/')) {
-      return base + raw
+    // Avoid double slashes: if base ends with /, remove leading / from raw
+    if (base.endsWith('/')) {
+      return base + raw.slice(1)
     }
     return base + raw
   }
@@ -283,7 +283,7 @@ export function createEngine(script, options = {}) {
   function resolveAsset(group, key, fallback = null) {
     if (!key) return fallback
     const resolved = (assets?.[group] ?? {})[key] ?? fallback
-    return normalizeAssetUrl(resolved)
+    return resolved
   }
 
   // ── quest engine ───────────────────────────────────────────────────────────
