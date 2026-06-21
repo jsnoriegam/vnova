@@ -30,6 +30,9 @@ jobs:
       - name: Build docs
         run: yarn docs:build
 
+      - name: Copy assets
+        run: node scripts/copy-assets.js
+
       - name: Build demo
         run: yarn build:demo
 
