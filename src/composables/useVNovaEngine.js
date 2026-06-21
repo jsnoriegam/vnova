@@ -30,6 +30,17 @@ import { ref, computed, watch, onMounted, onUnmounted, unref } from 'vue'
 import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
 import { normalizeSpacebarFastForward } from '../utils/normalize.js'
+import {
+  createBgTransition,
+  createSpriteEnter,
+  createSpriteLeave,
+  createSpriteDim,
+  createShakeEffect,
+  createFlashEffect,
+  createZoomEffect,
+  createPulseEffect,
+  stopAnimation,
+} from '../utils/animations.js'
 
 const noop = () => {}
 const BG_DURATION_MS = 400
@@ -51,9 +62,46 @@ export function useVNovaEngine(script, options = {}) {
     onParticles      = noop,
     onVideo          = noop,
     onNotify         = noop,
+    onEffect         = null,
     onEnd            = noop,
     pinia            = null,
   } = options
+
+  // ── Effect targets registry ─────────────────────────────────────────────
+  const _effectTargets = new Map()
+
+  function registerEffectTarget(target, element) {
+    if (element) {
+      _effectTargets.set(target, element)
+    } else {
+      _effectTargets.delete(target)
+    }
+  }
+
+  function applyEffect(effect) {
+    const { name, target = 'stage', duration, config = {} } = effect
+    const element = _effectTargets.get(target)
+    if (!element) return
+
+    const effectOptions = { duration, ...config }
+
+    switch (name) {
+      case 'shake':
+        return createShakeEffect(element, effectOptions)
+      case 'flash':
+        return createFlashEffect(element, effectOptions)
+      case 'zoom':
+        return createZoomEffect(element, effectOptions)
+      case 'pulse':
+        return createPulseEffect(element, effectOptions)
+      default:
+        if (import.meta.env?.DEV) {
+          console.warn(`[vnova] unknown effect: ${name}`)
+        }
+    }
+  }
+
+  const handleEffect = onEffect || applyEffect
 
   // ── Engine ────────────────────────────────────────────────────────────────
   const engine = createEngine(script, {
@@ -68,6 +116,7 @@ export function useVNovaEngine(script, options = {}) {
     onParticles,
     onVideo,
     onNotify,
+    onEffect: handleEffect,
     onEnd,
     pinia,
   })
@@ -206,37 +255,55 @@ export function useVNovaEngine(script, options = {}) {
     }, delay)
   })
 
-  // ── Layers de fondo con crossfade ─────────────────────────────────────────
+  // ── Layers de fondo con crossfade (animejs) ───────────────────────────────
   const bgLayers = ref([
-    { key: 'a', src: null, color: null, transition: 'cut', active: true,  visible: false, entering: false },
-    { key: 'b', src: null, color: null, transition: 'cut', active: false, visible: false, entering: false },
+    { key: 'a', src: null, color: null, transition: 'cut', active: true,  visible: false },
+    { key: 'b', src: null, color: null, transition: 'cut', active: false, visible: false },
   ])
-  let _bgTimer = null
+  const _bgElements = new Map()
+  let _bgAnimation = null
 
   const _active   = () => bgLayers.value.find(l => l.active)
   const _inactive = () => bgLayers.value.find(l => !l.active)
 
+  function registerBgElement(key, element) {
+    if (element) {
+      _bgElements.set(key, element)
+    } else {
+      _bgElements.delete(key)
+    }
+  }
+
   watch(() => store.background, (bg) => {
     if (!bg) return
+
+    stopAnimation(_bgAnimation)
+    _bgAnimation = null
+
     if (bg.transition === 'cut') {
       const a = _active()
       a.src = bg.src; a.color = bg.color; a.transition = 'cut'
-      a.visible = !!(bg.src || bg.color); a.entering = false
+      a.visible = !!(bg.src || bg.color)
       const b = _inactive()
-      b.visible = false; b.entering = false
+      b.visible = false
       return
     }
-    if (_bgTimer !== null) {
-      clearTimeout(_bgTimer); _bgTimer = null
-      const prev = _inactive(); prev.visible = false; prev.entering = false
-    }
+
     const out = _active()
     const inn = _inactive()
     inn.src = bg.src; inn.color = bg.color; inn.transition = bg.transition
-    inn.visible = true; inn.entering = true
+    inn.visible = true
     out.active = false; inn.active = true
-    requestAnimationFrame(() => requestAnimationFrame(() => { inn.entering = false }))
-    _bgTimer = setTimeout(() => { out.visible = false; out.entering = false; _bgTimer = null }, BG_DURATION_MS)
+
+    const innEl = _bgElements.get(inn.key)
+    if (innEl) {
+      _bgAnimation = createBgTransition(innEl, bg.transition, () => {
+        out.visible = false
+        _bgAnimation = null
+      })
+    } else {
+      out.visible = false
+    }
   }, { immediate: true })
 
   function bgLayerStyle(layer) {
@@ -245,21 +312,119 @@ export function useVNovaEngine(script, options = {}) {
     return {}
   }
 
-  // ── Layer de imagen ───────────────────────────────────────────────────────
-  const imageTransitioning = ref(false)
-  watch(() => store.image, () => {
-    if (store.image?.transition === 'cut') return
-    imageTransitioning.value = true
-    setTimeout(() => { imageTransitioning.value = false }, BG_DURATION_MS)
-  })
+  // ── Layer de imagen con crossfade (animejs) ───────────────────────────────
+  const imageLayers = ref([
+    { key: 'a', src: null, transition: 'cut', fit: 'both', active: true, visible: false },
+    { key: 'b', src: null, transition: 'cut', fit: 'both', active: false, visible: false },
+  ])
+  const _imageElements = new Map()
+  let _imageAnimation = null
 
-  const imageStyle = computed(() => {
-    const image = store.image
-    if (!image?.src) return {}
+  const _imageActive = () => imageLayers.value.find(l => l.active)
+  const _imageInactive = () => imageLayers.value.find(l => !l.active)
+
+  function registerImageElement(key, element) {
+    if (element) {
+      _imageElements.set(key, element)
+    } else {
+      _imageElements.delete(key)
+    }
+  }
+
+  watch(() => store.image, (img) => {
+    if (!img) return
+
+    stopAnimation(_imageAnimation)
+    _imageAnimation = null
+
+    if (img.transition === 'cut') {
+      const a = _imageActive()
+      a.src = img.src; a.transition = 'cut'; a.fit = img.fit ?? 'both'
+      a.visible = !!img.src
+      const b = _imageInactive()
+      b.visible = false
+      return
+    }
+
+    const out = _imageActive()
+    const inn = _imageInactive()
+    inn.src = img.src; inn.transition = img.transition; inn.fit = img.fit ?? 'both'
+    inn.visible = true
+    out.active = false; inn.active = true
+
+    const innEl = _imageElements.get(inn.key)
+    if (innEl) {
+      _imageAnimation = createBgTransition(innEl, img.transition, () => {
+        out.visible = false
+        _imageAnimation = null
+      })
+    } else {
+      out.visible = false
+    }
+  }, { immediate: true })
+
+  function imageLayerStyle(layer) {
+    if (!layer?.src) return {}
     let backgroundSize = 'contain'
-    if (image.fit === 'width')  backgroundSize = '100% auto'
-    if (image.fit === 'height') backgroundSize = 'auto 100%'
-    return { backgroundImage: `url(${image.src})`, backgroundSize, backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }
+    if (layer.fit === 'width')  backgroundSize = '100% auto'
+    if (layer.fit === 'height') backgroundSize = 'auto 100%'
+    return { backgroundImage: `url(${layer.src})`, backgroundSize, backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }
+  }
+
+  // ── Sprites con animejs ───────────────────────────────────────────────────
+  const _spriteElements = new Map()
+  const _spriteAnimations = new Map()
+  const _spriteDimAnimations = new Map()
+  const _previousSpriteIds = new Set()
+
+  function registerSpriteElement(id, element) {
+    if (element) {
+      _spriteElements.set(id, element)
+    } else {
+      _spriteElements.delete(id)
+    }
+  }
+
+  watch(stageArray, (newStage) => {
+    const currentIds = new Set(newStage.map(c => c.id))
+
+    for (const id of currentIds) {
+      if (!_previousSpriteIds.has(id)) {
+        const el = _spriteElements.get(id)
+        if (el) {
+          stopAnimation(_spriteAnimations.get(id))
+          const anim = createSpriteEnter(el)
+          if (anim) _spriteAnimations.set(id, anim)
+        }
+      }
+    }
+
+    for (const id of _previousSpriteIds) {
+      if (!currentIds.has(id)) {
+        const el = _spriteElements.get(id)
+        if (el) {
+          stopAnimation(_spriteAnimations.get(id))
+          const anim = createSpriteLeave(el, () => {
+            _spriteAnimations.delete(id)
+          })
+          if (anim) _spriteAnimations.set(id, anim)
+        }
+      }
+    }
+
+    _previousSpriteIds.clear()
+    for (const id of currentIds) {
+      _previousSpriteIds.add(id)
+    }
+  }, { immediate: true })
+
+  watch(speakerName, (speaker) => {
+    for (const [id, el] of _spriteElements) {
+      const isDimmed = speaker && characters[id]?.name !== speaker
+      stopAnimation(_spriteDimAnimations.get(id))
+      const anim = createSpriteDim(el, isDimmed)
+      if (anim) _spriteDimAnimations.set(id, anim)
+    }
   })
 
   // ── Interacción ───────────────────────────────────────────────────────────
@@ -303,6 +468,10 @@ export function useVNovaEngine(script, options = {}) {
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown)
     _clearTw(); _clearAutoContinue()
+    stopAnimation(_bgAnimation)
+    stopAnimation(_imageAnimation)
+    for (const anim of _spriteAnimations.values()) stopAnimation(anim)
+    for (const anim of _spriteDimAnimations.values()) stopAnimation(anim)
   })
 
   // ── API pública ───────────────────────────────────────────────────────────
@@ -329,8 +498,12 @@ export function useVNovaEngine(script, options = {}) {
     // Fondo e imagen
     bgLayers,
     bgLayerStyle,
-    imageStyle,
-    imageTransitioning,
+    registerBgElement,
+    imageLayers,
+    imageLayerStyle,
+    registerImageElement,
+    registerSpriteElement,
+    registerEffectTarget,
 
     // Acciones del autor
     interact,

@@ -113,6 +113,7 @@ export default [
       },
       { type: 'say', character: 'hana', text: 'No time. Push full bandwidth now.' },
       { type: 'say', character: 'kenji', text: 'That could fry the relay.', expression: 'concerned' },
+      { type: 'effect', name: 'shake', target: 'kenji', duration: 300, config: { intensity: 4 } },
       {
         type: 'call',
         fn: () => {
@@ -129,6 +130,7 @@ export default [
     id: 'route-analyst',
     steps: [
       { type: 'image', id: 'diagnostic-overlay', transition: 'dissolve', fit: 'both' },
+      { type: 'effect', name: 'pulse', target: 'image', duration: 1000, config: { cycles: 2, opacity: 0.6 }, wait: true },
       {
         type: 'notify',
         status: 'info',
@@ -138,7 +140,7 @@ export default [
       { type: 'narrate', text: 'Diagnostic layer projected: packet loss, relay drift, hostile pings.' },
       { type: 'say', character: 'hana', text: 'Pattern found. We can route around the jammer.' },
       { type: 'say', character: 'kenji', text: 'Nice catch.', expression: 'happy' },
-      { type: 'image', hide: true, transition: 'fade' },
+      { type: 'hide', image: true, transition: 'fade' },
       { type: 'jump', target: 'checkpoint' },
     ],
   },
@@ -157,9 +159,11 @@ export default [
         },
       },
       { type: 'scene', id: 'tower-roof', transition: 'slide-left' },
+      { type: 'effect', name: 'shake', target: 'bg', duration: 400, config: { intensity: 5, direction: 'vertical' } },
       { type: 'particles', id: 'leaves' },
       { type: 'bgm', id: 'glow', volume: 0.5, loop: true },
-      { type: 'video', stop: true },
+      { type: 'hide', video: true },
+      { type: 'effect', name: 'shake', target: 'stage', duration: 600, config: { intensity: 10 }, wait: true },
 
       { type: 'narrate', text: 'The relay tower [b]wakes[/b]. [color=#61afef]Neon rain[/color] cuts across the [i]skyline[/i].' },
       {
@@ -185,6 +189,7 @@ export default [
         text: 'Global channel established. Identity shielding disabled.',
       },
       { type: 'sfx', id: 'uplink' },
+      { type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255, 255, 255, 0.9)' }, wait: true },
       { type: 'hide', character: 'kenji' },
       { type: 'narrate', text: 'A million screens flicker alive across the city.' },
       { type: 'jump', target: 'epilogue' },
@@ -204,6 +209,7 @@ export default [
       },
       { type: 'say', character: 'kenji', text: 'Then we both live to fight tomorrow.', expression: 'thoughtful' },
       { type: 'sfx', id: 'confirm' },
+      { type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } },
       { type: 'jump', target: 'epilogue' },
     ],
   },
@@ -212,13 +218,14 @@ export default [
     type: 'label',
     id: 'epilogue',
     steps: [
-      { type: 'particles', stop: true },
+      { type: 'hide', particles: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
       { type: 'narrate', text: 'By sunrise, the city is [b]different[/b]. Not [i]healed[/i], but [color=#98c379]awake[/color].' },
       // Rich text showcase: bold + italic + color combined
       { type: 'narrate', text: '[b][color=#61afef]Rich text demo:[/color][/b] [i]cursiva[/i], [b]negrita[/b], [color=#e06c75]color[/color], y [b][i]negrita+cursiva[/i][/b].' },
       { type: 'say', character: 'hana', text: 'Same mission tomorrow?' },
       { type: 'say', character: 'kenji', text: 'Always.' },
+      { type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.1, zoomDirection: 'in' }, wait: true },
       { type: 'end' },
     ],
   },
