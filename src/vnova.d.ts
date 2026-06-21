@@ -67,7 +67,10 @@ export interface SceneStep {
 
 export interface ImageStep {
   type: 'image'
-  /** Clears the active image layer. Preferred over `src: null`. */
+  /**
+   * @deprecated Use `{ type: 'hide', image: true }` instead.
+   * Clears the active image layer.
+   */
   hide?: boolean
   /** Asset registry key — mutually exclusive with `src`. */
   id?: string
@@ -108,8 +111,18 @@ export interface ShowStep {
 
 export interface HideStep {
   type: 'hide'
-  /** Omit to clear the entire stage. */
-  character?: string
+  /** Hide a specific character (string) or all characters (true). */
+  character?: string | true
+  /** Clear the image layer. */
+  image?: string | true
+  /** Stop/clear the video layer. */
+  video?: string | true
+  /** Stop/clear the particles layer. */
+  particles?: string | true
+  /** Transition for image/video hide. */
+  transition?: BgTransition
+  /** Fit for image hide. */
+  fit?: ImageFit
 }
 
 export interface SayStep {
@@ -202,6 +215,9 @@ export interface JumpStep {
 
 export interface BgmStep {
   type: 'bgm'
+  /**
+   * @deprecated Use `{ type: 'stop', bgm: true }` instead.
+   */
   stop?: boolean
   /** Asset registry key. */
   id?: string | null
@@ -226,14 +242,59 @@ export interface VideoStep {
   loop?: boolean
   muted?: boolean
   controls?: boolean | 'displayable'
+  /**
+   * @deprecated Use `{ type: 'hide', video: true }` or `{ type: 'stop', video: true }` instead.
+   */
   stop?: boolean
 }
 
 export interface ParticlesStep {
   type: 'particles'
   id?: string | null
+  /**
+   * @deprecated Use `{ type: 'hide', particles: true }` or `{ type: 'stop', particles: true }` instead.
+   */
   stop?: boolean
   config?: Record<string, unknown>
+}
+
+export interface StopStep {
+  type: 'stop'
+  /** Stop background music. */
+  bgm?: true
+  /** Stop video playback. */
+  video?: true
+  /** Stop particle effects. */
+  particles?: true
+}
+
+export interface EffectStep {
+  type: 'effect'
+  /** Effect name (e.g., 'shake', 'flash', 'zoom', 'pulse'). */
+  name: string
+  /** Target element: 'stage', 'bg', 'image', or character id. */
+  target?: 'stage' | 'bg' | 'image' | string
+  /** Duration in milliseconds. */
+  duration?: Milliseconds
+  /** If true, blocks script advancement until effect completes. */
+  wait?: boolean
+  /** Effect-specific configuration parameters. */
+  config?: {
+    /** For shake: intensity in px (default: 8). */
+    intensity?: number
+    /** For shake: 'horizontal' | 'vertical' | 'both' (default: 'horizontal'). */
+    direction?: string
+    /** For flash: background color (default: 'rgba(255, 255, 255, 0.8)'). */
+    color?: string
+    /** For zoom: scale factor (default: 1.2). */
+    scale?: number
+    /** For zoom: 'in' | 'out' (default: 'in'). */
+    zoomDirection?: string
+    /** For pulse: number of cycles (default: 2). */
+    cycles?: number
+    /** For pulse: minimum opacity (default: 0.5). */
+    opacity?: number
+  }
 }
 
 export interface WaitStep {
@@ -276,7 +337,7 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | ModalStep | InputStep | SelectStep | JumpStep
-  | BgmStep   | SfxStep   | VideoStep | ParticlesStep | WaitStep | NotifyStep
+  | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
   | EndStep   | CallStep
 
 // ─── Character registry ───────────────────────────────────────────────────────
@@ -499,6 +560,13 @@ export interface NotifyEvent {
   text?: string
 }
 
+export interface EffectEvent {
+  name: string
+  target?: string
+  duration?: Milliseconds
+  config?: Record<string, unknown>
+}
+
 // ─── createEngine options ─────────────────────────────────────────────────────
 
 export interface CreateEngineOptions {
@@ -517,6 +585,7 @@ export interface CreateEngineOptions {
   onParticles?:      (event: ParticlesEvent) => void
   onVideo?:          (event: VideoEvent) => void
   onNotify?:         (event: NotifyEvent) => void
+  onEffect?:         (event: EffectEvent) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
   autoAdvanceDelay?: Milliseconds
   /** External Pinia instance. When omitted, a fresh one is created. */
@@ -587,7 +656,17 @@ export interface BgLayer {
   transition: BgTransition
   active:     boolean
   visible:    boolean
-  entering:   boolean
+}
+
+// ─── ImageLayer (useVNova internal, exposed for custom renderers) ─────────────
+
+export interface ImageLayer {
+  key:        'a' | 'b'
+  src:        Url | null
+  transition: BgTransition
+  fit:        ImageFit
+  active:     boolean
+  visible:    boolean
 }
 
 // ─── useVNova options ─────────────────────────────────────────────────────────
@@ -625,8 +704,12 @@ export interface VNovaComposable {
   textComplete:       Ref<boolean>
   bgLayers:           Ref<BgLayer[]>
   bgLayerStyle:       (layer: BgLayer) => CSSProperties
-  imageTransitioning: Ref<boolean>
-  imageStyle:         ComputedRef<CSSProperties>
+  registerBgElement:  (key: 'a' | 'b', element: HTMLElement | null) => void
+  imageLayers:        Ref<ImageLayer[]>
+  imageLayerStyle:    (layer: ImageLayer) => CSSProperties
+  registerImageElement: (key: 'a' | 'b', element: HTMLElement | null) => void
+  registerSpriteElement: (id: string, element: HTMLElement | null) => void
+  registerEffectTarget: (target: string, element: HTMLElement | null) => void
   interact():         void
   choose(option: ChoiceOption): void
   submitInput(value: string): boolean

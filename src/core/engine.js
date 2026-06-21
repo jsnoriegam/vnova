@@ -14,9 +14,11 @@ import { isPlainObject } from '../utils/predicates.js'
  *
  * Script step types:
  *   scene      — change background / location
- *   image      — show or clear a full-screen image layer
+ *   image      — show a full-screen image layer
  *   show       — add a character sprite to the stage
- *   hide       — remove a character sprite from the stage
+ *   hide       — remove visual layers (character, image, video, particles)
+ *   stop       — stop media playback (bgm, video, particles)
+ *   effect     — play a visual effect (shake, flash, etc.) with optional wait
  *   say        — dialogue line attributed to a character or narrator
  *   think      — inner monologue line, rendered like dialogue but stylable
  *   narrate    — unattributed narration (no nameplate)
@@ -24,9 +26,10 @@ import { isPlainObject } from '../utils/predicates.js'
  *   input      — capture a text value and store it in vars (supports dotted paths)
  *   select     — choose one option and store its value in vars (supports dotted paths)
  *   jump       — unconditional jump to a label
- *   bgm        — play background music, or stop with `{ stop: true }` (stub)
+ *   bgm        — play background music
  *   sfx        — play a sound effect (stub)
- *   video      — play / stop a video track (host app controlled)
+ *   video      — play a video track (host app controlled)
+ *   particles  — play particle effects
  *   notify     — push a UI notification event (host app controlled)
  *   modal      — render a custom modal component by id (optional options behave like choice)
  *   wait       — pause for N milliseconds before auto-advancing
@@ -34,6 +37,13 @@ import { isPlainObject } from '../utils/predicates.js'
  *   call       — invoke a user-defined function (side effects, flags, etc.)
  *   label      — named anchor; not rendered, used as jump target
  *                Can include a nested `steps: []` array for authoring.
+ *
+ * Deprecated patterns (emit console warnings in DEV):
+ *   { type: 'bgm', stop: true }        → use { type: 'stop', bgm: true }
+ *   { type: 'video', stop: true }      → use { type: 'hide', video: true } or { type: 'stop', video: true }
+ *   { type: 'particles', stop: true }  → use { type: 'hide', particles: true } or { type: 'stop', particles: true }
+ *   { type: 'image', hide: true }      → use { type: 'hide', image: true }
+ *   { type: 'hide' } (no target)       → use { type: 'hide', character: true }
  */
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +51,12 @@ import { isPlainObject } from '../utils/predicates.js'
 const noop = () => { }
 
 let activeEngineHandle = null
+
+function warnDeprecated(message) {
+  if (import.meta.env?.DEV) {
+    console.warn(`[vnova] DEPRECATED: ${message}`)
+  }
+}
 
 export function getActiveEngineHandle() {
   return activeEngineHandle
@@ -220,6 +236,7 @@ export function createEngine(script, options = {}) {
     onParticles = noop,
     onVideo = noop,
     onNotify = noop,
+    onEffect = noop,
     onEnd = noop,
     autoAdvanceDelay = 0,
     initialState = null,
@@ -465,6 +482,7 @@ export function createEngine(script, options = {}) {
 
       case 'bgm': {
         if (step.stop === true) {
+          warnDeprecated('{ type: \'bgm\', stop: true } — use { type: \'stop\', bgm: true } instead')
           _stopBgm()
           _moveTo(store.cursor + 1)
           return
@@ -489,6 +507,9 @@ export function createEngine(script, options = {}) {
       case 'particles': {
         const shouldStop = step.stop === true || step.id === null
         if (shouldStop) {
+          if (step.stop === true) {
+            warnDeprecated('{ type: \'particles\', stop: true } — use { type: \'hide\', particles: true } or { type: \'stop\', particles: true } instead')
+          }
           _stopParticles()
           _moveTo(store.cursor + 1)
           return
@@ -509,6 +530,7 @@ export function createEngine(script, options = {}) {
 
       case 'video': {
         if (step.stop === true) {
+          warnDeprecated('{ type: \'video\', stop: true } — use { type: \'hide\', video: true } or { type: \'stop\', video: true } instead')
           _stopVideo()
           _moveTo(store.cursor + 1)
           return
@@ -566,6 +588,7 @@ export function createEngine(script, options = {}) {
 
       case 'image': {
         if (step.hide === true) {
+          warnDeprecated('{ type: \'image\', hide: true } — use { type: \'hide\', image: true } instead')
           store.setImage({ src: null, transition: step.transition ?? 'fade', fit: normalizeImageFit(step.fit) })
           _moveTo(store.cursor + 1)
           return
@@ -600,10 +623,90 @@ export function createEngine(script, options = {}) {
         return
       }
 
-      case 'hide':
-        store.hideCharacter(step.character ?? null)
+      case 'hide': {
+        const hasCharacter = step.character !== undefined
+        const hasImage = step.image !== undefined
+        const hasVideo = step.video !== undefined
+        const hasParticles = step.particles !== undefined
+
+        if (!hasCharacter && !hasImage && !hasVideo && !hasParticles) {
+          warnDeprecated('{ type: \'hide\' } without target — use { type: \'hide\', character: true } to hide all characters')
+          store.hideCharacter(null)
+          _moveTo(store.cursor + 1)
+          return
+        }
+
+        if (hasCharacter) {
+          store.hideCharacter(step.character === true ? null : step.character)
+          _moveTo(store.cursor + 1)
+          return
+        }
+
+        if (hasImage) {
+          const transition = step.transition ?? 'fade'
+          store.setImage({ src: null, transition, fit: normalizeImageFit(step.fit) })
+          _moveTo(store.cursor + 1)
+          return
+        }
+
+        if (hasVideo) {
+          _stopVideo()
+          _moveTo(store.cursor + 1)
+          return
+        }
+
+        if (hasParticles) {
+          _stopParticles()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        return
+      }
+
+      case 'stop': {
+        if (step.bgm === true) {
+          _stopBgm()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        if (step.video === true) {
+          _stopVideo()
+          _moveTo(store.cursor + 1)
+          return
+        }
+        if (step.particles === true) {
+          _stopParticles()
+          _moveTo(store.cursor + 1)
+          return
+        }
         _moveTo(store.cursor + 1)
         return
+      }
+
+      case 'effect': {
+        const effectName = step.name ?? null
+        if (!effectName) {
+          _moveTo(store.cursor + 1)
+          return
+        }
+
+        const duration = step.duration ?? 500
+        const config = step.config ?? {}
+
+        onEffect({
+          name: effectName,
+          target: step.target ?? 'stage',
+          duration,
+          config,
+        })
+
+        if (step.wait === true) {
+          _scheduleAuto(duration)
+        } else {
+          _moveTo(store.cursor + 1)
+        }
+        return
+      }
 
       case 'wait':
         store.setCurrent(step)

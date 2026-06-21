@@ -28,7 +28,7 @@
  *   state
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useVNovaEngine } from '../composables/useVNovaEngine.js'
 import { useUserStorage } from '../composables/useUserStorage.js'
 import { useQuestEngine } from '../composables/useQuestEngine.js'
@@ -68,7 +68,7 @@ const {
   history, canBack,
   speakerName, speakerColor,
   displayedText, textComplete,
-  bgLayers, bgLayerStyle, imageStyle, imageTransitioning,
+  bgLayers, bgLayerStyle, registerBgElement, imageLayers, imageLayerStyle, registerImageElement, registerSpriteElement, registerEffectTarget,
   interact, choose, submitInput, submitSelect, closeModal, back, jump,
   restart, exitMenu,
   getVar, setVar, getSetting, setSetting,
@@ -76,6 +76,60 @@ const {
 } = vn
 
 const state = store
+
+const stageEl = ref(null)
+const bgLayerRefs = ref({ a: null, b: null })
+const imageLayerRefs = ref({ a: null, b: null })
+
+const activeBgLayer = computed(() => bgLayers.value.find(l => l.active))
+const activeImageLayer = computed(() => imageLayers.value.find(l => l.active))
+
+onMounted(() => {
+  if (stageEl.value) {
+    registerEffectTarget('stage', stageEl.value)
+  }
+})
+
+onUnmounted(() => {
+  registerEffectTarget('stage', null)
+  registerEffectTarget('bg', null)
+  registerEffectTarget('image', null)
+})
+
+watch(activeBgLayer, (layer) => {
+  if (layer) {
+    const el = bgLayerRefs.value[layer.key]
+    registerEffectTarget('bg', el ?? null)
+  }
+}, { immediate: true })
+
+watch(activeImageLayer, (layer) => {
+  if (layer) {
+    const el = imageLayerRefs.value[layer.key]
+    registerEffectTarget('image', el ?? null)
+  }
+}, { immediate: true })
+
+function setBgLayerRef(key, el) {
+  bgLayerRefs.value[key] = el
+  registerBgElement(key, el)
+  if (activeBgLayer.value?.key === key) {
+    registerEffectTarget('bg', el ?? null)
+  }
+}
+
+function setImageLayerRef(key, el) {
+  imageLayerRefs.value[key] = el
+  registerImageElement(key, el)
+  if (activeImageLayer.value?.key === key) {
+    registerEffectTarget('image', el ?? null)
+  }
+}
+
+function setSpriteRef(id, el) {
+  registerSpriteElement(id, el)
+  registerEffectTarget(id, el ?? null)
+}
 
 const saveSlots = useVNovaSaves({
   saveKey: props.config?.saveKey,
@@ -242,17 +296,14 @@ defineExpose({
 </script>
 
 <template>
-  <div class="vnova-stage" :style="stageStyle" @click="handleInteract" @touchend.prevent="handleInteract">
+  <div ref="stageEl" class="vnova-stage" :style="stageStyle" @click="handleInteract" @touchend.prevent="handleInteract">
     <template v-for="layer in bgLayers" :key="layer.key">
-      <div v-if="layer.visible" class="vnova-bg" :class="[
-        `vnova-bg--${layer.transition}`,
-        { 'vnova-bg--active': layer.active },
-        { 'vnova-bg--entering': layer.entering },
-      ]" :style="bgLayerStyle(layer)" />
+      <div v-if="layer.visible" class="vnova-bg" :class="{ 'vnova-bg--active': layer.active }" :style="bgLayerStyle(layer)" :ref="(el) => setBgLayerRef(layer.key, el)" />
     </template>
 
-    <div class="vnova-image" :class="{ 'vnova-image--transitioning': imageTransitioning }" :style="imageStyle"
-      aria-hidden="true" />
+    <template v-for="layer in imageLayers" :key="layer.key">
+      <div v-if="layer.visible" class="vnova-image" :class="{ 'vnova-image--active': layer.active }" :style="imageLayerStyle(layer)" aria-hidden="true" :ref="(el) => setImageLayerRef(layer.key, el)" />
+    </template>
 
     <div v-if="state.video?.action === 'play' && state.video?.track" class="vnova-video" @click.stop @touchend.stop>
       <video class="vnova-video__media"
@@ -264,21 +315,18 @@ defineExpose({
     </div>
 
     <div class="vnova-sprites" aria-hidden="true">
-      <transition-group name="vnova-sprite">
-        <div v-for="char in stageArray" :key="char.id" :class="[
-          'vnova-sprite',
-          `vnova-sprite--${char.position}`,
-          { 'vnova-sprite--dim': speakerName && characters[char.id]?.name !== speakerName },
-        ]">
-          <slot name="sprite" :char="char" :pos="char.position">
-            <img v-if="char.sprite" class="vnova-sprite__img" :src="char.sprite"
-              :alt="characters[char.id]?.name ?? char.id">
-            <span v-else class="vnova-sprite__fallback">
-              {{ characters[char.id]?.avatar ?? '👤' }}
-            </span>
-          </slot>
-        </div>
-      </transition-group>
+      <div v-for="char in stageArray" :key="char.id" :class="[
+        'vnova-sprite',
+        `vnova-sprite--${char.position}`,
+      ]" :ref="(el) => setSpriteRef(char.id, el)">
+        <slot name="sprite" :char="char" :pos="char.position">
+          <img v-if="char.sprite" class="vnova-sprite__img" :src="char.sprite"
+            :alt="characters[char.id]?.name ?? char.id">
+          <span v-else class="vnova-sprite__fallback">
+            {{ characters[char.id]?.avatar ?? '👤' }}
+          </span>
+        </slot>
+      </div>
     </div>
 
     <template v-if="!state.awaitingChoice && !state.ended && state.current?.type !== 'modal'">
@@ -373,53 +421,17 @@ defineExpose({
   z-index: 1;
 }
 
-.vnova-bg--fade {
-  transition: opacity var(--vnova-bg-duration, 400ms) ease;
-}
-
-.vnova-bg--fade.vnova-bg--entering {
-  opacity: 0;
-}
-
-.vnova-bg--dissolve {
-  transition: opacity var(--vnova-bg-duration, 400ms) linear;
-}
-
-.vnova-bg--dissolve.vnova-bg--entering {
-  opacity: 0;
-}
-
-.vnova-bg--slide-left {
-  transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease;
-}
-
-.vnova-bg--slide-left.vnova-bg--entering {
-  opacity: 0;
-  transform: translateX(6%);
-}
-
-.vnova-bg--slide-right {
-  transition: opacity var(--vnova-bg-duration, 400ms) ease, transform var(--vnova-bg-duration, 400ms) ease;
-}
-
-.vnova-bg--slide-right.vnova-bg--entering {
-  opacity: 0;
-  transform: translateX(-6%);
-}
-
-.vnova-bg--cut {
-  transition: none;
-}
-
 .vnova-image {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
-  transition: opacity var(--vnova-bg-duration, 400ms) ease;
-  opacity: 1;
-  pointer-events: none;
   z-index: 2;
+  pointer-events: none;
+}
+
+.vnova-image--active {
+  z-index: 3;
 }
 
 .vnova-video {
@@ -436,10 +448,6 @@ defineExpose({
   display: block;
 }
 
-.vnova-image--transitioning {
-  opacity: 1;
-}
-
 .vnova-sprites {
   position: absolute;
   inset: 0;
@@ -452,7 +460,6 @@ defineExpose({
 .vnova-sprite {
   position: absolute;
   bottom: var(--vnova-sprite-bottom, 0px);
-  transition: filter 250ms ease, transform 250ms ease;
 }
 
 .vnova-sprite--left {
@@ -476,10 +483,6 @@ defineExpose({
   right: 0;
 }
 
-.vnova-sprite--dim {
-  filter: brightness(0.45);
-}
-
 .vnova-sprite__fallback {
   font-size: clamp(60px, 10vw, 120px);
   line-height: 1;
@@ -493,21 +496,6 @@ defineExpose({
   max-width: min(36vw, 520px);
   object-fit: contain;
   filter: drop-shadow(0 8px 20px rgba(0, 0, 0, .6));
-}
-
-.vnova-sprite-enter-active,
-.vnova-sprite-leave-active {
-  transition: opacity 300ms ease, transform 300ms ease;
-}
-
-.vnova-sprite-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.vnova-sprite-leave-to {
-  opacity: 0;
-  transform: translateY(20px);
 }
 
 .vnova-dialog {

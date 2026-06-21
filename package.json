@@ -1,6 +1,6 @@
 {
   "name": "vnova-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Vue 3 visual novel framework — script-first, Vite-native",
   "type": "module",
   "main": "./src/index.js",
@@ -33,6 +33,7 @@
     "vue": "^3.4.0"
   },
   "dependencies": {
+    "animejs": "^4.4.1",
     "particles.js": "^2.0.0",
     "simple-notify": "^1.0.6"
   }

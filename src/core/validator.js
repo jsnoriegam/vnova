@@ -9,7 +9,7 @@ import { expandNestedLabels } from './engine.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
-  'choice', 'modal', 'input', 'select', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end',
+  'choice', 'modal', 'input', 'select', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end', 'stop', 'effect',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
@@ -73,8 +73,43 @@ export function validateScript(script, characters = {}) {
     }
 
     if (step.type === 'hide') {
-      if (step.character && !charIds.has(step.character))
-        warnings.push(`${at} character "${step.character}" not found in registry`)
+      const hideTargets = ['character', 'image', 'video', 'particles']
+      const presentTargets = hideTargets.filter(key => step[key] !== undefined)
+
+      if (presentTargets.length === 0) {
+        warnings.push(`${at} hide step without target — use { type: 'hide', character: true } to hide all characters`)
+      } else if (presentTargets.length > 1) {
+        errors.push(`${at} hide step must have exactly one of: character, image, video, particles`)
+      } else {
+        const target = presentTargets[0]
+        const value = step[target]
+        if (typeof value !== 'string' && value !== true) {
+          errors.push(`${at} hide.${target} must be a string or true`)
+        }
+        if (target === 'character' && typeof value === 'string' && !charIds.has(value)) {
+          warnings.push(`${at} character "${value}" not found in registry`)
+        }
+        if ((target === 'image' || target === 'video') && step.transition && !VALID_TRANSITIONS.has(step.transition)) {
+          warnings.push(`${at} unknown transition "${step.transition}"`)
+        }
+      }
+    }
+
+    if (step.type === 'stop') {
+      const stopTargets = ['bgm', 'video', 'particles']
+      const presentTargets = stopTargets.filter(key => step[key] !== undefined)
+
+      if (presentTargets.length === 0) {
+        errors.push(`${at} stop step requires one of: bgm, video, particles`)
+      } else if (presentTargets.length > 1) {
+        errors.push(`${at} stop step must have exactly one of: bgm, video, particles`)
+      } else {
+        const target = presentTargets[0]
+        const value = step[target]
+        if (value !== true && typeof value !== 'string') {
+          errors.push(`${at} stop.${target} must be true or a string`)
+        }
+      }
     }
 
     if (step.type === 'scene') {
@@ -88,6 +123,10 @@ export function validateScript(script, characters = {}) {
       const wantsHide = step.hide === true
       const hasId = step.id !== undefined && step.id !== null
       const hasSrc = step.src !== undefined && step.src !== null
+
+      if (wantsHide) {
+        warnings.push(`${at} image step with hide:true is deprecated — use { type: 'hide', image: true } instead`)
+      }
 
       if (wantsHide && (hasId || hasSrc))
         errors.push(`${at} image step with hide:true cannot also define id/src`)
@@ -105,6 +144,10 @@ export function validateScript(script, characters = {}) {
     if (step.type === 'video') {
       const hasId = step.id !== undefined && step.id !== null
       const hasSrc = step.src !== undefined && step.src !== null
+
+      if (step.stop === true) {
+        warnings.push(`${at} video step with stop:true is deprecated — use { type: 'hide', video: true } or { type: 'stop', video: true } instead`)
+      }
 
       if (hasId && hasSrc)
         errors.push(`${at} video step must use either id or src, not both`)
@@ -206,11 +249,34 @@ export function validateScript(script, characters = {}) {
         errors.push(`${at} wait step requires a non-negative ms field`)
     }
 
+    if (step.type === 'effect') {
+      if (!step.name || typeof step.name !== 'string')
+        errors.push(`${at} effect step requires a string name field`)
+      if (step.duration !== undefined && (typeof step.duration !== 'number' || step.duration < 0))
+        errors.push(`${at} effect step requires a non-negative ms duration`)
+      if (step.wait !== undefined && typeof step.wait !== 'boolean')
+        errors.push(`${at} effect step wait must be boolean when provided`)
+      if (step.config !== undefined && (typeof step.config !== 'object' || step.config === null || Array.isArray(step.config)))
+        errors.push(`${at} effect step config must be a plain object`)
+    }
+
     if (step.type === 'notify') {
       if (!step.text && !step.title)
         warnings.push(`${at} notify step has neither title nor text`)
       if (step.status && !['success', 'error', 'warning', 'info'].includes(step.status))
         warnings.push(`${at} unknown notify status "${step.status}"`)
+    }
+
+    if (step.type === 'bgm') {
+      if (step.stop === true) {
+        warnings.push(`${at} bgm step with stop:true is deprecated — use { type: 'stop', bgm: true } instead`)
+      }
+    }
+
+    if (step.type === 'particles') {
+      if (step.stop === true) {
+        warnings.push(`${at} particles step with stop:true is deprecated — use { type: 'hide', particles: true } or { type: 'stop', particles: true } instead`)
+      }
     }
 
     if (step.type === 'call') {

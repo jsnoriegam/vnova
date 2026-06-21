@@ -150,14 +150,20 @@ Tipos de paso soportados actualmente:
 - image
 - show
 - hide
+- stop
+- effect
 - say
 - think
 - narrate
 - choice
+- input
+- select
+- modal
 - jump
 - bgm
 - sfx
 - video
+- particles
 - notify
 - wait
 - call
@@ -185,6 +191,189 @@ export default [
 ]
 ```
 
+### Otros steps útiles
+
+#### stop — Detener media
+
+```js
+{ type: 'stop', bgm: true }           // Detener música
+{ type: 'stop', video: true }         // Detener video
+{ type: 'stop', particles: true }     // Detener partículas
+```
+
+#### hide — Ocultar capas visuales
+
+```js
+{ type: 'hide', character: 'hana' }   // Ocultar personaje específico
+{ type: 'hide', character: true }     // Ocultar todos los personajes
+{ type: 'hide', image: true }         // Ocultar capa de imagen
+{ type: 'hide', video: true }         // Ocultar video
+{ type: 'hide', particles: true }     // Ocultar partículas
+{ type: 'hide', image: true, transition: 'fade' }  // Con transición
+```
+
+#### input — Capturar texto
+
+```js
+{
+  type: 'input',
+  store: 'player.name',
+  prompt: '¿Cómo te llamas?',
+  placeholder: 'Tu nombre',
+  default: 'Jugador',
+}
+```
+
+#### select — Selección de opciones
+
+```js
+{
+  type: 'select',
+  store: 'player.difficulty',
+  prompt: 'Selecciona dificultad:',
+  options: [
+    { label: 'Fácil', value: 'easy' },
+    { label: 'Normal', value: 'normal' },
+    { label: 'Difícil', value: 'hard' },
+  ],
+}
+```
+
+#### particles — Efectos de partículas
+
+```js
+{ type: 'particles', id: 'stars' }
+{ type: 'particles', id: 'snow', config: { /* custom config */ } }
+{ type: 'hide', particles: true }     // Detener partículas
+```
+
+---
+
+## Efectos visuales (animejs)
+
+vnova incluye un sistema de efectos visuales basado en animejs. Los efectos se disparan con el step `effect`.
+
+### Transiciones de background e imagen
+
+Las transiciones de background e imagen también usan animejs internamente:
+
+```js
+{ type: 'scene', id: 'intro', transition: 'fade' }
+{ type: 'image', id: 'overlay', transition: 'dissolve' }
+```
+
+Transiciones disponibles:
+- `cut` — Cambio instantáneo
+- `fade` — Fade con easing
+- `dissolve` — Fade linear
+- `slide-left` — Slide desde la derecha
+- `slide-right` — Slide desde la izquierda
+
+### Animaciones de sprites
+
+Los sprites se animan automáticamente con animejs:
+- **Enter**: Fade in + slide up al mostrar un personaje
+- **Leave**: Fade out + slide down al ocultar un personaje
+- **Dim**: Los sprites que no están hablando se oscurecen automáticamente
+
+### API de efectos
+
+```js
+{
+  type: 'effect',
+  name: 'shake',              // nombre del efecto
+  target: 'stage',            // elemento a animar (default: 'stage')
+  duration: 500,              // duración en ms (default: 500)
+  wait: true,                 // bloquea avance si es true
+  config: { ... }             // parámetros específicos del efecto
+}
+```
+
+### Targets disponibles
+
+| Target | Descripción |
+|--------|-------------|
+| `'stage'` | Todo el contenedor del stage |
+| `'bg'` | Capa de background activa |
+| `'image'` | Capa de imagen activa |
+| `'<character-id>'` | Sprite específico (ej: `'hana'`) |
+
+### Efectos disponibles
+
+#### shake — Vibración
+
+```js
+{ type: 'effect', name: 'shake', duration: 600, config: { intensity: 10, direction: 'horizontal' }, wait: true }
+```
+
+Parámetros de `config`:
+- `intensity` (px, default: 8) — Amplitud de la vibración
+- `direction` (`'horizontal'` | `'vertical'` | `'both'`, default: `'horizontal'`)
+
+#### flash — Flash de color
+
+```js
+{ type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255, 255, 255, 0.9)' }, wait: true }
+```
+
+Parámetros de `config`:
+- `color` (CSS color, default: `'rgba(255, 255, 255, 0.8)'`)
+
+#### zoom — Zoom in/out
+
+```js
+{ type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.2, zoomDirection: 'in' }, wait: true }
+```
+
+Parámetros de `config`:
+- `scale` (factor, default: 1.2)
+- `zoomDirection` (`'in'` | `'out'`, default: `'in'`)
+
+#### pulse — Pulsación de opacidad
+
+```js
+{ type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } }
+```
+
+Parámetros de `config`:
+- `cycles` (número, default: 2)
+- `opacity` (mínimo, default: 0.5)
+
+### Ejemplos de uso
+
+```js
+// Shake intenso que bloquea el avance
+{ type: 'effect', name: 'shake', target: 'stage', duration: 600, config: { intensity: 10 }, wait: true }
+
+// Shake en background (no bloquea)
+{ type: 'effect', name: 'shake', target: 'bg', duration: 400, config: { intensity: 5, direction: 'vertical' } }
+
+// Shake en sprite específico
+{ type: 'effect', name: 'shake', target: 'kenji', duration: 300, config: { intensity: 4 } }
+
+// Flash blanco rápido
+{ type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255,255,255,0.9)' }, wait: true }
+
+// Zoom in suave
+{ type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.1, zoomDirection: 'in' }, wait: true }
+
+// Pulse con 3 ciclos
+{ type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } }
+```
+
+### Callback custom onEffect
+
+Puedes implementar efectos custom pasando `onEffect` en la configuración:
+
+```js
+const config = {
+  onEffect: ({ name, target, duration, config }) => {
+    // Tu implementación custom
+    console.log(`Effect: ${name} on ${target}`)
+  },
+}
+```
+
 ---
 
 ## Audio y video
@@ -192,7 +381,7 @@ export default [
 Comportamiento por defecto con VNovaRuntime:
 
 - bgm y sfx se reproducen con el player interno (useVNovaAudio integrado).
-- video y notify se enrutan por callbacks de runtime.
+- video, notify y effect se enrutan por callbacks de runtime.
 
 Override opcional:
 
@@ -203,6 +392,10 @@ const config = {
   },
   onVideo: (event) => {},
   onNotify: (event) => {},
+  onEffect: (event) => {
+    // Reemplaza la implementación interna de efectos
+    // event: { name, target, duration, config }
+  },
   audioPlayer: false, // opcional: desactiva player interno si no usas onAudio
 }
 ```
@@ -245,7 +438,9 @@ Retorno principal:
 - userStorage, storage
 - stageArray, speakerName, speakerColor
 - displayedText, textComplete
-- bgLayers, bgLayerStyle, imageTransitioning, imageStyle
+- bgLayers, bgLayerStyle, registerBgElement
+- imageLayers, imageLayerStyle, registerImageElement
+- registerSpriteElement, registerEffectTarget
 - interact, choose, back, jump, restart, start, exitMenu
 - save, load, clearSave
 - getVar, setVar, getSetting, setSetting
