@@ -5,21 +5,13 @@ export const assets = {
     'sunrise': 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1400&q=80',
   },
   music: {
-    grid: '../assets/bgm/Savfk - The Grid.mp3',
-    pulse: '../assets/bgm/pulse.ogg',
-    glow: '../assets/bgm/glow.ogg',
+    grid: '/assets/bgm/Savfk - The Grid.mp3',
   },
-  sounds: {
-    confirm: '/audio/sfx/confirm.ogg',
-    alarm: '/audio/sfx/alarm.ogg',
-    uplink: '/audio/sfx/uplink.ogg',
-  },
+  sounds: {},
   images: {
     'diagnostic-overlay': 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1400&q=80',
   },
-  videos: {
-    'ui-loop': '/video/ui-loop.mp4',
-  },
+  videos: {},
 }
 
 export default assets

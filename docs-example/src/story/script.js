@@ -16,7 +16,6 @@ export default [
       { type: 'scene', id: 'control-room', transition: 'fade' },
       { type: 'particles', id: 'stars' },
       { type: 'bgm', id: 'grid', volume: 0.6, loop: true },
-      { type: 'video', id: 'ui-loop', muted: true, loop: true },
 
       { type: 'narrate', text: 'Year [b]2147[/b]. The city runs on [i]memory[/i] and [color=#e06c75]borrowed time[/color].' },
       { type: 'show', character: 'hana', position: 'left', expression: 'neutral' },
@@ -86,7 +85,6 @@ export default [
     type: 'label',
     id: 'route-steady',
     steps: [
-      { type: 'sfx', id: 'confirm' },
       {
         type: 'notify',
         status: 'success',
@@ -104,7 +102,6 @@ export default [
     type: 'label',
     id: 'route-risky',
     steps: [
-      { type: 'sfx', id: 'alarm' },
       {
         type: 'notify',
         status: 'error',
@@ -161,8 +158,6 @@ export default [
       { type: 'scene', id: 'tower-roof', transition: 'slide-left' },
       { type: 'effect', name: 'shake', target: 'bg', duration: 400, config: { intensity: 5, direction: 'vertical' } },
       { type: 'particles', id: 'leaves' },
-      { type: 'bgm', id: 'glow', volume: 0.5, loop: true },
-      { type: 'hide', video: true },
       { type: 'effect', name: 'shake', target: 'stage', duration: 600, config: { intensity: 10 }, wait: true },
 
       { type: 'narrate', text: 'The relay tower [b]wakes[/b]. [color=#61afef]Neon rain[/color] cuts across the [i]skyline[/i].' },
@@ -188,7 +183,6 @@ export default [
         title: 'SYS// UPLINK MODE: OPEN',
         text: 'Global channel established. Identity shielding disabled.',
       },
-      { type: 'sfx', id: 'uplink' },
       { type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255, 255, 255, 0.9)' }, wait: true },
       { type: 'hide', character: 'kenji' },
       { type: 'narrate', text: 'A million screens flicker alive across the city.' },
@@ -208,7 +202,6 @@ export default [
         text: 'Protected channel locked. Source identities masked.',
       },
       { type: 'say', character: 'kenji', text: 'Then we both live to fight tomorrow.', expression: 'thoughtful' },
-      { type: 'sfx', id: 'confirm' },
       { type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } },
       { type: 'jump', target: 'epilogue' },
     ],
