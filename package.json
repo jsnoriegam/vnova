@@ -19,7 +19,9 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build:lib": "vite build --config vite.lib.config.js"
+    "build:lib": "vite build --config vite.lib.config.js",
+    "build:demo": "vite build --config vite.demo.config.js",
+    "preview:demo": "vite preview --config vite.demo.config.js"
   },
   "peerDependencies": {
     "pinia": "^3.0.0",
