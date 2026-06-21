@@ -1,4 +1,4 @@
-name: Deploy demo to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -27,11 +27,18 @@ jobs:
 
       - run: yarn install --frozen-lockfile
 
-      - run: yarn build:demo
+      - name: Build docs
+        run: yarn docs:build
+
+      - name: Build demo
+        run: yarn build:demo
+
+      - name: Copy demo to docs
+        run: cp -r dist-demo docs/.vitepress/dist/demo
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist-demo
+          path: docs/.vitepress/dist
 
   deploy:
     needs: build
