@@ -8,6 +8,7 @@ import {
   h,
   isVNode,
   nextTick,
+  onMounted,
   onUnmounted,
   provide,
   ref,
@@ -23,9 +24,12 @@ import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
+import VNovaLoadingScreen from './VNovaLoadingScreen.vue'
 import { useVNovaAudio } from '../composables/useVNovaAudio.js'
 import { cloneDeep } from '../utils/clone.js'
 import { isPlainObject } from '../utils/predicates.js'
+import { normalizeAssetUrl } from '../utils/normalize.js'
+import { expandNestedLabels } from '../core/engine.js'
 import '../utils/particles.js'
 import { showNotify } from '../utils/notify.js'
 
@@ -156,7 +160,7 @@ function destroyParticlesByContainer(containerId) {
 export default defineComponent({
   name: 'VNovaRuntime',
   props: {
-    script: { type: Array, required: true },
+    script: { type: [Array, Object], required: true },
     characters: { type: Object, default: () => ({}) },
     assets: { type: Object, default: () => ({}) },
     credits: { type: Array, default: () => [] },
@@ -172,6 +176,16 @@ export default defineComponent({
 
     const builtInStageRef = ref(null)
     const customStageApi = ref(null)
+
+    // Preloader states
+    const preloadEnabled = computed(() => props.config?.preload !== false && props.config?.preloadAssets !== false)
+    const loadingOpen = ref(preloadEnabled.value)
+    const preloadProgress = ref(0)
+    const currentLoadingAsset = ref('')
+
+    // Language resolution states
+    const availableLanguages = computed(() => isPlainObject(props.script) ? Object.keys(props.script) : [])
+    const selectedLanguage = ref(props.config?.defaultLanguage || '')
 
     const titleOpen = ref(true)
     const settingsOpen = ref(false)
@@ -189,6 +203,29 @@ export default defineComponent({
 
     const activeStage = computed(() => customStageApi.value || builtInStageRef.value)
     const stageState = computed(() => maybeUnref(activeStage.value?.state) ?? null)
+
+    const currentLanguage = computed({
+      get() {
+        const list = availableLanguages.value
+        if (list.length === 0) return null
+        const stored = stageState.value?.settings?.language
+        if (stored && list.includes(stored)) return stored
+        if (selectedLanguage.value && list.includes(selectedLanguage.value)) return selectedLanguage.value
+        return list[0] || 'en'
+      },
+      set(val) {
+        selectedLanguage.value = val
+        handleSetSetting('language', val)
+      }
+    })
+
+    const resolvedScript = computed(() => {
+      if (isPlainObject(props.script)) {
+        return props.script[currentLanguage.value] || []
+      }
+      return props.script
+    })
+
     const canBack = computed(() => Boolean(maybeUnref(activeStage.value?.canBack) ?? false))
     const hasSave = computed(() => Boolean(maybeUnref(activeStage.value?.hasSave) ?? false))
     const history = computed(() => {
@@ -497,6 +534,210 @@ export default defineComponent({
       },
     }
 
+    function getAssetType(url) {
+      const cleanUrl = url.split('?')[0].toLowerCase()
+      if (cleanUrl.endsWith('.mp3') || cleanUrl.endsWith('.ogg') || cleanUrl.endsWith('.wav') || cleanUrl.endsWith('.m4a') || cleanUrl.endsWith('.flac')) {
+        return 'audio'
+      }
+      if (cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') || cleanUrl.endsWith('.ogv')) {
+        return 'video'
+      }
+      return 'image'
+    }
+
+    function preloadImage(url) {
+      return new Promise((resolve) => {
+        const img = new Image()
+        img.src = url
+        img.onload = () => resolve(true)
+        img.onerror = () => resolve(false)
+      })
+    }
+
+    function preloadAudio(url) {
+      return new Promise((resolve) => {
+        const audio = new Audio()
+        audio.src = url
+        audio.preload = 'auto'
+        let resolved = false
+        const done = () => {
+          if (resolved) return
+          resolved = true
+          cleanup()
+          resolve(true)
+        }
+        const fail = () => {
+          if (resolved) return
+          resolved = true
+          cleanup()
+          resolve(false)
+        }
+        const cleanup = () => {
+          audio.removeEventListener('canplaythrough', done)
+          audio.removeEventListener('error', fail)
+        }
+        audio.addEventListener('canplaythrough', done)
+        audio.addEventListener('error', fail)
+        audio.load()
+        setTimeout(done, 2000)
+      })
+    }
+
+    function preloadVideo(url) {
+      return new Promise((resolve) => {
+        const video = document.createElement('video')
+        video.src = url
+        video.preload = 'auto'
+        let resolved = false
+        const done = () => {
+          if (resolved) return
+          resolved = true
+          cleanup()
+          resolve(true)
+        }
+        const fail = () => {
+          if (resolved) return
+          resolved = true
+          cleanup()
+          resolve(false)
+        }
+        const cleanup = () => {
+          video.removeEventListener('canplaythrough', done)
+          video.removeEventListener('error', fail)
+        }
+        video.addEventListener('canplaythrough', done)
+        video.addEventListener('error', fail)
+        video.load()
+        setTimeout(done, 2000)
+      })
+    }
+
+    function collectAssets(script, characters, assets) {
+      const urls = new Set()
+      
+      if (assets && typeof assets === 'object') {
+        for (const group of Object.values(assets)) {
+          if (group && typeof group === 'object') {
+            for (const url of Object.values(group)) {
+              if (typeof url === 'string' && url.trim() && !url.includes('{{')) {
+                urls.add(url.trim())
+              }
+            }
+          }
+        }
+      }
+
+      if (characters && typeof characters === 'object') {
+        for (const char of Object.values(characters)) {
+          if (!char || typeof char !== 'object') continue
+          if (typeof char.defaultSprite === 'string' && char.defaultSprite.trim() && !char.defaultSprite.includes('{{')) {
+            urls.add(char.defaultSprite.trim())
+          }
+          const sprites = char.sprites || char.expressions
+          if (sprites && typeof sprites === 'object') {
+            for (const url of Object.values(sprites)) {
+              if (typeof url === 'string' && url.trim() && !url.includes('{{')) {
+                urls.add(url.trim())
+              }
+            }
+          }
+        }
+      }
+
+      const scriptsToScan = []
+      if (Array.isArray(script)) {
+        scriptsToScan.push(script)
+      } else if (script && typeof script === 'object') {
+        for (const langScript of Object.values(script)) {
+          if (Array.isArray(langScript)) {
+            scriptsToScan.push(langScript)
+          }
+        }
+      }
+
+      for (const s of scriptsToScan) {
+        const flat = expandNestedLabels(s)
+        for (const step of flat) {
+          if (!step) continue
+          if (step.type === 'scene' && typeof step.src === 'string' && step.src.trim() && !step.src.includes('{{')) {
+            urls.add(step.src.trim())
+          }
+          if (step.type === 'image' && typeof step.src === 'string' && step.src.trim() && !step.src.includes('{{')) {
+            urls.add(step.src.trim())
+          }
+          if (step.type === 'show' && typeof step.sprite === 'string' && step.sprite.trim() && !step.sprite.includes('{{')) {
+            urls.add(step.sprite.trim())
+          }
+          if (step.type === 'bgm' && typeof step.src === 'string' && step.src.trim() && !step.src.includes('{{')) {
+            urls.add(step.src.trim())
+          }
+          if (step.type === 'sfx' && typeof step.src === 'string' && step.src.trim() && !step.src.includes('{{')) {
+            urls.add(step.src.trim())
+          }
+          if (step.type === 'video' && typeof step.src === 'string' && step.src.trim() && !step.src.includes('{{')) {
+            urls.add(step.src.trim())
+          }
+        }
+      }
+
+      return Array.from(urls)
+    }
+
+    async function runPreloader() {
+      if (!preloadEnabled.value) {
+        titleOpen.value = true
+        return
+      }
+
+      const urls = collectAssets(props.script, props.characters, props.assets)
+      if (urls.length === 0) {
+        preloadProgress.value = 1
+        loadingOpen.value = false
+        titleOpen.value = true
+        return
+      }
+
+      let loadedCount = 0
+      const totalCount = urls.length
+
+      const updateProgress = (url) => {
+        loadedCount++
+        preloadProgress.value = loadedCount / totalCount
+        currentLoadingAsset.value = url
+      }
+
+      const batchSize = 5
+      for (let i = 0; i < urls.length; i += batchSize) {
+        const batch = urls.slice(i, i + batchSize)
+        await Promise.all(batch.map(async (url) => {
+          const type = getAssetType(url)
+          const normalized = normalizeAssetUrl(url)
+          try {
+            if (type === 'audio') {
+              await preloadAudio(normalized)
+            } else if (type === 'video') {
+              await preloadVideo(normalized)
+            } else {
+              await preloadImage(normalized)
+            }
+          } catch (e) {
+            console.warn('[vnova] Preload failed for:', url, e)
+          } finally {
+            updateProgress(url)
+          }
+        }))
+      }
+
+      setTimeout(() => {
+        loadingOpen.value = false
+        titleOpen.value = true
+      }, 300)
+    }
+
+    onMounted(() => {
+      runPreloader()
+    })
+
     provide(VNOVA_RUNTIME_CONTEXT_KEY, runtimeContext)
 
     onUnmounted(() => {
@@ -510,7 +751,7 @@ export default defineComponent({
         names: BUILTIN_NAMES.stage,
         build: () => ({
           props: {
-            script: props.script,
+            script: resolvedScript.value,
             characters: props.characters,
             config: stageOptions.value,
             ref: builtInStageRef,
@@ -522,12 +763,13 @@ export default defineComponent({
         names: BUILTIN_NAMES.title,
         build: () => ({
           props: {
-            visible: titleOpen.value,
+            visible: titleOpen.value && !loadingOpen.value,
             hasSave: hasSave.value,
             hasCredits: hasCreditsRenderer.value,
             title: props.config?.title,
             subtitle: props.config?.subtitle,
             meta: props.config?.meta,
+            background: props.config?.titleBackground || props.config?.titleScreenBackground,
           },
           listeners: {
             onNewGame: handleNewGame,
@@ -544,7 +786,7 @@ export default defineComponent({
           props: {
             canBack: canBack.value,
             audioLog: audioLog.value,
-            visible: !titleOpen.value,
+            visible: !titleOpen.value && !loadingOpen.value,
             showBacklog: hasBacklogRenderer.value,
             showCredits: hasCreditsRenderer.value,
           },
@@ -571,6 +813,8 @@ export default defineComponent({
             typewriterSpeed: typewriterSpeed.value,
             spacebarFastForward: spacebarFastForward.value,
             textSize: textSize.value,
+            languages: availableLanguages.value,
+            language: currentLanguage.value,
           },
           listeners: {
             onClose: () => {
@@ -582,6 +826,9 @@ export default defineComponent({
             'onUpdate:typewriterSpeed': (value) => handleSetSetting('typewriterSpeed', value),
             'onUpdate:spacebarFastForward': (value) => handleSetSetting('spacebarFastForward', value),
             'onUpdate:textSize': (value) => handleSetSetting('textSize', value),
+            'onUpdate:language': (value) => {
+              currentLanguage.value = value
+            },
           },
         }),
       },
@@ -818,6 +1065,10 @@ export default defineComponent({
         { class: 'vnova-runtime' },
         [
           h('div', { id: particlesContainerId, class: 'vnova-runtime-particles', 'aria-hidden': 'true' }),
+          loadingOpen.value ? h(VNovaLoadingScreen, {
+            progress: preloadProgress.value,
+            currentAsset: currentLoadingAsset.value,
+          }) : null,
           ...nodes.map(resolveVNode),
           renderActiveRuntimeModal(),
         ]

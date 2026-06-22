@@ -16,22 +16,16 @@ import OperatorStoragePanel from './components/OperatorStoragePanel.vue'
 
 import assets from './story/assets.js'
 import particles from './story/particles.js'
-import script from './story/script.js'
+import scriptEn from './story/script_en.js'
+import scriptEs from './story/script_es.js'
 import characters from './story/characters.js'
 import credits from './story/credits.js'
 import config from './story/config.js'
 </script>
 
 <template>
-  <VNovaRuntime
-    :script="script"
-    :characters="characters"
-    :assets="assets"
-    :credits="credits"
-    :particles="particles"
-    :config="config"
-    :modals="{ 'city-map-route': MapChoiceModal }"
-  >
+  <VNovaRuntime :script="{ en: scriptEn, es: scriptEs }" :characters="characters" :assets="assets" :credits="credits"
+    :particles="particles" :config="config" :modals="{ 'city-map-route': MapChoiceModal }">
     <!-- The order of these components is important, as they are rendered in the order they are declared. -->
     <VNovaTitleScreen />
     <VNovaStage />

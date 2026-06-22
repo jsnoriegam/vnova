@@ -9,52 +9,41 @@
  *   VNovaSettingsModal · VNovaBacklogModal
  *   QS (QUEST_STATUS)
  */
-
 import type { Ref, ComputedRef, WritableComputedRef, CSSProperties, DefineComponent, Plugin, App as VueApp, Component } from 'vue'
 import type { Store, Pinia } from 'pinia'
-
 // ─── Primitive aliases ────────────────────────────────────────────────────────
-
 type Milliseconds = number
 type CssColor     = string
 type Url          = string
-
 export interface CreateVNovaAppOptions {
   props?: Record<string, unknown>
   pinia?: Pinia
   plugins?: Array<Plugin | [Plugin, ...unknown[]]>
 }
-
 export declare function createVNovaApp(
   rootComponent: Component,
   options?: CreateVNovaAppOptions,
 ): VueApp
-
 export declare function registerRuntimeModal(
   config: VNovaRuntimeConfig | null | undefined,
   id: string,
   component: Component,
 ): VNovaRuntimeConfig
-
 export declare function registerRuntimeModals(
   config: VNovaRuntimeConfig | null | undefined,
   modalMap: Record<string, Component>,
 ): VNovaRuntimeConfig
-
 // ─── Script step types ────────────────────────────────────────────────────────
-
 export type BgTransition = 'fade' | 'dissolve' | 'cut' | 'slide-left' | 'slide-right'
 export type SpritePosition = 'left' | 'center' | 'right' | 'left-far' | 'right-far'
 export type ImageFit = 'width' | 'height' | 'both' | 'x' | 'y'
 export type ModalSize = 'small' | 'medium' | 'large' | 'xlarge' | 'fullscreen' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
-
 export interface LabelStep {
   type: 'label'
   id: string
   /** Nested steps — flattened at runtime. */
   steps?: ScriptStep[]
 }
-
 export interface SceneStep {
   type: 'scene'
   id?: string
@@ -64,7 +53,6 @@ export interface SceneStep {
   /** When true, stops BGM before the scene change. Default: false. */
   stopMusic?: boolean
 }
-
 export interface ImageStep {
   type: 'image'
   /**
@@ -79,7 +67,6 @@ export interface ImageStep {
   transition?: BgTransition
   fit?: ImageFit
 }
-
 export interface CallStepContextEngine {
   state: VNovaState
   store: VNovaState
@@ -98,7 +85,6 @@ export interface CallStepContextEngine {
   getSetting: (key: string) => unknown
   setSetting: (key: string, value: unknown) => void
 }
-
 export interface ShowStep {
   type: 'show'
   character: string
@@ -108,7 +94,6 @@ export interface ShowStep {
   /** Overrides the sprite resolved from the character registry. */
   sprite?: Url
 }
-
 export interface HideStep {
   type: 'hide'
   /** Hide a specific character (string) or all characters (true). */
@@ -124,7 +109,6 @@ export interface HideStep {
   /** Fit for image hide. */
   fit?: ImageFit
 }
-
 export interface SayStep {
   type: 'say'
   character: string
@@ -136,7 +120,6 @@ export interface SayStep {
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
-
 export interface ThinkStep {
   type: 'think'
   character: string
@@ -145,14 +128,12 @@ export interface ThinkStep {
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
-
 export interface NarrateStep {
   type: 'narrate'
   text: string
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
-
 export interface ChoiceOption {
   label: string
   jump?: string
@@ -163,13 +144,11 @@ export interface ChoiceOption {
   disabledText?: string
   [key: string]: unknown
 }
-
 export interface ChoiceStep {
   type: 'choice'
   prompt?: string
   options: [ChoiceOption, ChoiceOption, ...ChoiceOption[]]
 }
-
 export interface ModalStep {
   type: 'modal'
   id: string
@@ -180,7 +159,6 @@ export interface ModalStep {
   prompt?: string
   options?: [ChoiceOption, ...ChoiceOption[]]
 }
-
 export interface InputStep {
   type: 'input'
   store: string
@@ -195,9 +173,7 @@ export interface InputStep {
   inc?: Record<string, number>
   jump?: string
 }
-
 export type SelectOption = string | (ChoiceOption & { value?: unknown })
-
 export interface SelectStep {
   type: 'select'
   store: string
@@ -207,12 +183,10 @@ export interface SelectStep {
   inc?: Record<string, number>
   jump?: string
 }
-
 export interface JumpStep {
   type: 'jump'
   target: string
 }
-
 export interface BgmStep {
   type: 'bgm'
   /**
@@ -226,14 +200,12 @@ export interface BgmStep {
   volume?: number
   loop?: boolean
 }
-
 export interface SfxStep {
   type: 'sfx'
   id?: string
   src?: Url
   volume?: number
 }
-
 export interface VideoStep {
   type: 'video'
   id?: string | null
@@ -247,7 +219,6 @@ export interface VideoStep {
    */
   stop?: boolean
 }
-
 export interface ParticlesStep {
   type: 'particles'
   id?: string | null
@@ -257,7 +228,6 @@ export interface ParticlesStep {
   stop?: boolean
   config?: Record<string, unknown>
 }
-
 export interface StopStep {
   type: 'stop'
   /** Stop background music. */
@@ -267,7 +237,6 @@ export interface StopStep {
   /** Stop particle effects. */
   particles?: true
 }
-
 export interface EffectStep {
   type: 'effect'
   /** Effect name (e.g., 'shake', 'flash', 'zoom', 'pulse'). */
@@ -296,23 +265,19 @@ export interface EffectStep {
     opacity?: number
   }
 }
-
 export interface WaitStep {
   type: 'wait'
   ms: Milliseconds
 }
-
 export interface NotifyStep {
   type: 'notify'
   status?: 'success' | 'error' | 'warning' | 'info'
   title?: string
   text?: string
 }
-
 export interface EndStep {
   type: 'end'
 }
-
 export interface CallStep {
   type: 'call'
   fn: (
@@ -331,7 +296,6 @@ export interface CallStep {
     }
   ) => void | string | { jump?: string; moveTo?: number; stay?: boolean }
 }
-
 export type ScriptStep =
   | LabelStep | SceneStep | ImageStep
   | ShowStep  | HideStep
@@ -339,9 +303,7 @@ export type ScriptStep =
   | ChoiceStep | ModalStep | InputStep | SelectStep | JumpStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
   | EndStep   | CallStep
-
 // ─── Character registry ───────────────────────────────────────────────────────
-
 export interface CharacterDef {
   name: string
   color?: CssColor
@@ -353,11 +315,8 @@ export interface CharacterDef {
   /** Legacy: keyed by expression name. */
   expressions?: Record<string, Url>
 }
-
 export type CharacterRegistry = Record<string, CharacterDef>
-
 // ─── Asset registry ───────────────────────────────────────────────────────────
-
 export interface AssetRegistry {
   scenes?: Record<string, Url>
   music?:  Record<string, Url>
@@ -365,45 +324,35 @@ export interface AssetRegistry {
   images?: Record<string, Url>
   videos?: Record<string, Url>
 }
-
 export interface CreditLine {
   text?: string
   html?: string
 }
-
 export interface CreditSection {
   label: string
   lines: CreditLine[]
 }
-
 export type CreditsRegistry = CreditSection[]
-
 export type ParticlePreset = Record<string, unknown>
 export type ParticleRegistry = Record<string, ParticlePreset>
-
 export declare const PARTICLE_PRESETS: ParticleRegistry
-
 // ─── Engine state ─────────────────────────────────────────────────────────────
-
 export interface StageCharacter {
   id: string
   position: SpritePosition
   expression: string
   sprite: Url | null
 }
-
 export interface BackgroundState {
   src:        Url | null
   color:      CssColor | null
   transition: BgTransition
 }
-
 export interface ImageState {
   src:        Url | null
   transition: BgTransition
   fit:        'width' | 'height' | 'both'
 }
-
 export interface EngineSettings {
   typewriterSpeed: Milliseconds
   bgmVolume:       number
@@ -411,9 +360,7 @@ export interface EngineSettings {
   textSize:        'small' | 'medium' | 'large'
   spacebarFastForward: 'fullspeed' | 'throttled' | 'off'
 }
-
 export type SpacebarFastForwardSetting = 'fullspeed' | 'throttled' | 'off'
-
 export interface QuestState {
   id:          string
   title:       string
@@ -422,7 +369,6 @@ export interface QuestState {
   status:      QuestStatusValue
   updatedAt:   number | null
 }
-
 /** The raw reactive state object (Pinia store). */
 export interface VNovaState {
   cursor:         number
@@ -448,7 +394,6 @@ export interface VNovaState {
   readonly speakerColor: CssColor | null
   readonly canBack:      boolean
 }
-
 export interface UserStorageHandle {
   /** Reactive user-defined variables saved in VNova state. */
   vars:   ComputedRef<Record<string, unknown>>
@@ -465,24 +410,19 @@ export interface UserStorageHandle {
   /** Writable computed ref for templates and v-model. */
   ref<T = unknown>(path: string, fallback?: T): WritableComputedRef<T>
 }
-
 interface StateDiff {
   key:    keyof VNovaState
   before: unknown
   after:  unknown
 }
-
 // ─── Quests ───────────────────────────────────────────────────────────────────
-
 export type QuestStatusValue = 'inactive' | 'active' | 'completed' | 'failed'
-
 export declare const QS: {
   readonly INACTIVE:  'inactive'
   readonly ACTIVE:    'active'
   readonly COMPLETED: 'completed'
   readonly FAILED:    'failed'
 }
-
 export interface QuestDefinition {
   id:             string
   title?:         string
@@ -496,21 +436,18 @@ export interface QuestDefinition {
   onComplete?:    QuestTransitionRule
   onFail?:        QuestTransitionRule
 }
-
 export interface QuestTransitionRule {
   activate?: string[] | string
   complete?: string[] | string
   fail?: string[] | string
   deactivate?: string[] | string
 }
-
 export interface QuestContext {
   vars:   Record<string, unknown>
   flags:  Record<string, unknown>
   quests: Record<string, QuestState>
   [key: string]: unknown
 }
-
 export interface QuestEngine {
   QS:         typeof QS
   definitions: QuestDefinition[]
@@ -529,16 +466,13 @@ export interface QuestEngine {
   status(id: string): QuestStatusValue
   is(id: string, expectedStatus: QuestStatusValue): boolean
 }
-
 // ─── Audio event ─────────────────────────────────────────────────────────────
-
 export interface AudioEvent {
   type:   'bgm' | 'sfx'
   track:  Url | null
   volume: number
   loop:   boolean
 }
-
 export interface VideoEvent {
   action: 'play' | 'stop'
   track: Url | null
@@ -547,28 +481,23 @@ export interface VideoEvent {
   muted: boolean
   controls?: boolean
 }
-
 export interface ParticlesEvent {
   action: 'play' | 'stop'
   id: string | null
   config: ParticlePreset | null
 }
-
 export interface NotifyEvent {
   status?: 'success' | 'error' | 'warning' | 'info'
   title?: string
   text?: string
 }
-
 export interface EffectEvent {
   name: string
   target?: string
   duration?: Milliseconds
   config?: Record<string, unknown>
 }
-
 // ─── createEngine options ─────────────────────────────────────────────────────
-
 export interface CreateEngineOptions {
   characters?:       CharacterRegistry
   assets?:           AssetRegistry
@@ -591,9 +520,7 @@ export interface CreateEngineOptions {
   /** External Pinia instance. When omitted, a fresh one is created. */
   pinia?:            import('pinia').Pinia
 }
-
 // ─── createEngine return ──────────────────────────────────────────────────────
-
 export interface EngineHandle {
   /** Direct access to the Pinia store — use for Vue DevTools / subscriptions. */
   store:          VNovaState
@@ -623,7 +550,6 @@ export interface EngineHandle {
   setSetting(key: keyof EngineSettings, value: unknown): void
   pinia:          import('pinia').Pinia
 }
-
 export interface AuthorEngineHandle {
   run: (target: string) => boolean
   jump: (target: string) => boolean
@@ -639,16 +565,12 @@ export interface AuthorEngineHandle {
   state: VNovaState
   store: VNovaState
 }
-
 export declare function createEngine(
   script:  ScriptStep[],
   options?: CreateEngineOptions,
 ): EngineHandle
-
 export declare function useEngine(): AuthorEngineHandle
-
 // ─── BgLayer (useVNova internal, exposed for custom renderers) ────────────────
-
 export interface BgLayer {
   key:        'a' | 'b'
   src:        Url | null
@@ -657,9 +579,7 @@ export interface BgLayer {
   active:     boolean
   visible:    boolean
 }
-
 // ─── ImageLayer (useVNova internal, exposed for custom renderers) ─────────────
-
 export interface ImageLayer {
   key:        'a' | 'b'
   src:        Url | null
@@ -668,9 +588,7 @@ export interface ImageLayer {
   active:     boolean
   visible:    boolean
 }
-
 // ─── useVNova options ─────────────────────────────────────────────────────────
-
 export interface UseVNovaOptions extends CreateEngineOptions {
   typewriterSpeed?:   Milliseconds
   typewriterEnabled?: boolean
@@ -681,9 +599,7 @@ export interface UseVNovaOptions extends CreateEngineOptions {
   /** localStorage key for save/load. Required to enable save functionality. */
   saveKey?:           string
 }
-
 // ─── useVNova return ──────────────────────────────────────────────────────────
-
 export interface VNovaComposable {
   /** Raw Pinia store (reactive). */
   store:              VNovaState
@@ -729,25 +645,19 @@ export interface VNovaComposable {
   /** The underlying engine handle for advanced use. */
   engine:            EngineHandle
 }
-
 export declare function useVNovaEngine(
   script:   ScriptStep[],
   options?: UseVNovaOptions,
 ): VNovaComposable
-
 // ─── useUserStorage ──────────────────────────────────────────────────────────
-
 export declare function useUserStorage(
 ): UserStorageHandle
-
 // ─── useVNovaAudio ────────────────────────────────────────────────────────────
-
 export interface UseVNovaAudioOptions {
   bgmVolume?:    number
   sfxVolume?:    number
   fadeDuration?: Milliseconds
 }
-
 export interface VNovaAudioHandle {
   /** Pass this to `useVNova` / `VNovaStage` as `options.onAudio`. */
   onAudio:       (event: AudioEvent) => void
@@ -758,17 +668,12 @@ export interface VNovaAudioHandle {
   stopBgm():     void
   stopAll():     void
 }
-
 export declare function useVNovaAudio(
   options?: UseVNovaAudioOptions,
 ): VNovaAudioHandle
-
 // ─── useVNovaStore (Pinia) ────────────────────────────────────────────────────
-
 export declare function useVNovaStore(pinia?: Pinia | null): VNovaState
-
 // ─── useQuestEngine ───────────────────────────────────────────────────────────
-
 export declare function useQuestEngine(): {
   QS:         typeof QS
   all:        ComputedRef<Record<string, QuestState>>
@@ -784,22 +689,17 @@ export declare function useQuestEngine(): {
   list(): QuestState[]
   evaluate(id?: string): boolean
 }
-
 // ─── createQuestEngine ────────────────────────────────────────────────────────
-
 export interface CreateQuestEngineOptions {
   getState?:   () => Record<string, QuestState>
   setState?:   (next: Record<string, QuestState>) => void
   now?:        () => number
 }
-
 export declare function createQuestEngine(
   definitions?: QuestDefinition[],
   options?:     CreateQuestEngineOptions,
 ): QuestEngine
-
 // ─── validateScript ───────────────────────────────────────────────────────────
-
 /**
  * Validates a script against a character registry.
  * @throws {Error} on critical structural errors.
@@ -809,21 +709,27 @@ export declare function validateScript(
   script:      ScriptStep[],
   characters?: CharacterRegistry,
 ): string[]
-
+// ─── validateMultiLanguageScript ─────────────────────────────────────────────
+/**
+ * Validates a multi-language script object (Record<string, ScriptStep[]>).
+ * Checks each language individually and verifies structural equivalence between all translations.
+ * @throws {Error} on critical structural or equivalence errors.
+ * @returns Array of warning strings (empty = clean).
+ */
+export declare function validateMultiLanguageScript(
+  multiScript:  Record<string, ScriptStep[]>,
+  characters?:  CharacterRegistry,
+): string[]
 // ─── expandNestedLabels ───────────────────────────────────────────────────────
-
 /** Flattens nested label steps into a linear script array. */
 export declare function expandNestedLabels(script: ScriptStep[]): ScriptStep[]
-
 // ─── Vue components ───────────────────────────────────────────────────────────
-
 /** Props accepted by VNovaStage. */
 export interface VNovaStageProps {
   script:      ScriptStep[]
   characters?: CharacterRegistry
   options?:    UseVNovaOptions
 }
-
 /** Events emitted by VNovaStage. */
 export interface VNovaStageEmits {
   end:     [payload: { reason: string; toTitle: boolean }]
@@ -831,7 +737,6 @@ export interface VNovaStageEmits {
   advance: []
   back:    []
 }
-
 export interface VNovaRuntimeContext {
   state: ComputedRef<VNovaState | null>
   canBack: ComputedRef<boolean>
@@ -866,7 +771,6 @@ export interface VNovaRuntimeContext {
   }
   registerStageApi(api: Partial<VNovaStageExposed> | null): void
 }
-
 export interface VNovaRuntimeConfig {
   title?: string
   subtitle?: string
@@ -883,6 +787,25 @@ export interface VNovaRuntimeConfig {
     modals?: Record<string, Component>
   }
   /**
+   * Custom background for the title screen.
+   * Accepts a CSS color/gradient string (e.g. `linear-gradient(...)`, `#abc`) or an asset URL (image path).
+   */
+  titleBackground?: string
+  /** @alias titleBackground */
+  titleScreenBackground?: string
+  /**
+   * Whether to preload all registered assets before showing the title screen.
+   * Defaults to `true`. Set to `false` to skip the loading screen entirely.
+   */
+  preload?: boolean
+  /** @alias preload */
+  preloadAssets?: boolean
+  /**
+   * The default language code to use when `script` is a multi-language object.
+   * Defaults to the first key in the script object.
+   */
+  defaultLanguage?: string
+  /**
    * Replaces built-in audio playback when provided.
    * If omitted, VNovaRuntime plays audio using its internal player.
    */
@@ -894,7 +817,6 @@ export interface VNovaRuntimeConfig {
   audioPlayer?: false
   [key: string]: unknown
 }
-
 export interface VNovaRuntimeResolverInput {
   componentName: string
   vnode: unknown
@@ -902,14 +824,18 @@ export interface VNovaRuntimeResolverInput {
   stage: VNovaStageExposed | null
   config: VNovaRuntimeConfig
 }
-
 export interface VNovaRuntimeResolverResult {
   props?: Record<string, unknown>
   listeners?: Record<string, (...args: unknown[]) => void>
 }
-
 export interface VNovaRuntimeProps {
-  script: ScriptStep[]
+  /**
+   * The visual novel script.
+   * Pass a flat `ScriptStep[]` array for a single language,
+   * or a `Record<string, ScriptStep[]>` object for multi-language support.
+   * Example: `{ en: scriptEn, es: scriptEs }`
+   */
+  script: ScriptStep[] | Record<string, ScriptStep[]>
   characters?: CharacterRegistry
   assets?: AssetRegistry
   credits?: CreditsRegistry
@@ -919,7 +845,6 @@ export interface VNovaRuntimeProps {
   modals?: Record<string, Component>
   componentResolvers?: Record<string, (input: VNovaRuntimeResolverInput) => VNovaRuntimeResolverResult | null | undefined>
 }
-
 /** Methods/state exposed via `ref` on VNovaStage. */
 export interface VNovaStageExposed {
   interact():   void
@@ -954,9 +879,7 @@ export interface VNovaStageExposed {
   storage: UserStorageHandle
   state: VNovaState
 }
-
 // ─── useVNovaSaves ────────────────────────────────────────────────────────────
-
 export interface SlotMeta {
   slot:          number
   label:         string
@@ -966,14 +889,12 @@ export interface SlotMeta {
   bgColor:       CssColor | null
   bgSrc:         Url | null
 }
-
 export interface UseVNovaSavesOptions {
   saveKey?:   string
   slotCount?: number
   stageRef?:  Ref<HTMLElement | null>
   store?:     unknown
 }
-
 export interface VNovaSavesHandle {
   slots:        Ref<(SlotMeta | null)[]>
   hasSave:      ComputedRef<boolean>
@@ -989,11 +910,8 @@ export interface VNovaSavesHandle {
   loadFromDisk: () => Promise<boolean>
   refresh:      () => void
 }
-
 export declare function useVNovaSaves(options?: UseVNovaSavesOptions): VNovaSavesHandle
-
 // ─── VNovaSaveModal ───────────────────────────────────────────────────────────
-
 export interface VNovaSaveModalProps {
   saveKey?:   string
   slotCount?: number
@@ -1002,16 +920,13 @@ export interface VNovaSaveModalProps {
   mode?:      'save' | 'load'
   open?:      boolean
 }
-
 export interface VNovaSaveModalEmits {
   close:   []
   saved:   [slot: number]
   loaded:  [slot: number]
   deleted: [slot: number]
 }
-
 export declare const VNovaSaveModal: DefineComponent<VNovaSaveModalProps, Record<string, never>, VNovaSaveModalEmits>
-
 export declare const VNOVA_RUNTIME_CONTEXT_KEY: 'vnova-runtime'
 export declare const VNovaRuntime: DefineComponent<VNovaRuntimeProps>
 export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStageExposed, VNovaStageEmits>
@@ -1025,5 +940,23 @@ export declare const VNovaHud: DefineComponent<
 export declare const VNovaTopHud: DefineComponent<
   { opacity?: number; floating?: boolean; customClass?: string | string[] | Record<string, boolean> | null }
 >
-export declare const VNovaSettingsModal: DefineComponent<Record<string, never>>
+export declare const VNovaSettingsModal: DefineComponent<{
+  open?: boolean
+  bgmVolume?: number
+  sfxVolume?: number
+  typewriterSpeed?: number
+  spacebarFastForward?: 'fullspeed' | 'throttled' | 'off'
+  textSize?: 'small' | 'medium' | 'large'
+  /** Array of available language codes (e.g. ['en', 'es']). When non-empty, shows a language selector. */
+  languages?: string[]
+  /** Currently selected language code. */
+  language?: string
+}>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>
+// ─── VNovaLoadingScreen ───────────────────────────────────────────────────────
+export declare const VNovaLoadingScreen: DefineComponent<{
+  /** Preload progress from 0 to 1. */
+  progress?: number
+  /** URL or name of the asset currently being loaded (for display). */
+  currentAsset?: string
+}>

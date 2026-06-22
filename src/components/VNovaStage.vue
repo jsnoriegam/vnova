@@ -110,6 +110,12 @@ watch(activeImageLayer, (layer) => {
   }
 }, { immediate: true })
 
+watch(() => props.script, (newScript) => {
+  if (vn?.engine?.updateScript) {
+    vn.engine.updateScript(newScript)
+  }
+})
+
 function setBgLayerRef(key, el) {
   bgLayerRefs.value[key] = el
   registerBgElement(key, el)

@@ -5,6 +5,7 @@ import { createQuestEngine } from './quests.js'
 import { PARTICLE_PRESETS } from './particles.js'
 import { cloneDeep } from '../utils/clone.js'
 import { isPlainObject } from '../utils/predicates.js'
+import { normalizeAssetUrl } from '../utils/normalize.js'
 
 /**
  * vnova-engine — core/engine.js
@@ -78,73 +79,6 @@ function normalizeImageFit(value) {
   return 'both'
 }
 
-function isAbsoluteAssetUrl(value) {
-  return (
-    value.startsWith('/')
-    || value.startsWith('http://')
-    || value.startsWith('https://')
-    || value.startsWith('data:')
-    || value.startsWith('blob:')
-    || value.startsWith('file:')
-  )
-}
-
-function hasPathPrefix(path, prefix) {
-  if (!prefix) return false
-  const normPath = path.endsWith('/') ? path : path + '/'
-  const normPrefix = prefix.endsWith('/') ? prefix : prefix + '/'
-  return normPath.startsWith(normPrefix)
-}
-
-function normalizeAssetUrl(value) {
-  if (typeof value !== 'string') return value
-  const raw = value.trim()
-  if (!raw) return raw
-  
-  // Already absolute URL (http, https, data, blob, file)
-  if (raw.startsWith('http://') || raw.startsWith('https://') || 
-      raw.startsWith('data:') || raw.startsWith('blob:') || raw.startsWith('file:')) {
-    return raw
-  }
-
-  const base = import.meta.env.BASE_URL || ''
-  
-  // For paths starting with /, prepend base URL if available
-  if (raw.startsWith('/')) {
-    // If the path already has the base URL prefix, do not prepend it again
-    if (base && hasPathPrefix(raw, base)) {
-      return raw
-    }
-    
-    // Avoid double slashes: if base ends with /, remove leading / from raw
-    if (base && base.endsWith('/')) {
-      return base + raw.slice(1)
-    }
-    if (base) {
-      return base + raw
-    }
-    return raw
-  }
-
-  // Vite-friendly fallback: treat relative author paths as files under /src.
-  if (raw.startsWith('./') || raw.startsWith('../')) {
-    const stripped = raw.replace(/^(?:\.\.\/|\.\/)+/, '')
-    return `/src/${stripped}`
-  }
-
-  // For relative paths without leading slash (e.g., 'characters/hana.png'),
-  // prepend base URL to ensure they work in GitHub Pages and other static hosts
-  if (!raw.startsWith('.')) {
-    if (base && base.endsWith('/')) {
-      return base + raw
-    }
-    if (base) {
-      return base + '/' + raw
-    }
-  }
-
-  return raw
-}
 
 function snapshotTrackedState(store) {
   const snapshot = {}
@@ -935,6 +869,22 @@ export function createEngine(script, options = {}) {
     return true
   }
 
+  function updateScript(newScript) {
+    if (!Array.isArray(newScript) || newScript.length === 0) return
+    runtimeScript.splice(0, runtimeScript.length, ...expandNestedLabels(newScript))
+    labelIndex.clear()
+    const newIndex = buildIndex(runtimeScript)
+    for (const [key, val] of newIndex.entries()) {
+      labelIndex.set(key, val)
+    }
+    // Refresh current step in store if game is active
+    if (store.cursor >= 0 && store.cursor < runtimeScript.length && !store.ended && store.current) {
+      const rawStep = runtimeScript[store.cursor]
+      const resolvedStep = _interpolateDeep(rawStep)
+      store.setCurrent(resolvedStep)
+    }
+  }
+
   function restart() {
     _clearAuto()
     _stopBgm()
@@ -1004,6 +954,7 @@ export function createEngine(script, options = {}) {
     setVar,
     getSetting,
     setSetting,
+    updateScript,
     // expose pinia instance for apps that want to install it themselves
     pinia: _pinia,
   }

@@ -290,3 +290,105 @@ export function validateScript(script, characters = {}) {
 
   return warnings
 }
+
+export function validateMultiLanguageScript(multiScript, characters = {}) {
+  if (!multiScript || typeof multiScript !== 'object' || Array.isArray(multiScript)) {
+    throw new Error('[vnova] Multi-language script must be a key-value object of language codes to step arrays.')
+  }
+
+  const languages = Object.keys(multiScript)
+  if (languages.length === 0) {
+    throw new Error('[vnova] Multi-language script must contain at least one language.')
+  }
+
+  const warnings = []
+
+  // Validate each language script individually first using existing validateScript
+  for (const lang of languages) {
+    const langScript = multiScript[lang]
+    if (!Array.isArray(langScript)) {
+      throw new Error(`[vnova] Script for language "${lang}" must be an array.`)
+    }
+    try {
+      const langWarnings = validateScript(langScript, characters)
+      warnings.push(...langWarnings.map(w => `[Language: ${lang}] ${w}`))
+    } catch (e) {
+      throw new Error(`[vnova] Validation failed for language "${lang}":\n${e.message}`)
+    }
+  }
+
+  // Verify structural equivalence between all languages
+  const baseLang = languages[0]
+  const baseScript = expandNestedLabels(multiScript[baseLang])
+
+  for (let i = 1; i < languages.length; i++) {
+    const targetLang = languages[i]
+    const targetScript = expandNestedLabels(multiScript[targetLang])
+
+    if (baseScript.length !== targetScript.length) {
+      throw new Error(
+        `[vnova] Script mismatch: Language "${baseLang}" has ${baseScript.length} steps, but "${targetLang}" has ${targetScript.length} steps.`
+      )
+    }
+
+    baseScript.forEach((stepA, idx) => {
+      const stepB = targetScript[idx]
+      const at = `[step ${idx}]`
+
+      if (stepA.type !== stepB.type) {
+        throw new Error(
+          `[vnova] Structural equivalence mismatch at ${at}: Language "${baseLang}" type is "${stepA.type}", but "${targetLang}" is "${stepB.type}".`
+        )
+      }
+
+      // Check specific fields that control flow or logic
+      const criticalFields = ['id', 'character', 'position', 'variant', 'expression', 'target', 'store', 'name', 'wait']
+      for (const field of criticalFields) {
+        if (stepA[field] !== stepB[field]) {
+          throw new Error(
+            `[vnova] Structural equivalence mismatch at ${at} (type: "${stepA.type}"): Field "${field}" differs between "${baseLang}" ("${stepA[field]}") and "${targetLang}" ("${stepB[field]}").`
+          )
+        }
+      }
+
+      // Check choice/modal/select options equivalence
+      if (stepA.type === 'choice' || stepA.type === 'modal' || stepA.type === 'select') {
+        const optsA = stepA.options || []
+        const optsB = stepB.options || []
+        if (optsA.length !== optsB.length) {
+          throw new Error(
+            `[vnova] Option count mismatch at ${at} (type: "${stepA.type}"): "${baseLang}" has ${optsA.length} options, but "${targetLang}" has ${optsB.length} options.`
+          )
+        }
+
+        optsA.forEach((optA, optIdx) => {
+          const optB = optsB[optIdx]
+          const optCriticalFields = ['jump', 'value']
+          for (const field of optCriticalFields) {
+            if (optA[field] !== optB[field]) {
+              throw new Error(
+                `[vnova] Option mismatch at ${at} option ${optIdx}: Field "${field}" differs between "${baseLang}" ("${optA[field]}") and "${targetLang}" ("${optB[field]}").`
+              )
+            }
+          }
+          const hasCondA = optA.condition !== undefined
+          const hasCondB = optB.condition !== undefined
+          if (hasCondA !== hasCondB) {
+            throw new Error(
+              `[vnova] Option condition presence mismatch at ${at} option ${optIdx}: condition is present in "${hasCondA ? baseLang : targetLang}" but missing in "${hasCondA ? targetLang : baseLang}".`
+            )
+          }
+          const hasDisA = optA.disabled !== undefined
+          const hasDisB = optB.disabled !== undefined
+          if (hasDisA !== hasDisB) {
+            throw new Error(
+              `[vnova] Option disabled presence mismatch at ${at} option ${optIdx}: disabled is present in "${hasDisA ? baseLang : targetLang}" but missing in "${hasDisA ? targetLang : baseLang}".`
+            )
+          }
+        })
+      }
+    })
+  }
+
+  return warnings
+}

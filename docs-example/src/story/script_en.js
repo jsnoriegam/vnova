@@ -214,7 +214,6 @@ export default [
       { type: 'hide', particles: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
       { type: 'narrate', text: 'By sunrise, the city is [b]different[/b]. Not [i]healed[/i], but [color=#98c379]awake[/color].' },
-      // Rich text showcase: bold + italic + color combined
       { type: 'narrate', text: '[b][color=#61afef]Rich text demo:[/color][/b] [i]cursiva[/i], [b]negrita[/b], [color=#e06c75]color[/color], y [b][i]negrita+cursiva[/i][/b].' },
       { type: 'say', character: 'hana', text: 'Same mission tomorrow?' },
       { type: 'say', character: 'kenji', text: 'Always.' },

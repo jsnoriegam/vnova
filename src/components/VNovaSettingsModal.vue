@@ -14,6 +14,8 @@ const props = defineProps({
     default: 'medium',
     validator: (value) => ['small', 'medium', 'large'].includes(value),
   },
+  languages: { type: Array, default: () => [] },
+  language: { type: String, default: '' },
 })
 
 const emit = defineEmits([
@@ -23,6 +25,7 @@ const emit = defineEmits([
   'update:typewriter-speed',
   'update:spacebar-fast-forward',
   'update:text-size',
+  'update:language',
 ])
 
 function onBgmInput(event) {
@@ -43,6 +46,10 @@ function onSpacebarFastForwardSelect(mode) {
 
 function onTextSizeSelect(size) {
   emit('update:text-size', size)
+}
+
+function onLanguageSelect(lang) {
+  emit('update:language', lang)
 }
 </script>
 
@@ -137,6 +144,22 @@ function onTextSizeSelect(size) {
                 @click="onTextSizeSelect('large')"
               >
                 Large
+              </button>
+            </div>
+          </div>
+
+          <div v-if="props.languages && props.languages.length > 0" class="vnova-setting-group">
+            <label>Language / Idioma</label>
+            <div class="vnova-segmented-control" :style="{ gridTemplateColumns: `repeat(${props.languages.length}, minmax(0, 1fr))` }" role="radiogroup" aria-label="Game language">
+              <button
+                v-for="lang in props.languages"
+                :key="lang"
+                type="button"
+                class="vnova-segment-btn"
+                :class="{ 'vnova-segment-btn--active': props.language === lang }"
+                @click="onLanguageSelect(lang)"
+              >
+                {{ lang.toUpperCase() }}
               </button>
             </div>
           </div>

@@ -1,4 +1,7 @@
 <script setup>
+import { computed } from 'vue'
+import { normalizeAssetUrl } from '../utils/normalize.js'
+
 const props = defineProps({
   visible: { type: Boolean, default: false },
   hasSave: { type: Boolean, default: false },
@@ -6,14 +9,35 @@ const props = defineProps({
   title: { type: String, default: 'VNOVA ENGINE' },
   subtitle: { type: String, default: 'Vuex-powered visual novel framework' },
   meta: { type: String, default: '' },
+  background: { type: String, default: '' },
 })
 
 const emit = defineEmits(['new-game', 'open-load', 'open-settings', 'open-credits'])
+
+const titleBgStyle = computed(() => {
+  if (!props.background) return {}
+  const bg = props.background.trim()
+  if (
+    bg.startsWith('linear-gradient') ||
+    bg.startsWith('radial-gradient') ||
+    bg.startsWith('#') ||
+    bg.startsWith('rgb') ||
+    bg.startsWith('hsl') ||
+    bg.includes('gradient')
+  ) {
+    return { background: bg }
+  }
+  return {
+    backgroundImage: `url(${normalizeAssetUrl(bg)})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }
+})
 </script>
 
 <template>
   <transition name="vnova-fade">
-    <div v-if="props.visible" class="title-screen">
+    <div v-if="props.visible" class="title-screen" :style="titleBgStyle">
       <div class="title-card">
         <h1 class="game-logo">{{ props.title }}</h1>
         <p class="game-subtitle">{{ props.subtitle }}</p>

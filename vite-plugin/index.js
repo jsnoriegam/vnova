@@ -75,7 +75,7 @@ export default function vnovaPlugin(pluginOptions = {}) {
       if (!doCheck) return null
 
       // Lazy-import the validator (avoids circular dep at plugin load time)
-      const { validateScript } = await import('../src/core/validator.js')
+      const { validateScript, validateMultiLanguageScript } = await import('../src/core/validator.js')
 
       try {
         // We eval the module in a restricted context to extract the default export.
@@ -89,6 +89,9 @@ export default function vnovaPlugin(pluginOptions = {}) {
 
         if (Array.isArray(script)) {
           const warnings = validateScript(script, characters)
+          warnings.forEach(w => this.warn(`[vnova] ${id}\n  ${w}`))
+        } else if (script && typeof script === 'object') {
+          const warnings = validateMultiLanguageScript(script, characters)
           warnings.forEach(w => this.warn(`[vnova] ${id}\n  ${w}`))
         }
       } catch (e) {
