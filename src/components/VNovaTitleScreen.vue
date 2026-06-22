@@ -1,6 +1,10 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { normalizeAssetUrl } from '../utils/normalize.js'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -43,10 +47,10 @@ const titleBgStyle = computed(() => {
         <p class="game-subtitle">{{ props.subtitle }}</p>
 
         <div class="menu-actions">
-          <button class="menu-btn primary" @click="emit('new-game')">New Game</button>
-          <button class="menu-btn secondary" @click="emit('open-load')">Load Game</button>
-          <button v-if="props.hasCredits" class="menu-btn secondary" @click="emit('open-credits')">Credits</button>
-          <button class="menu-btn secondary" @click="emit('open-settings')">Settings</button>
+          <button class="menu-btn primary" @click="emit('new-game')">{{ t('titleScreen.newGame') }}</button>
+          <button class="menu-btn secondary" @click="emit('open-load')">{{ t('titleScreen.loadGame') }}</button>
+          <button v-if="props.hasCredits" class="menu-btn secondary" @click="emit('open-credits')">{{ t('titleScreen.credits') }}</button>
+          <button class="menu-btn secondary" @click="emit('open-settings')">{{ t('titleScreen.settings') }}</button>
         </div>
 
         <div v-if="props.meta" class="engine-meta">{{ props.meta }}</div>

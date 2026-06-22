@@ -52,6 +52,10 @@ export default function vnovaPlugin(pluginOptions = {}) {
       if (id === virtualModuleId)    return resolvedVirtualId
       if (id === 'vnova-engine')     return path.join(pkgRoot, 'src', 'index.js')
       if (id === 'vnova-engine/vite-plugin') return __filename
+      if (id.startsWith('vnova-engine/i18n/')) {
+        const localeFile = id.replace('vnova-engine/i18n/', '')
+        return path.join(pkgRoot, 'src', 'i18n', 'locales', localeFile)
+      }
     },
 
     // ── Virtual module: runtime-accessible config ──────────────────────────

@@ -771,6 +771,97 @@ export interface VNovaRuntimeContext {
   }
   registerStageApi(api: Partial<VNovaStageExposed> | null): void
 }
+export interface GuiTranslations {
+  titleScreen?: {
+    newGame?: string
+    loadGame?: string
+    credits?: string
+    settings?: string
+  }
+  hud?: {
+    ariaLabel?: string
+    back?: string
+    log?: string
+    save?: string
+    load?: string
+    settings?: string
+    credits?: string
+    restart?: string
+    quit?: string
+  }
+  settings?: {
+    title?: string
+    bgmVolume?: string
+    sfxVolume?: string
+    typewriterSpeed?: string
+    spacebarFastForward?: string
+    spacebarAriaLabel?: string
+    spacebarHelp?: string
+    fullspeed?: string
+    throttled?: string
+    off?: string
+    textSize?: string
+    textSizeAriaLabel?: string
+    small?: string
+    medium?: string
+    large?: string
+    language?: string
+    languageAriaLabel?: string
+  }
+  saves?: {
+    ariaLabel?: string
+    title?: string
+    close?: string
+    inBrowser?: string
+    onDisk?: string
+    slot?: string
+    empty?: string
+    overwrite?: string
+    yes?: string
+    no?: string
+    saveHere?: string
+    load?: string
+    delete?: string
+    export?: string
+    import?: string
+    clearAll?: string
+    saveToDisk?: string
+    loadFromDisk?: string
+    savedToSlot?: string
+    saveFailed?: string
+    slotLoaded?: string
+    loadFailed?: string
+    slotCleared?: string
+    allSlotsCleared?: string
+    exportDownloaded?: string
+    exportFailed?: string
+    savesImported?: string
+    importCancelled?: string
+    fileSaved?: string
+    fileLoaded?: string
+    loadCancelledOrFailed?: string
+  }
+  backlog?: {
+    title?: string
+    noHistory?: string
+    choicePrompt?: string
+    chooseOption?: string
+    selectedChoice?: string
+  }
+  credits?: {
+    title?: string
+    close?: string
+  }
+  loading?: {
+    initializing?: string
+    loadingAsset?: string
+    loadingAssets?: string
+  }
+  common?: {
+    close?: string
+    modal?: string
+  }
+}
 export interface VNovaRuntimeConfig {
   title?: string
   subtitle?: string
@@ -805,6 +896,12 @@ export interface VNovaRuntimeConfig {
    * Defaults to the first key in the script object.
    */
   defaultLanguage?: string
+  /**
+   * GUI translations for different languages.
+   * Import locale packs from 'vnova-engine/i18n/*' and pass them here.
+   * Example: { es: esLocale, fr: frLocale }
+   */
+  guiTranslations?: Record<string, GuiTranslations>
   /**
    * Replaces built-in audio playback when provided.
    * If omitted, VNovaRuntime plays audio using its internal player.

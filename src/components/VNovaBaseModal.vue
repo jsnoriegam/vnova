@@ -18,7 +18,11 @@
  *   close     — modal was closed
  */
 
-import { computed, watch } from 'vue'
+import { computed, inject, watch } from 'vue'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
 
 const MODAL_SIZE_ALIASES = {
   sm: 'small',
@@ -31,7 +35,7 @@ const MODAL_SIZE_ALIASES = {
 const props = defineProps({
   open: { type: Boolean, default: false },
   id: { type: String, default: 'vnova-modal' },
-  title: { type: String, default: 'Modal' },
+  title: { type: String, default: '' },
   closeOnBackdrop: { type: Boolean, default: false },
   size: {
     type: String,
@@ -74,7 +78,7 @@ defineSlots()
     <div v-if="props.open" class="vnova-modal-overlay" @click.self="() => props.closeOnBackdrop ? $emit('close') : false">
       <div class="vnova-glass-modal vnova-base-modal" :class="modalSizeClass">
         <div v-if="props.showHeader" class="vnova-modal-header">
-          <h2>{{ props.title }}</h2>
+          <h2>{{ props.title || t('common.modal') }}</h2>
           <button class="vnova-close-btn" @click="$emit('close')">&times;</button>
         </div>
         <div class="vnova-modal-body">

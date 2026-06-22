@@ -1,4 +1,10 @@
 <script setup>
+import { inject } from 'vue'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
+
 const props = defineProps({
   open: { type: Boolean, default: false },
   history: { type: Array, default: () => [] },
@@ -13,12 +19,12 @@ const emit = defineEmits(['close'])
     <div v-if="props.open" class="vnova-modal-overlay" @click.self="emit('close')">
       <div class="vnova-glass-modal vnova-backlog-modal">
         <div class="vnova-modal-header">
-          <h2>Dialogue Backlog</h2>
+          <h2>{{ t('backlog.title') }}</h2>
           <button class="vnova-close-btn" @click="emit('close')">&times;</button>
         </div>
 
         <div class="vnova-modal-body vnova-backlog-body">
-          <div v-if="props.history.length === 0" class="vnova-no-history">No dialogue has been spoken yet.</div>
+          <div v-if="props.history.length === 0" class="vnova-no-history">{{ t('backlog.noHistory') }}</div>
 
             <template v-for="(item, index) in props.history" :key="index">
               <div
@@ -42,15 +48,15 @@ const emit = defineEmits(['close'])
                 v-else-if="item.type === 'choice'"
                 class="vnova-history-item vnova-choice-made"
               >
-                <span class="vnova-choice-tag">Choice Prompt:</span>
-                <p class="vnova-choice-text">{{ item.prompt || 'Choose an option' }}</p>
+                <span class="vnova-choice-tag">{{ t('backlog.choicePrompt') }}</span>
+                <p class="vnova-choice-text">{{ item.prompt || t('backlog.chooseOption') }}</p>
               </div>
 
               <div
                 v-else-if="item.type === '_choice_made'"
                 class="vnova-history-item vnova-choice-made"
               >
-                <span class="vnova-choice-tag">Selected Choice:</span>
+                <span class="vnova-choice-tag">{{ t('backlog.selectedChoice') }}</span>
                 <p class="vnova-choice-text">{{ item.label }}</p>
               </div>
             </template>

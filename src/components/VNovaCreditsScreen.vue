@@ -1,7 +1,13 @@
 <script setup>
+import { inject } from 'vue'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
+
 const props = defineProps({
   open: { type: Boolean, default: false },
-  title: { type: String, default: 'Credits' },
+  title: { type: String, default: '' },
   credits: { type: Array, default: () => [] },
 })
 
@@ -11,10 +17,10 @@ const emit = defineEmits(['close'])
 <template>
   <transition name="vnova-fade">
     <div v-if="props.open" class="vnova-credits-screen">
-      <div class="vnova-credits-panel" role="dialog" aria-modal="true" :aria-label="props.title">
+      <div class="vnova-credits-panel" role="dialog" aria-modal="true" :aria-label="props.title || t('credits.title')">
         <header class="vnova-credits-header">
-          <h2>{{ props.title }}</h2>
-          <button class="vnova-credits-close" type="button" aria-label="Close credits" @click="emit('close')">
+          <h2>{{ props.title || t('credits.title') }}</h2>
+          <button class="vnova-credits-close" type="button" :aria-label="t('credits.close')" @click="emit('close')">
             &times;
           </button>
         </header>

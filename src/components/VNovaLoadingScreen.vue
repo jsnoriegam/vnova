@@ -1,5 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
 
 const props = defineProps({
   progress: { type: Number, default: 0 },
@@ -9,13 +13,13 @@ const props = defineProps({
 const progressPercent = computed(() => Math.round(props.progress * 100))
 
 const displayAsset = computed(() => {
-  if (!props.currentAsset) return 'Initializing system...'
+  if (!props.currentAsset) return t('loading.initializing')
   try {
     const parts = props.currentAsset.split('/')
     const file = parts[parts.length - 1]
-    return `Loading ${file.split('?')[0]}...`
+    return t('loading.loadingAsset', { asset: file.split('?')[0] })
   } catch {
-    return 'Loading assets...'
+    return t('loading.loadingAssets')
   }
 })
 </script>

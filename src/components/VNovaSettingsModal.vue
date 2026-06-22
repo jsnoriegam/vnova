@@ -1,4 +1,10 @@
 <script setup>
+import { inject } from 'vue'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
+
 const props = defineProps({
   open: { type: Boolean, default: false },
   bgmVolume: { type: Number, default: 0.5 },
@@ -58,23 +64,23 @@ function onLanguageSelect(lang) {
     <div v-if="props.open" class="vnova-modal-overlay" @click.self="emit('close')">
       <div class="vnova-glass-modal">
         <div class="vnova-modal-header">
-          <h2>System Preferences</h2>
+          <h2>{{ t('settings.title') }}</h2>
           <button class="vnova-close-btn" @click="emit('close')">&times;</button>
         </div>
 
         <div class="vnova-modal-body">
           <div class="vnova-setting-group">
-            <label>BGM Master Volume ({{ (props.bgmVolume * 100).toFixed(0) }}%)</label>
+            <label>{{ t('settings.bgmVolume') }} ({{ (props.bgmVolume * 100).toFixed(0) }}%)</label>
             <input type="range" min="0" max="1" step="0.1" :value="props.bgmVolume" @input="onBgmInput" />
           </div>
 
           <div class="vnova-setting-group">
-            <label>SFX Master Volume ({{ (props.sfxVolume * 100).toFixed(0) }}%)</label>
+            <label>{{ t('settings.sfxVolume') }} ({{ (props.sfxVolume * 100).toFixed(0) }}%)</label>
             <input type="range" min="0" max="1" step="0.1" :value="props.sfxVolume" @input="onSfxInput" />
           </div>
 
           <div class="vnova-setting-group">
-            <label>Typewriter Speed ({{ props.typewriterSpeed }}ms)</label>
+            <label>{{ t('settings.typewriterSpeed') }} ({{ props.typewriterSpeed }}ms)</label>
             <input
               type="range"
               min="5"
@@ -86,15 +92,15 @@ function onLanguageSelect(lang) {
           </div>
 
           <div class="vnova-setting-group vnova-setting-group--toggle">
-            <label>Spacebar Fast-Forward</label>
-            <div class="vnova-segmented-control" role="radiogroup" aria-label="Spacebar fast-forward mode">
+            <label>{{ t('settings.spacebarFastForward') }}</label>
+            <div class="vnova-segmented-control" role="radiogroup" :aria-label="t('settings.spacebarAriaLabel')">
               <button
                 type="button"
                 class="vnova-segment-btn"
                 :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'fullspeed' }"
                 @click="onSpacebarFastForwardSelect('fullspeed')"
               >
-                Fullspeed
+                {{ t('settings.fullspeed') }}
               </button>
               <button
                 type="button"
@@ -102,7 +108,7 @@ function onLanguageSelect(lang) {
                 :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'throttled' }"
                 @click="onSpacebarFastForwardSelect('throttled')"
               >
-                Throttled
+                {{ t('settings.throttled') }}
               </button>
               <button
                 type="button"
@@ -110,24 +116,24 @@ function onLanguageSelect(lang) {
                 :class="{ 'vnova-segment-btn--active': props.spacebarFastForward === 'off' }"
                 @click="onSpacebarFastForwardSelect('off')"
               >
-                Off
+                {{ t('settings.off') }}
               </button>
             </div>
             <small class="vnova-setting-help">
-              `on` and `true` map to Fullspeed. `off` and `false` map to Off.
+              {{ t('settings.spacebarHelp') }}
             </small>
           </div>
 
           <div class="vnova-setting-group">
-            <label>Dialogue Text Size</label>
-            <div class="vnova-segmented-control" role="radiogroup" aria-label="Dialogue text size">
+            <label>{{ t('settings.textSize') }}</label>
+            <div class="vnova-segmented-control" role="radiogroup" :aria-label="t('settings.textSizeAriaLabel')">
               <button
                 type="button"
                 class="vnova-segment-btn"
                 :class="{ 'vnova-segment-btn--active': props.textSize === 'small' }"
                 @click="onTextSizeSelect('small')"
               >
-                Small
+                {{ t('settings.small') }}
               </button>
               <button
                 type="button"
@@ -135,7 +141,7 @@ function onLanguageSelect(lang) {
                 :class="{ 'vnova-segment-btn--active': props.textSize === 'medium' }"
                 @click="onTextSizeSelect('medium')"
               >
-                Medium
+                {{ t('settings.medium') }}
               </button>
               <button
                 type="button"
@@ -143,14 +149,14 @@ function onLanguageSelect(lang) {
                 :class="{ 'vnova-segment-btn--active': props.textSize === 'large' }"
                 @click="onTextSizeSelect('large')"
               >
-                Large
+                {{ t('settings.large') }}
               </button>
             </div>
           </div>
 
           <div v-if="props.languages && props.languages.length > 0" class="vnova-setting-group">
-            <label>Language / Idioma</label>
-            <div class="vnova-segmented-control" :style="{ gridTemplateColumns: `repeat(${props.languages.length}, minmax(0, 1fr))` }" role="radiogroup" aria-label="Game language">
+            <label>{{ t('settings.language') }}</label>
+            <div class="vnova-segmented-control" :style="{ gridTemplateColumns: `repeat(${props.languages.length}, minmax(0, 1fr))` }" role="radiogroup" :aria-label="t('settings.languageAriaLabel')">
               <button
                 v-for="lang in props.languages"
                 :key="lang"

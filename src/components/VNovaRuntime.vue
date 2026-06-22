@@ -30,6 +30,7 @@ import { cloneDeep } from '../utils/clone.js'
 import { isPlainObject } from '../utils/predicates.js'
 import { normalizeAssetUrl } from '../utils/normalize.js'
 import { expandNestedLabels } from '../core/engine.js'
+import { createI18n } from '../i18n/index.js'
 import '../utils/particles.js'
 import { showNotify } from '../utils/notify.js'
 
@@ -224,6 +225,10 @@ export default defineComponent({
         return props.script[currentLanguage.value] || []
       }
       return props.script
+    })
+
+    const i18n = computed(() => {
+      return createI18n(currentLanguage.value, props.config?.guiTranslations)
     })
 
     const canBack = computed(() => Boolean(maybeUnref(activeStage.value?.canBack) ?? false))
@@ -503,6 +508,7 @@ export default defineComponent({
       history,
       audioLog,
       hasDeclarativeModal,
+      t: (key, params) => i18n.value.t(key, params),
       ui: {
         titleOpen,
         settingsOpen,

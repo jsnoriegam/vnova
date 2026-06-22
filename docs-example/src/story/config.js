@@ -1,3 +1,5 @@
+import esLocale from 'vnova-engine/i18n/es'
+
 export const defaultConfig = {
     title: 'VNova Showcase',
     subtitle: 'Interactive Runtime Demo',
@@ -13,7 +15,12 @@ export const defaultConfig = {
     preload: true,
     // Title screen background: CSS value or asset URL.
     // Example: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-    titleBackground: 'linear-gradient(135deg, #1a1a2e 0%, #738dd4dd 100%)',
+    // titleBackground: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    // GUI translations for different languages.
+    // Import locale packs from 'vnova-engine/i18n/*' and pass them here.
+    guiTranslations: {
+        es: esLocale,
+    },
     audio: {
         bgmVolume: 0.5,
         sfxVolume: 0.8,

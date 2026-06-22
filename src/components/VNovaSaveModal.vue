@@ -15,8 +15,12 @@
  *   loaded(slot)   — slot was loaded
  *   deleted(slot)  — slot was deleted
  */
-import { ref } from 'vue'
+import { inject, ref } from 'vue'
 import { useVNovaSaves } from '../composables/useVNovaSaves.js'
+import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
+
+const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
+const t = (key, params) => runtime?.t(key, params) ?? key
 
 const props = defineProps({
   saveKey:   { type: String,  default:  'vnova' },
@@ -58,15 +62,14 @@ function _fileErrorMessage(fallback) {
 }
 
 async function handleSave(slot) {
-  // If slot is occupied, ask for confirmation first
   if (slots.value[slot - 1] && pendingSlot.value !== slot) {
     pendingSlot.value = slot
     return
   }
   pendingSlot.value = null
   const ok = await saves.saveSlot(slot)
-  if (ok) { _notify(`Saved to Slot ${slot}`); emit('saved', slot) }
-  else    { _notify('Save failed', 'err') }
+  if (ok) { _notify(t('saves.savedToSlot', { slot })); emit('saved', slot) }
+  else    { _notify(t('saves.saveFailed'), 'err') }
 }
 
 function cancelOverwrite() {
@@ -76,57 +79,57 @@ function cancelOverwrite() {
 async function handleLoad(slot) {
   if (!slots.value[slot - 1]) return
   const ok = await saves.loadSlot(slot)
-  if (ok) { _notify(`Slot ${slot} loaded`); emit('loaded', slot); emit('close') }
-  else    { _notify('Load failed', 'err') }
+  if (ok) { _notify(t('saves.slotLoaded', { slot })); emit('loaded', slot); emit('close') }
+  else    { _notify(t('saves.loadFailed'), 'err') }
 }
 
 function handleDelete(slot) {
   saves.deleteSlot(slot)
   if (pendingSlot.value === slot) pendingSlot.value = null
   emit('deleted', slot)
-  _notify(`Slot ${slot} cleared`)
+  _notify(t('saves.slotCleared', { slot }))
 }
 
 function handleClearAll() {
   saves.clearAll()
   pendingSlot.value = null
-  _notify('All slots cleared')
+  _notify(t('saves.allSlotsCleared'))
 }
 
 async function handleExport() {
   const ok = await saves.exportSaves()
-  if (ok) _notify('Export downloaded')
-  else    _notify(_fileErrorMessage('Export failed'), 'err')
+  if (ok) _notify(t('saves.exportDownloaded'))
+  else    _notify(_fileErrorMessage(t('saves.exportFailed')), 'err')
 }
 
 async function handleImport() {
   const ok = await saves.importSaves()
-  if (ok) _notify('Saves imported')
-  else    _notify(_fileErrorMessage('Import cancelled'), 'err')
+  if (ok) _notify(t('saves.savesImported'))
+  else    _notify(_fileErrorMessage(t('saves.importCancelled')), 'err')
 }
 
 async function handleSaveToDisk() {
   const ok = await saves.saveToDisk()
-  if (ok) _notify('File saved')
-  else    _notify(_fileErrorMessage('Save failed'), 'err')
+  if (ok) _notify(t('saves.fileSaved'))
+  else    _notify(_fileErrorMessage(t('saves.saveFailed')), 'err')
 }
 
 async function handleLoadFromDisk() {
   const ok = await saves.loadFromDisk()
-  if (ok) { _notify('File loaded'); emit('close') }
-  else    { _notify(_fileErrorMessage('Load cancelled or failed'), 'err') }
+  if (ok) { _notify(t('saves.fileLoaded')); emit('close') }
+  else    { _notify(_fileErrorMessage(t('saves.loadCancelledOrFailed')), 'err') }
 }
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="open" class="vnsm-backdrop" @click.self="emit('close')">
-      <div class="vnsm-modal" role="dialog" aria-modal="true" aria-label="Saves">
+      <div class="vnsm-modal" role="dialog" aria-modal="true" :aria-label="t('saves.ariaLabel')">
 
         <!-- ── header ───────────────────────────────────────── -->
         <div class="vnsm-header">
-          <span class="vnsm-title">SAVES</span>
-          <button class="vnsm-close" @click="emit('close')" aria-label="Close">✕</button>
+          <span class="vnsm-title">{{ t('saves.title') }}</span>
+          <button class="vnsm-close" @click="emit('close')" :aria-label="t('saves.close')">✕</button>
         </div>
 
         <!-- ── notification banner ──────────────────────────── -->
@@ -141,7 +144,7 @@ async function handleLoadFromDisk() {
         </Transition>
 
         <!-- ── In Browser section ───────────────────────────── -->
-        <div class="vnsm-section-label">In Browser</div>
+        <div class="vnsm-section-label">{{ t('saves.inBrowser') }}</div>
 
         <div class="vnsm-slots">
           <div
@@ -160,17 +163,17 @@ async function handleLoadFromDisk() {
 
             <!-- slot info -->
             <div class="vnsm-slot-info">
-              <span class="vnsm-slot-label">{{ meta?.label ?? `Slot ${i + 1}` }}</span>
+              <span class="vnsm-slot-label">{{ meta?.label ?? `${t('saves.slot')} ${i + 1}` }}</span>
               <span v-if="meta?.formattedDate" class="vnsm-slot-date">{{ meta.formattedDate }}</span>
-              <span v-else class="vnsm-slot-empty-text">Empty</span>
+              <span v-else class="vnsm-slot-empty-text">{{ t('saves.empty') }}</span>
             </div>
 
             <!-- overwrite confirmation -->
             <Transition name="vnsm-confirm">
               <div v-if="pendingSlot === meta?.slot" class="vnsm-overwrite">
-                <span>Overwrite?</span>
-                <button class="vnsm-btn vnsm-btn--danger" @click="handleSave(meta.slot)">Yes</button>
-                <button class="vnsm-btn vnsm-btn--ghost"  @click="cancelOverwrite">No</button>
+                <span>{{ t('saves.overwrite') }}</span>
+                <button class="vnsm-btn vnsm-btn--danger" @click="handleSave(meta.slot)">{{ t('saves.yes') }}</button>
+                <button class="vnsm-btn vnsm-btn--ghost"  @click="cancelOverwrite">{{ t('saves.no') }}</button>
               </div>
             </Transition>
 
@@ -179,7 +182,7 @@ async function handleLoadFromDisk() {
               <button
                 v-if="mode !== 'load'"
                 class="vnsm-btn vnsm-btn--icon"
-                title="Save here"
+                :title="t('saves.saveHere')"
                 :disabled="saving"
                 @click="handleSave(i + 1)"
               >
@@ -188,7 +191,7 @@ async function handleLoadFromDisk() {
               <button
                 v-if="meta && mode !== 'save'"
                 class="vnsm-btn vnsm-btn--icon"
-                title="Load"
+                :title="t('saves.load')"
                 @click="handleLoad(meta.slot)"
               >
                 ▶
@@ -196,7 +199,7 @@ async function handleLoadFromDisk() {
               <button
                 v-if="meta"
                 class="vnsm-btn vnsm-btn--icon vnsm-btn--trash"
-                title="Delete"
+                :title="t('saves.delete')"
                 @click="handleDelete(meta.slot)"
               >
                 🗑
@@ -207,17 +210,17 @@ async function handleLoadFromDisk() {
 
         <!-- ── In Browser footer ────────────────────────────── -->
         <div class="vnsm-footer-row">
-          <button class="vnsm-btn vnsm-btn--primary" @click="handleExport">📤 Export…</button>
-          <button class="vnsm-btn vnsm-btn--primary" @click="handleImport">📥 Import…</button>
-          <button class="vnsm-btn vnsm-btn--danger vnsm-ml-auto" @click="handleClearAll">🗑 Clear All</button>
+          <button class="vnsm-btn vnsm-btn--primary" @click="handleExport">📤 {{ t('saves.export') }}</button>
+          <button class="vnsm-btn vnsm-btn--primary" @click="handleImport">📥 {{ t('saves.import') }}</button>
+          <button class="vnsm-btn vnsm-btn--danger vnsm-ml-auto" @click="handleClearAll">🗑 {{ t('saves.clearAll') }}</button>
         </div>
 
         <!-- ── On Disk section ──────────────────────────────── -->
-        <div class="vnsm-section-label vnsm-section-label--disk">On Disk</div>
+        <div class="vnsm-section-label vnsm-section-label--disk">{{ t('saves.onDisk') }}</div>
 
         <div class="vnsm-footer-row">
-          <button class="vnsm-btn vnsm-btn--primary" @click="handleSaveToDisk">💾 Save…</button>
-          <button class="vnsm-btn vnsm-btn--primary" @click="handleLoadFromDisk">📂 Load…</button>
+          <button class="vnsm-btn vnsm-btn--primary" @click="handleSaveToDisk">💾 {{ t('saves.saveToDisk') }}</button>
+          <button class="vnsm-btn vnsm-btn--primary" @click="handleLoadFromDisk">📂 {{ t('saves.loadFromDisk') }}</button>
         </div>
 
       </div>
