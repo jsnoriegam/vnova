@@ -68,6 +68,94 @@ export function createBgTransition(element, transition, onComplete) {
   }
 }
 
+export function createCrossfadeTransition(inElement, outElement, transition, onComplete) {
+  if (!inElement) {
+    onComplete?.()
+    return null
+  }
+
+  const duration = ANIMATION_DEFAULTS.bgTransitionDuration
+
+  switch (transition) {
+    case 'cut':
+      onComplete?.()
+      return null
+
+    case 'fade':
+    case 'dissolve': {
+      const easing = transition === 'dissolve' ? EASINGS.linear : EASINGS.easeInOut
+      if (outElement) {
+        set(outElement, { zIndex: inElement.zIndex - 1 })
+      }
+      set(inElement, { opacity: 0 })
+      return animate(inElement, {
+        opacity: [0, 1],
+        duration,
+        easing,
+        onComplete,
+      })
+    }
+
+    case 'slide-left': {
+      if (outElement) {
+        set(outElement, { opacity: 1, translateX: '0%' })
+        animate(outElement, {
+          opacity: [1, 0],
+          translateX: ['0%', '-6%'],
+          duration,
+          easing: EASINGS.easeInOut,
+        })
+      }
+      set(inElement, { opacity: 0, translateX: '6%' })
+      return animate(inElement, {
+        opacity: [0, 1],
+        translateX: ['6%', '0%'],
+        duration,
+        easing: EASINGS.easeInOut,
+        onComplete,
+      })
+    }
+
+    case 'slide-right': {
+      if (outElement) {
+        set(outElement, { opacity: 1, translateX: '0%' })
+        animate(outElement, {
+          opacity: [1, 0],
+          translateX: ['0%', '6%'],
+          duration,
+          easing: EASINGS.easeInOut,
+        })
+      }
+      set(inElement, { opacity: 0, translateX: '-6%' })
+      return animate(inElement, {
+        opacity: [0, 1],
+        translateX: ['-6%', '0%'],
+        duration,
+        easing: EASINGS.easeInOut,
+        onComplete,
+      })
+    }
+
+    default: {
+      if (outElement) {
+        set(outElement, { opacity: 1 })
+        animate(outElement, {
+          opacity: [1, 0],
+          duration,
+          easing: EASINGS.easeInOut,
+        })
+      }
+      set(inElement, { opacity: 0 })
+      return animate(inElement, {
+        opacity: [0, 1],
+        duration,
+        easing: EASINGS.easeInOut,
+        onComplete,
+      })
+    }
+  }
+}
+
 export function createSpriteEnter(element) {
   if (!element) return null
 

@@ -26,12 +26,13 @@
  *   })
  */
 
-import { ref, computed, watch, onMounted, onUnmounted, unref } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, unref, nextTick } from 'vue'
 import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
 import { normalizeSpacebarFastForward } from '../utils/normalize.js'
 import {
   createBgTransition,
+  createCrossfadeTransition,
   createSpriteEnter,
   createSpriteLeave,
   createSpriteDim,
@@ -58,6 +59,7 @@ export function useVNovaEngine(script, options = {}) {
     keyboardEnabled  = true,
     spacebarFastForward = 'fullspeed',
     autoAdvanceDelay = 0,
+    deferStart       = false,
     onAudio          = noop,
     onParticles      = noop,
     onVideo          = noop,
@@ -112,6 +114,7 @@ export function useVNovaEngine(script, options = {}) {
     quests,
     initialState,
     autoAdvanceDelay,
+    deferStart,
     onAudio,
     onParticles,
     onVideo,
@@ -274,7 +277,7 @@ export function useVNovaEngine(script, options = {}) {
     }
   }
 
-  watch(() => store.background, (bg) => {
+  watch(() => store.background, async (bg) => {
     if (!bg) return
 
     stopAnimation(_bgAnimation)
@@ -295,9 +298,12 @@ export function useVNovaEngine(script, options = {}) {
     inn.visible = true
     out.active = false; inn.active = true
 
+    await nextTick()
+
     const innEl = _bgElements.get(inn.key)
+    const outEl = _bgElements.get(out.key)
     if (innEl) {
-      _bgAnimation = createBgTransition(innEl, bg.transition, () => {
+      _bgAnimation = createCrossfadeTransition(innEl, outEl, bg.transition, () => {
         out.visible = false
         _bgAnimation = null
       })
@@ -331,7 +337,7 @@ export function useVNovaEngine(script, options = {}) {
     }
   }
 
-  watch(() => store.image, (img) => {
+  watch(() => store.image, async (img) => {
     if (!img) return
 
     stopAnimation(_imageAnimation)
@@ -352,9 +358,12 @@ export function useVNovaEngine(script, options = {}) {
     inn.visible = true
     out.active = false; inn.active = true
 
+    await nextTick()
+
     const innEl = _imageElements.get(inn.key)
+    const outEl = _imageElements.get(out.key)
     if (innEl) {
-      _imageAnimation = createBgTransition(innEl, img.transition, () => {
+      _imageAnimation = createCrossfadeTransition(innEl, outEl, img.transition, () => {
         out.visible = false
         _imageAnimation = null
       })
