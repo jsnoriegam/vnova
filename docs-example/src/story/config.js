@@ -1,4 +1,4 @@
-import esLocale from 'vnova-engine/i18n/es'
+import esLocale from 'vnova-engine/i18n/es.js'
 
 export const defaultConfig = {
     title: 'VNova Showcase',
