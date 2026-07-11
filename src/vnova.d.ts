@@ -147,6 +147,8 @@ export interface ChoiceOption {
 export interface ChoiceStep {
   type: 'choice'
   prompt?: string
+  /** Enable background blur behind the choice panel. Default: false. */
+  blur?: boolean
   options: [ChoiceOption, ChoiceOption, ...ChoiceOption[]]
 }
 export interface ModalStep {
@@ -169,6 +171,8 @@ export interface InputStep {
   maxLength?: number
   inputType?: string
   submitLabel?: string
+  /** Enable background blur behind the input panel. Default: false. */
+  blur?: boolean
   set?: Record<string, unknown>
   inc?: Record<string, number>
   jump?: string
@@ -178,6 +182,8 @@ export interface SelectStep {
   type: 'select'
   store: string
   prompt?: string
+  /** Enable background blur behind the select panel. Default: false. */
+  blur?: boolean
   options: [SelectOption, ...SelectOption[]]
   set?: Record<string, unknown>
   inc?: Record<string, number>
@@ -359,6 +365,7 @@ export interface EngineSettings {
   sfxVolume:       number
   textSize:        'small' | 'medium' | 'large'
   spacebarFastForward: 'fullspeed' | 'throttled' | 'off'
+  theme:           string
 }
 export type SpacebarFastForwardSetting = 'fullspeed' | 'throttled' | 'off'
 export interface QuestState {
@@ -598,6 +605,8 @@ export interface UseVNovaOptions extends CreateEngineOptions {
   choiceDisabledTextColor?: CssColor
   /** localStorage key for save/load. Required to enable save functionality. */
   saveKey?:           string
+  /** sessionStorage key for session persistence. When provided, engine state is restored on page reload. */
+  sessionKey?:        string
 }
 // ─── useVNova return ──────────────────────────────────────────────────────────
 export interface VNovaComposable {
@@ -689,6 +698,34 @@ export declare function useQuestEngine(): {
   list(): QuestState[]
   evaluate(id?: string): boolean
 }
+// ─── Theme system ─────────────────────────────────────────────────────────────
+export interface ThemeDefinition {
+  id: string
+  name: string
+  description?: string
+  variables: Record<string, string>
+}
+export interface ThemeHandle {
+  currentThemeId: WritableComputedRef<string>
+  currentTheme: ComputedRef<ThemeDefinition | undefined>
+  availableThemes: ComputedRef<ThemeDefinition[]>
+  applyTheme: (themeId: string) => boolean
+  initTheme: () => void
+  registerCustomThemes: (themes: ThemeDefinition[]) => void
+}
+export declare function useTheme(): ThemeHandle
+export declare function registerTheme(theme: ThemeDefinition): boolean
+export declare function getTheme(id: string): ThemeDefinition | undefined
+export declare function getAllThemes(): ThemeDefinition[]
+export declare function hasTheme(id: string): boolean
+export declare function unregisterTheme(id: string): boolean
+export declare function registerThemes(themes: ThemeDefinition[]): void
+export declare const builtInThemes: ThemeDefinition[]
+export declare const defaultTheme: ThemeDefinition
+export declare const darkTheme: ThemeDefinition
+export declare const lightTheme: ThemeDefinition
+export declare const oceanTheme: ThemeDefinition
+export declare const forestTheme: ThemeDefinition
 // ─── createQuestEngine ────────────────────────────────────────────────────────
 export interface CreateQuestEngineOptions {
   getState?:   () => Record<string, QuestState>
@@ -807,6 +844,7 @@ export interface GuiTranslations {
     large?: string
     language?: string
     languageAriaLabel?: string
+    theme?: string
   }
   saves?: {
     ariaLabel?: string
@@ -871,6 +909,8 @@ export interface VNovaRuntimeConfig {
   slotCount?: number
   startLabel?: string
   stage?: UseVNovaOptions
+  /** Custom themes to register. Merged with built-in themes. */
+  themes?: ThemeDefinition[]
   ui?: {
     /** Enables built-in runtime modal rendering even when no custom modal is registered. */
     autoModal?: boolean
@@ -1048,6 +1088,10 @@ export declare const VNovaSettingsModal: DefineComponent<{
   languages?: string[]
   /** Currently selected language code. */
   language?: string
+  /** Array of available themes. */
+  themes?: ThemeDefinition[]
+  /** Currently selected theme ID. */
+  currentTheme?: string
 }>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>
 // ─── VNovaLoadingScreen ───────────────────────────────────────────────────────

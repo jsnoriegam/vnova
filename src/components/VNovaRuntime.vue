@@ -26,6 +26,7 @@ import VNovaStage from './VNovaStage.vue'
 import VNovaTitleScreen from './VNovaTitleScreen.vue'
 import VNovaLoadingScreen from './VNovaLoadingScreen.vue'
 import { useVNovaAudio } from '../composables/useVNovaAudio.js'
+import { useTheme } from '../composables/useTheme.js'
 import { cloneDeep } from '../utils/clone.js'
 import { isPlainObject } from '../utils/predicates.js'
 import { normalizeAssetUrl } from '../utils/normalize.js'
@@ -173,6 +174,7 @@ export default defineComponent({
   setup(props) {
     const slots = useSlots()
     const builtInAudio = useVNovaAudio({ bgmVolume: 1, sfxVolume: 1 })
+    const theme = useTheme()
     const particlesContainerId = `vnova-particles-${Math.random().toString(36).slice(2, 10)}`
 
     const builtInStageRef = ref(null)
@@ -188,7 +190,6 @@ export default defineComponent({
     const availableLanguages = computed(() => isPlainObject(props.script) ? Object.keys(props.script) : [])
     const selectedLanguage = ref(props.config?.defaultLanguage || '')
 
-    const titleOpen = ref(true)
     const settingsOpen = ref(false)
     const backlogOpen = ref(false)
     const creditsOpen = ref(false)
@@ -201,6 +202,22 @@ export default defineComponent({
     const hasSaveRenderer = ref(false)
     const hasDeclarativeModal = ref(false)
     const pendingStageActions = []
+
+    // Check if there's an active session to skip title screen
+    const hasActiveSession = (() => {
+      const key = props.config?.stage?.sessionKey
+      if (!key || typeof sessionStorage === 'undefined') return false
+      try {
+        const raw = sessionStorage.getItem(key)
+        if (!raw) return false
+        const snapshot = JSON.parse(raw)
+        return snapshot && typeof snapshot === 'object' && !snapshot.ended && snapshot.cursor >= 0
+      } catch (e) {
+        return false
+      }
+    })()
+
+    const titleOpen = ref(!hasActiveSession)
 
     const activeStage = computed(() => customStageApi.value || builtInStageRef.value)
     const stageState = computed(() => maybeUnref(activeStage.value?.state) ?? null)
@@ -691,7 +708,7 @@ export default defineComponent({
 
     async function runPreloader() {
       if (!preloadEnabled.value) {
-        titleOpen.value = true
+        if (!hasActiveSession) titleOpen.value = true
         return
       }
 
@@ -699,7 +716,7 @@ export default defineComponent({
       if (urls.length === 0) {
         preloadProgress.value = 1
         loadingOpen.value = false
-        titleOpen.value = true
+        if (!hasActiveSession) titleOpen.value = true
         return
       }
 
@@ -736,11 +753,17 @@ export default defineComponent({
 
       setTimeout(() => {
         loadingOpen.value = false
-        titleOpen.value = true
+        if (!hasActiveSession) titleOpen.value = true
       }, 300)
     }
 
     onMounted(() => {
+      // Register custom themes from config
+      if (Array.isArray(props.config?.themes)) {
+        theme.registerCustomThemes(props.config.themes)
+      }
+      // Initialize theme (applies saved or default theme)
+      theme.initTheme()
       runPreloader()
     })
 
@@ -821,6 +844,8 @@ export default defineComponent({
             textSize: textSize.value,
             languages: availableLanguages.value,
             language: currentLanguage.value,
+            themes: theme.availableThemes.value,
+            currentTheme: theme.currentThemeId.value,
           },
           listeners: {
             onClose: () => {
@@ -834,6 +859,9 @@ export default defineComponent({
             'onUpdate:textSize': (value) => handleSetSetting('textSize', value),
             'onUpdate:language': (value) => {
               currentLanguage.value = value
+            },
+            'onUpdate:theme': (value) => {
+              theme.applyTheme(value)
             },
           },
         }),

@@ -40,6 +40,7 @@ export default {
     large: 'Large',
     language: 'Language',
     languageAriaLabel: 'Game language',
+    theme: 'Theme',
   },
   saves: {
     ariaLabel: 'Saves',

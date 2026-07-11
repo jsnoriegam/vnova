@@ -1,5 +1,5 @@
 <script setup>
-import { inject } from 'vue'
+import { inject, computed } from 'vue'
 import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
 
 const runtime = inject(VNOVA_RUNTIME_CONTEXT_KEY, null)
@@ -22,6 +22,8 @@ const props = defineProps({
   },
   languages: { type: Array, default: () => [] },
   language: { type: String, default: '' },
+  themes: { type: Array, default: () => [] },
+  currentTheme: { type: String, default: 'default' },
 })
 
 const emit = defineEmits([
@@ -32,7 +34,18 @@ const emit = defineEmits([
   'update:spacebar-fast-forward',
   'update:text-size',
   'update:language',
+  'update:theme',
 ])
+
+// Helper to get preview colors from theme variables
+function getThemePreviewColors(theme) {
+  const vars = theme.variables || {}
+  return {
+    primary: vars['--vnova-color-primary'] || '#a855f7',
+    secondary: vars['--vnova-color-secondary'] || '#6366f1',
+    surface: vars['--vnova-color-surface'] || 'rgba(20, 15, 30, 0.9)',
+  }
+}
 
 function onBgmInput(event) {
   emit('update:bgm-volume', Number(event.target.value))
@@ -56,6 +69,10 @@ function onTextSizeSelect(size) {
 
 function onLanguageSelect(lang) {
   emit('update:language', lang)
+}
+
+function onThemeSelect(themeId) {
+  emit('update:theme', themeId)
 }
 </script>
 
@@ -169,6 +186,29 @@ function onLanguageSelect(lang) {
               </button>
             </div>
           </div>
+
+          <div v-if="props.themes && props.themes.length > 0" class="vnova-setting-group">
+            <label>{{ t('settings.theme') }}</label>
+            <div class="vnova-theme-grid">
+              <button
+                v-for="theme in props.themes"
+                :key="theme.id"
+                type="button"
+                class="vnova-theme-card"
+                :class="{ 'vnova-theme-card--active': props.currentTheme === theme.id }"
+                @click="onThemeSelect(theme.id)"
+              >
+                <div
+                  class="vnova-theme-preview"
+                  :style="{ background: getThemePreviewColors(theme).surface }"
+                >
+                  <div class="vnova-theme-swatch" :style="{ background: getThemePreviewColors(theme).primary }"></div>
+                  <div class="vnova-theme-swatch" :style="{ background: getThemePreviewColors(theme).secondary }"></div>
+                </div>
+                <span class="vnova-theme-name">{{ theme.name }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -231,5 +271,60 @@ function onLanguageSelect(lang) {
   background: rgba(168, 85, 247, 0.28);
   color: #ffffff;
   font-weight: 600;
+}
+
+/* ── Theme selector ─────────────────────────────────────── */
+.vnova-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.vnova-theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.vnova-theme-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.vnova-theme-card--active {
+  border-color: var(--vnova-color-primary);
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.vnova-theme-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.vnova-theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.vnova-theme-name {
+  font-size: 0.78rem;
+  color: var(--vnova-color-text);
+  text-align: center;
+  line-height: 1.2;
 }
 </style>

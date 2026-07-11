@@ -167,6 +167,15 @@ const normalizedSelectOptions = computed(() => {
   })
 })
 
+const choicesBlur = computed(() => {
+  const step = state.current
+  if (!step) return false
+  if (step.type === 'choice' || step.type === 'input' || step.type === 'select') {
+    return step.blur === true
+  }
+  return false
+})
+
 function getValueAtPath(source, path) {
   if (!source || typeof source !== 'object' || typeof path !== 'string') return undefined
   const parts = path.split('.').map((part) => part.trim()).filter(Boolean)
@@ -349,6 +358,7 @@ defineExpose({
     </template>
 
     <div v-if="state.awaitingChoice && state.current && state.current.type === 'choice'" class="vnova-choices"
+      :class="{ 'vnova-choices--blur': choicesBlur }"
       role="group" aria-label="Choose an option">
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
@@ -363,8 +373,9 @@ defineExpose({
       </button>
     </div>
 
-    <div v-if="state.awaitingChoice && state.current?.type === 'input'" class="vnova-choices" role="group"
-      aria-label="Input prompt" @click.stop>
+    <div v-if="state.awaitingChoice && state.current?.type === 'input'" class="vnova-choices"
+      :class="{ 'vnova-choices--blur': choicesBlur }"
+      role="group" aria-label="Input prompt" @click.stop>
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
       </p>
@@ -378,8 +389,9 @@ defineExpose({
       </form>
     </div>
 
-    <div v-if="state.awaitingChoice && state.current?.type === 'select'" class="vnova-choices" role="group"
-      aria-label="Select an option">
+    <div v-if="state.awaitingChoice && state.current?.type === 'select'" class="vnova-choices"
+      :class="{ 'vnova-choices--blur': choicesBlur }"
+      role="group" aria-label="Select an option">
       <p v-if="state.current.prompt" class="vnova-choices__prompt">
         {{ state.current.prompt }}
       </p>
@@ -577,9 +589,12 @@ defineExpose({
   gap: 0.75rem;
   padding: 2rem;
   box-sizing: border-box;
+  z-index: 4;
+}
+
+.vnova-choices--blur {
   background: var(--vnova-choices-bg, rgba(0, 0, 0, .65));
   backdrop-filter: blur(6px);
-  z-index: 4;
 }
 
 .vnova-choices__prompt {

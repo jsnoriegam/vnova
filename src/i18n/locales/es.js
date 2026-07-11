@@ -40,6 +40,7 @@ export default {
     large: 'Grande',
     language: 'Idioma',
     languageAriaLabel: 'Idioma del juego',
+    theme: 'Tema',
   },
   saves: {
     ariaLabel: 'Partidas guardadas',

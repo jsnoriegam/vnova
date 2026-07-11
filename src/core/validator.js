@@ -185,6 +185,8 @@ export function validateScript(script, characters = {}) {
             errors.push(`${at} option[${oi}].disabledText must be a string`)
         })
       }
+      if (step.blur !== undefined && typeof step.blur !== 'boolean')
+        errors.push(`${at} choice step blur must be boolean when provided`)
     }
 
     if (step.type === 'modal') {
@@ -216,6 +218,8 @@ export function validateScript(script, characters = {}) {
         errors.push(`${at} input step maxLength must be a positive number when provided`)
       if (step.jump && !labels.has(step.jump))
         errors.push(`${at} input step jump target "${step.jump}" has no matching label`)
+      if (step.blur !== undefined && typeof step.blur !== 'boolean')
+        errors.push(`${at} input step blur must be boolean when provided`)
     }
 
     if (step.type === 'select') {
@@ -242,6 +246,8 @@ export function validateScript(script, characters = {}) {
 
       if (step.jump && !labels.has(step.jump))
         errors.push(`${at} select step jump target "${step.jump}" has no matching label`)
+      if (step.blur !== undefined && typeof step.blur !== 'boolean')
+        errors.push(`${at} select step blur must be boolean when provided`)
     }
 
     if (step.type === 'wait') {

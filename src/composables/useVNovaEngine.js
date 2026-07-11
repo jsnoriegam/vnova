@@ -67,6 +67,7 @@ export function useVNovaEngine(script, options = {}) {
     onEffect         = null,
     onEnd            = noop,
     pinia            = null,
+    sessionKey       = null,
   } = options
 
   // ── Effect targets registry ─────────────────────────────────────────────
@@ -114,7 +115,7 @@ export function useVNovaEngine(script, options = {}) {
     quests,
     initialState,
     autoAdvanceDelay,
-    deferStart,
+    deferStart: deferStart || !!sessionKey, // Defer if sessionKey to allow restoration
     onAudio,
     onParticles,
     onVideo,
@@ -145,13 +146,86 @@ export function useVNovaEngine(script, options = {}) {
     setSetting,
   } = engine
 
+  // ── Session persistence ───────────────────────────────────────────────────
+  let _sessionSaveTimer = null
+
+  function _saveSession() {
+    if (!sessionKey || typeof sessionStorage === 'undefined') return
+    if (store.ended) {
+      _clearSession()
+      return
+    }
+    try {
+      const { characters, credits, ...snapshot } = store.$state
+      sessionStorage.setItem(sessionKey, JSON.stringify(snapshot))
+    } catch (e) {
+      // sessionStorage might be full or disabled
+    }
+  }
+
+  function _debouncedSaveSession() {
+    if (!sessionKey) return
+    if (_sessionSaveTimer !== null) clearTimeout(_sessionSaveTimer)
+    _sessionSaveTimer = setTimeout(_saveSession, 100)
+  }
+
+  function _clearSession() {
+    if (!sessionKey || typeof sessionStorage === 'undefined') return
+    try {
+      sessionStorage.removeItem(sessionKey)
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function _restoreSession() {
+    if (!sessionKey || typeof sessionStorage === 'undefined') return false
+    try {
+      const raw = sessionStorage.getItem(sessionKey)
+      if (!raw) return false
+      const snapshot = JSON.parse(raw)
+      if (!snapshot || typeof snapshot !== 'object' || typeof snapshot.cursor !== 'number') return false
+      store.loadSnapshot(snapshot)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  const restoredFromSession = _restoreSession()
+
+  if (sessionKey) {
+    store.$subscribe(() => {
+      _debouncedSaveSession()
+    }, { detached: true })
+  }
+
+  // Start engine if not restored and not originally deferred
+  if (!restoredFromSession && !deferStart) {
+    start()
+  }
+
+  // Wrap restart/exitMenu to clear session
+  const originalRestart = restart
+  const originalExitMenu = exitMenu
+
+  function restartWithSessionClear() {
+    _clearSession()
+    return originalRestart()
+  }
+
+  function exitMenuWithSessionClear() {
+    _clearSession()
+    return originalExitMenu()
+  }
+
   // ── Typewriter ────────────────────────────────────────────────────────────
   const displayedText = ref('')
   const textComplete  = ref(false)
   let _twTimer            = null
   let _twRunId            = 0
   let _autoContinueTimer  = null
-  let _suspendNextAuto    = false
+  let _suspendNextAuto    = restoredFromSession
 
   function _clearTw() {
     _twRunId += 1
@@ -234,7 +308,12 @@ export function useVNovaEngine(script, options = {}) {
       return
     }
     if (step.type === 'say' || step.type === 'think' || step.type === 'narrate') {
-      _runTypewriter(step.text ?? '')
+      if (restoredFromSession) {
+        displayedText.value = step.text ?? ''
+        textComplete.value = true
+      } else {
+        _runTypewriter(step.text ?? '')
+      }
     } else {
       // Non-dialogue steps should never block interact() waiting for typewriter.
       _clearTw()
@@ -455,7 +534,7 @@ export function useVNovaEngine(script, options = {}) {
 
   function restartWithGuards() {
     _clearTw(); _clearAutoContinue(); _suspendNextAuto = true
-    restart()
+    return restartWithSessionClear()
   }
 
   // ── Teclado ───────────────────────────────────────────────────────────────
@@ -477,6 +556,7 @@ export function useVNovaEngine(script, options = {}) {
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown)
     _clearTw(); _clearAutoContinue()
+    if (_sessionSaveTimer !== null) clearTimeout(_sessionSaveTimer)
     stopAnimation(_bgAnimation)
     stopAnimation(_imageAnimation)
     for (const anim of _spriteAnimations.values()) stopAnimation(anim)
@@ -524,7 +604,7 @@ export function useVNovaEngine(script, options = {}) {
     jump,
     restart: restartWithGuards,
     start,
-    exitMenu,
+    exitMenu: exitMenuWithSessionClear,
 
     // Variables de historia
     getVar,

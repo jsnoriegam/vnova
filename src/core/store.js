@@ -18,6 +18,7 @@ const defaultSettings   = () => ({
   sfxVolume: 0.5,
   textSize: 'medium',
   spacebarFastForward: 'fullspeed',
+  theme: 'default',
 })
 
 export const useVNovaStore = defineStore('vnova', {

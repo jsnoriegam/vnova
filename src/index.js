@@ -16,6 +16,10 @@ export { useEngine } from './composables/useEngine.js'
 export { useQuestEngine, QS } from './composables/useQuestEngine.js'
 export { useVNovaAudio } from './composables/useVNovaAudio.js'
 export { useVNovaSaves } from './composables/useVNovaSaves.js'
+export { useTheme } from './composables/useTheme.js'
+// Theme system
+export { registerTheme, getTheme, getAllThemes, hasTheme, unregisterTheme, registerThemes } from './theme/index.js'
+export { builtInThemes, defaultTheme, darkTheme, lightTheme, oceanTheme, forestTheme } from './theme/themes.js'
 // Componentes
 export { default as VNovaStage } from './components/VNovaStage.vue'
 export { default as VNovaRuntime, VNOVA_RUNTIME_CONTEXT_KEY } from './components/VNovaRuntime.vue'
