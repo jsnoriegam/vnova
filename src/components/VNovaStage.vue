@@ -211,6 +211,39 @@ const dialogueTextSize = computed(() => {
 const storage = useUserStorage()
 const quests = useQuestEngine()
 
+const stackOffsets = computed(() => {
+  const groups = {}
+  stageArray.value.forEach((char, i) => {
+    const pos = char.position ?? 'center'
+    ;(groups[pos] ??= []).push(i)
+  })
+  const result = new Array(stageArray.value.length).fill(0)
+  for (const indices of Object.values(groups)) {
+    const n = indices.length
+    if (n <= 1) continue
+    const center = (n - 1) / 2
+    indices.forEach((globalIdx, localIdx) => {
+      result[globalIdx] = localIdx - center
+    })
+  }
+  return result
+})
+
+function spriteInlineStyle(position, offset) {
+  if (!offset) return undefined
+  const off = `calc(${offset} * var(--vnova-stack-offset, 3%))`
+  switch (position) {
+    case 'center':
+      return { transform: `translateX(calc(-50% + ${off}))` }
+    case 'left': case 'left-far':
+      return { left: `calc(${position === 'left' ? '5%' : '0px'} + ${off})` }
+    case 'right': case 'right-far':
+      return { right: `calc(${position === 'right' ? '5%' : '0px'} + ${off})` }
+    default:
+      return undefined
+  }
+}
+
 const stageStyle = computed(() => {
   const style = {
     '--vnova-text-size': dialogueTextSize.value,
@@ -330,10 +363,11 @@ defineExpose({
     </div>
 
     <div class="vnova-sprites" aria-hidden="true">
-      <div v-for="char in stageArray" :key="char.id" :class="[
+      <div v-for="(char, _i) in stageArray" :key="char.id" :class="[
         'vnova-sprite',
         `vnova-sprite--${char.position}`,
-      ]" :ref="(el) => setSpriteRef(char.id, el)">
+      ]" :style="spriteInlineStyle(char.position, stackOffsets[_i])"
+        :ref="(el) => setSpriteRef(char.id, el)">
         <slot name="sprite" :char="char" :pos="char.position">
           <img v-if="char.sprite" class="vnova-sprite__img" :src="char.sprite"
             :alt="characters[char.id]?.name ?? char.id">
@@ -600,8 +634,12 @@ defineExpose({
 .vnova-choices__prompt {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, .7);
+  color: var(--vnova-choice-prompt-color, rgba(255, 255, 255, .7));
   text-align: center;
+}
+
+.vnova-choices:not(.vnova-choices--blur) .vnova-choices__prompt {
+  text-shadow: var(--vnova-choice-prompt-shadow, none);
 }
 
 .vnova-choice-btn {

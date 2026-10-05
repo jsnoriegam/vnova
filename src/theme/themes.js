@@ -38,10 +38,12 @@ export const defaultTheme = {
     '--vnova-choices-bg': 'rgba(0, 0, 0, .65)',
     '--vnova-choice-size': '0.95rem',
     '--vnova-choice-color': '#f0eaf8',
-    '--vnova-choice-bg': 'rgba(255, 255, 255, .08)',
-    '--vnova-choice-border': 'rgba(255, 255, 255, .2)',
-    '--vnova-choice-bg-hover': 'rgba(255, 255, 255, .18)',
+    '--vnova-choice-bg': 'rgba(0, 0, 0, 0.70)',
+    '--vnova-choice-border': 'rgba(112, 112, 112, 0.20)',
+    '--vnova-choice-bg-hover': 'rgba(112, 112, 112, 0.5)',
     '--vnova-choice-radius': '6px',
+    '--vnova-choice-prompt-color': 'rgba(255, 255, 255, .7)',
+    '--vnova-choice-prompt-shadow': '0 1px 4px rgba(0, 0, 0, .8), 0 0 8px rgba(0, 0, 0, .5)',
     // Modals
     '--vnova-modal-bg': 'rgba(20, 15, 30, 0.9)',
     '--vnova-modal-border': 'rgba(168, 85, 247, 0.25)',
@@ -53,6 +55,7 @@ export const defaultTheme = {
     '--vnova-stage-bg': '#000',
     '--vnova-bg-duration': '400ms',
     '--vnova-sprite-bottom': '0px',
+    '--vnova-stack-offset': '3%',
     // HUD
     '--vnova-hud-bg': 'rgba(14, 10, 24, 0.78)',
     '--vnova-hud-border': 'rgba(240, 234, 248, 0.2)',
@@ -97,6 +100,8 @@ export const darkTheme = {
     '--vnova-choice-border': 'rgba(255, 255, 255, .12)',
     '--vnova-choice-bg-hover': 'rgba(59, 130, 246, .2)',
     '--vnova-choice-radius': '8px',
+    '--vnova-choice-prompt-color': 'rgba(226, 232, 240, .7)',
+    '--vnova-choice-prompt-shadow': '0 1px 4px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .6)',
     // Modals
     '--vnova-modal-bg': 'rgba(15, 23, 42, 0.95)',
     '--vnova-modal-border': 'rgba(59, 130, 246, 0.2)',
@@ -108,6 +113,7 @@ export const darkTheme = {
     '--vnova-stage-bg': '#0f172a',
     '--vnova-bg-duration': '400ms',
     '--vnova-sprite-bottom': '0px',
+    '--vnova-stack-offset': '3%',
     // HUD
     '--vnova-hud-bg': 'rgba(15, 23, 42, 0.9)',
     '--vnova-hud-border': 'rgba(226, 232, 240, 0.15)',
@@ -152,6 +158,8 @@ export const lightTheme = {
     '--vnova-choice-border': 'rgba(0, 0, 0, .12)',
     '--vnova-choice-bg-hover': 'rgba(99, 102, 241, .12)',
     '--vnova-choice-radius': '6px',
+    '--vnova-choice-prompt-color': 'rgba(30, 41, 59, .7)',
+    '--vnova-choice-prompt-shadow': '0 1px 3px rgba(255, 255, 255, .6)',
     // Modals
     '--vnova-modal-bg': 'rgba(255, 255, 255, 0.98)',
     '--vnova-modal-border': 'rgba(99, 102, 241, 0.2)',
@@ -163,6 +171,7 @@ export const lightTheme = {
     '--vnova-stage-bg': '#f8fafc',
     '--vnova-bg-duration': '400ms',
     '--vnova-sprite-bottom': '0px',
+    '--vnova-stack-offset': '3%',
     // HUD
     '--vnova-hud-bg': 'rgba(255, 255, 255, 0.92)',
     '--vnova-hud-border': 'rgba(0, 0, 0, 0.1)',
@@ -207,6 +216,8 @@ export const oceanTheme = {
     '--vnova-choice-border': 'rgba(6, 182, 212, .25)',
     '--vnova-choice-bg-hover': 'rgba(6, 182, 212, .2)',
     '--vnova-choice-radius': '6px',
+    '--vnova-choice-prompt-color': 'rgba(207, 250, 254, .7)',
+    '--vnova-choice-prompt-shadow': '0 1px 4px rgba(0, 0, 0, .8), 0 0 8px rgba(0, 0, 0, .5)',
     // Modals
     '--vnova-modal-bg': 'rgba(8, 47, 73, 0.95)',
     '--vnova-modal-border': 'rgba(6, 182, 212, 0.3)',
@@ -218,6 +229,7 @@ export const oceanTheme = {
     '--vnova-stage-bg': '#083344',
     '--vnova-bg-duration': '400ms',
     '--vnova-sprite-bottom': '0px',
+    '--vnova-stack-offset': '3%',
     // HUD
     '--vnova-hud-bg': 'rgba(8, 47, 73, 0.85)',
     '--vnova-hud-border': 'rgba(6, 182, 212, 0.25)',
@@ -262,6 +274,8 @@ export const forestTheme = {
     '--vnova-choice-border': 'rgba(34, 197, 94, .25)',
     '--vnova-choice-bg-hover': 'rgba(34, 197, 94, .2)',
     '--vnova-choice-radius': '6px',
+    '--vnova-choice-prompt-color': 'rgba(220, 252, 231, .7)',
+    '--vnova-choice-prompt-shadow': '0 1px 4px rgba(0, 0, 0, .8), 0 0 8px rgba(0, 0, 0, .5)',
     // Modals
     '--vnova-modal-bg': 'rgba(20, 83, 45, 0.95)',
     '--vnova-modal-border': 'rgba(34, 197, 94, 0.3)',
@@ -273,6 +287,7 @@ export const forestTheme = {
     '--vnova-stage-bg': '#14532d',
     '--vnova-bg-duration': '400ms',
     '--vnova-sprite-bottom': '0px',
+    '--vnova-stack-offset': '3%',
     // HUD
     '--vnova-hud-bg': 'rgba(20, 83, 45, 0.85)',
     '--vnova-hud-border': 'rgba(34, 197, 94, 0.25)',
