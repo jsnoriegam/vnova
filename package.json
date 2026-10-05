@@ -42,7 +42,6 @@
   },
   "dependencies": {
     "animejs": "^4.4.1",
-    "particles.js": "^2.0.0",
     "simple-notify": "^1.0.6"
   }
 }

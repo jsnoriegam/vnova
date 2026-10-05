@@ -21,7 +21,7 @@ No test runner, linter, formatter, or typecheck is configured. Do not invent com
 
 ## Product constraint: No-Code First
 
-Features must work declaratively (script/config/assets/characters files) without writing JS. See `docs/no-code-first.md`. If adding a feature that requires a custom callback for a common case, the design is incomplete — push complexity into core instead.
+Features must work declaratively (script/config/assets/characters files) without writing JS. See `docs/guide/no-code.md`. If adding a feature that requires a custom callback for a common case, the design is incomplete — push complexity into core instead.
 
 ## Key gotchas
 

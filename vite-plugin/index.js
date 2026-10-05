@@ -22,7 +22,8 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const pkgRoot   = path.resolve(__dirname, '..')
 
 /**

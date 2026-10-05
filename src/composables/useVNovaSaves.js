@@ -4,6 +4,7 @@
 
 import { computed, ref } from 'vue'
 import { useVNovaStore } from '../core/store.js'
+import { getActiveEngineHandle } from '../core/engine.js'
 
 const VERSION = 2
 const FILE_FORMAT = 'vnova-file'
@@ -18,6 +19,10 @@ const textDecoder = new TextDecoder()
 const HAS_GZIP_STREAMS =
   typeof CompressionStream === 'function' &&
   typeof DecompressionStream === 'function'
+
+// Deriving the HMAC key (SHA-256 + importKey) is relatively expensive and it is
+// deterministic per saveKey/version/origin, so cache the imported CryptoKey.
+const _hmacKeyCache = new Map()
 
 function storageKey(saveKey, slot) {
   return `${saveKey}:slot:${slot}`
@@ -98,9 +103,16 @@ async function _hmacKey(saveKey, keyVersion = SIGN_KEY_VERSION) {
   if (!globalThis.crypto?.subtle) throw new Error('WebCrypto subtle API not available')
   const salt = SIGN_SALTS[keyVersion]
   if (!salt) throw new Error(`Unsupported signature key version: ${keyVersion}`)
-  const seed = `${salt}|${saveKey}|${globalThis.location?.origin ?? 'unknown-origin'}`
+  const origin = globalThis.location?.origin ?? 'unknown-origin'
+  const cacheKey = `${keyVersion}|${saveKey}|${origin}`
+  const cached = _hmacKeyCache.get(cacheKey)
+  if (cached) return cached
+
+  const seed = `${salt}|${saveKey}|${origin}`
   const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(seed))
-  return crypto.subtle.importKey('raw', digest, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+  const key = await crypto.subtle.importKey('raw', digest, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+  _hmacKeyCache.set(cacheKey, key)
+  return key
 }
 
 function _signatureInput(envelope) {
@@ -272,6 +284,14 @@ async function captureThumbnail(stageEl) {
   }
 }
 
+// Apply a loaded snapshot to the store and re-sync side-effectful layers
+// (BGM/video) that are not covered by the snapshot itself.
+function applyLoadedSnapshot(store, snapshot) {
+  store.loadSnapshot(snapshot)
+  const engine = getActiveEngineHandle()
+  if (typeof engine?.syncRuntimeState === 'function') engine.syncRuntimeState()
+}
+
 async function readSlotMeta(saveKey, slot) {
   try {
     const data = await _readSaveFromStorage({ saveKey, slot })
@@ -370,13 +390,7 @@ export function useVNovaSaves(options = {}) {
       const data = await _readSaveFromStorage({ saveKey, slot })
       if (!data) return false
       if (data?.snapshot) {
-        if (typeof store.__vnovaPrepareLoad === 'function') {
-          store.__vnovaPrepareLoad()
-        }
-        store.loadSnapshot(data.snapshot)
-        if (typeof store.__vnovaSyncRuntime === 'function') {
-          store.__vnovaSyncRuntime(data.snapshot)
-        }
+        applyLoadedSnapshot(store, data.snapshot)
         return true
       }
       return false
@@ -531,13 +545,7 @@ export function useVNovaSaves(options = {}) {
           .then(async (text) => {
             const data = await _unpackSignedFile({ text, expectedKind: 'save' })
             if (data?.snapshot) {
-              if (typeof store.__vnovaPrepareLoad === 'function') {
-                store.__vnovaPrepareLoad()
-              }
-              store.loadSnapshot(data.snapshot)
-              if (typeof store.__vnovaSyncRuntime === 'function') {
-                store.__vnovaSyncRuntime(data.snapshot)
-              }
+              applyLoadedSnapshot(store, data.snapshot)
               _clearFileError()
               resolve(true)
             } else {

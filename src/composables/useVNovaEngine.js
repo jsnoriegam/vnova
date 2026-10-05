@@ -31,7 +31,6 @@ import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
 import { normalizeSpacebarFastForward } from '../utils/normalize.js'
 import {
-  createBgTransition,
   createCrossfadeTransition,
   createSpriteEnter,
   createSpriteLeave,

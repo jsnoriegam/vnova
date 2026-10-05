@@ -23,7 +23,7 @@ export function normalizeAssetUrl(value) {
     return raw
   }
 
-  const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || ''
+  const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || ''
   
   // For paths starting with /, prepend base URL if available
   if (raw.startsWith('/')) {
