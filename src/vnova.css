@@ -41,6 +41,7 @@ body,
   --vnova-stage-bg:            #000;
   --vnova-bg-duration:         400ms;
   --vnova-sprite-bottom:       0px;
+  --vnova-stack-offset:        3%;
 
   /* Diálogo */
   --vnova-dialog-height:       18%;
@@ -62,6 +63,8 @@ body,
   --vnova-choice-border:       rgba(255, 255, 255, .2);
   --vnova-choice-bg-hover:     rgba(255, 255, 255, .18);
   --vnova-choice-radius:       6px;
+  --vnova-choice-prompt-color: rgba(255, 255, 255, .7);
+  --vnova-choice-prompt-shadow: none;
 
   /* Modales */
   --vnova-modal-bg:            rgba(20, 15, 30, 0.9);

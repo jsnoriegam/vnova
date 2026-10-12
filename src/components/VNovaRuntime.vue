@@ -1073,27 +1073,42 @@ export default defineComponent({
       return cloneVNode(vnode, patch)
     }
 
-    function containsComponent(vnode, componentRef, names) {
-      if (!isVNode(vnode) || vnode.type === Comment) return false
-      if (matchesComponent(vnode, componentRef, names)) return true
-      if (vnode.type === Fragment && Array.isArray(vnode.children)) {
-        return vnode.children.some((child) => containsComponent(child, componentRef, names))
+    // ── Single-pass slot scan ──────────────────────────────────────────────────
+    // Detects all built-in renderers and declarative modals in one traversal
+    // (previously 4-5 separate recursive walks per render).
+    function scanRuntimeNodes(nodes) {
+      const found = {
+        backlog: false,
+        credits: false,
+        settings: false,
+        save: false,
+        declarativeModal: false,
       }
-      return false
-    }
 
-    // ── Declarative modal detection ────────────────────────────────────────────
-    function containsDeclarativeModal(nodes) {
-      return nodes.some((node) => isDeclarativeModal(node))
+      const visit = (vnode) => {
+        if (!isVNode(vnode) || vnode.type === Comment) return
+        if (isDeclarativeModal(vnode)) found.declarativeModal = true
+        if (matchesComponent(vnode, VNovaBacklogModal, BUILTIN_NAMES.backlog)) found.backlog = true
+        if (matchesComponent(vnode, VNovaCreditsScreen, BUILTIN_NAMES.credits)) found.credits = true
+        if (matchesComponent(vnode, VNovaSettingsModal, BUILTIN_NAMES.settings)) found.settings = true
+        if (matchesComponent(vnode, VNovaSaveModal, BUILTIN_NAMES.save)) found.save = true
+        if (vnode.type === Fragment && Array.isArray(vnode.children)) {
+          vnode.children.forEach(visit)
+        }
+      }
+
+      nodes.forEach(visit)
+      return found
     }
 
     return () => {
       const nodes = slots.default ? slots.default() : []
-      hasBacklogRenderer.value = nodes.some((node) => containsComponent(node, VNovaBacklogModal, BUILTIN_NAMES.backlog))
-      hasCreditsRenderer.value = nodes.some((node) => containsComponent(node, VNovaCreditsScreen, BUILTIN_NAMES.credits))
-      hasSettingsRenderer.value = nodes.some((node) => containsComponent(node, VNovaSettingsModal, BUILTIN_NAMES.settings))
-      hasSaveRenderer.value = nodes.some((node) => containsComponent(node, VNovaSaveModal, BUILTIN_NAMES.save))
-      hasDeclarativeModal.value = containsDeclarativeModal(nodes)
+      const found = scanRuntimeNodes(nodes)
+      if (hasBacklogRenderer.value !== found.backlog) hasBacklogRenderer.value = found.backlog
+      if (hasCreditsRenderer.value !== found.credits) hasCreditsRenderer.value = found.credits
+      if (hasSettingsRenderer.value !== found.settings) hasSettingsRenderer.value = found.settings
+      if (hasSaveRenderer.value !== found.save) hasSaveRenderer.value = found.save
+      if (hasDeclarativeModal.value !== found.declarativeModal) hasDeclarativeModal.value = found.declarativeModal
       return h(
         'div',
         { class: 'vnova-runtime' },

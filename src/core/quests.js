@@ -18,8 +18,6 @@ export const QUEST_CATEGORIES = Object.freeze({
 
 const VALID_STATUSES = new Set(Object.values(QUEST_STATUS))
 
-import { cloneDeep } from '../utils/clone.js'
-
 function asFn(maybeFn) {
   return typeof maybeFn === 'function' ? maybeFn : null
 }
@@ -116,28 +114,28 @@ export function createQuestEngine(definitions = [], options = {}) {
   } = options
 
   const definitionMap = normalizeDefinitions(definitions)
-  const initialState = buildInitialState(definitionMap)
 
-  let localState = cloneDeep(initialState)
+  let localState = buildInitialState(definitionMap)
 
   function readState() {
     if (typeof getState === 'function') {
-      const current = getState() ?? {}
-      return cloneDeep(current)
+      return getState() ?? {}
     }
-    return cloneDeep(localState)
+    return localState
   }
 
   function writeState(next) {
     if (typeof setState === 'function') {
-      setState(cloneDeep(next))
+      setState(next)
       return
     }
-    localState = cloneDeep(next)
+    localState = next
   }
 
   function reset() {
-    writeState(initialState)
+    const fresh = buildInitialState(definitionMap)
+    localState = fresh
+    writeState(fresh)
     return list()
   }
 
@@ -155,23 +153,26 @@ export function createQuestEngine(definitions = [], options = {}) {
     const nextStatus = normalizeStatus(status)
     const current = readState()
     const definition = definitionMap[id]
-    if (!current[id]) return false
-    if (current[id].status === nextStatus) return false
+    const existing = current[id]
+    if (!existing) return false
+    if (existing.status === nextStatus) return false
 
-    current[id].status = nextStatus
-    current[id].updatedAt = now()
+    const next = {
+      ...current,
+      [id]: { ...existing, status: nextStatus, updatedAt: now() },
+    }
 
     if (nextStatus === QUEST_STATUS.COMPLETED) {
       safeRun(definition?.reward)
-      _applyTransition(current, definition?.onComplete)
+      _applyTransition(next, definition?.onComplete)
     }
 
     if (nextStatus === QUEST_STATUS.FAILED) {
       safeRun(definition?.penalty)
-      _applyTransition(current, definition?.onFail)
+      _applyTransition(next, definition?.onFail)
     }
 
-    writeState(current)
+    writeState(next)
     return true
   }
 
@@ -179,8 +180,7 @@ export function createQuestEngine(definitions = [], options = {}) {
     const nextStatus = normalizeStatus(status)
     const quest = current[id]
     if (!quest || quest.status === nextStatus) return false
-    quest.status = nextStatus
-    quest.updatedAt = now()
+    current[id] = { ...quest, status: nextStatus, updatedAt: now() }
     return true
   }
 

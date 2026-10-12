@@ -31,7 +31,6 @@ import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
 import { normalizeSpacebarFastForward } from '../utils/normalize.js'
 import {
-  createBgTransition,
   createCrossfadeTransition,
   createSpriteEnter,
   createSpriteLeave,
@@ -192,7 +191,7 @@ export function useVNovaEngine(script, options = {}) {
     }
   }
 
-  const restoredFromSession = _restoreSession()
+  let restoredFromSession = _restoreSession()
 
   if (sessionKey) {
     store.$subscribe(() => {
@@ -211,6 +210,7 @@ export function useVNovaEngine(script, options = {}) {
 
   function restartWithSessionClear() {
     _clearSession()
+    restoredFromSession = false
     return originalRestart()
   }
 
@@ -321,6 +321,7 @@ export function useVNovaEngine(script, options = {}) {
       textComplete.value = true
     }
     if (_suspendNextAuto) _suspendNextAuto = false
+    if (restoredFromSession) restoredFromSession = false
   }, { immediate: true })
 
   watch([() => store.current, () => store.cursor, () => textComplete.value], ([step, cursor, done]) => {

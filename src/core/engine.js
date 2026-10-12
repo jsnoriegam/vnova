@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { createPinia, getActivePinia } from 'pinia'
-import { useVNovaStore } from './store.js'
+import { useVNovaStore, HISTORY_DIFF_KEY } from './store.js'
 import { createQuestEngine } from './quests.js'
 import { PARTICLE_PRESETS } from './particles.js'
 import { cloneDeep } from '../utils/clone.js'
@@ -67,9 +67,13 @@ function setActiveEngineHandle(handle) {
   activeEngineHandle = handle ?? null
 }
 
+// `history` is intentionally NOT tracked here: it only grows on forward moves,
+// so cloning/serializing the whole array on every step made back-tracking O(n²).
+// Instead `_runTrackedMove` records the previous length and `store.applyBackDiff`
+// truncates it.
 const TRACKED_STATE_KEYS = [
   'cursor', 'current', 'stage', 'background', 'image', 'video',
-  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'history',
+  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended',
 ]
 
 function normalizeImageFit(value) {
@@ -96,7 +100,8 @@ function buildStateDiff(before, after) {
     const b = after[key]
     if (a === b) continue
     if (JSON.stringify(a) !== JSON.stringify(b)) {
-      diff.push({ key, before: cloneDeep(a), after: cloneDeep(b) })
+      // Only `before` is needed to restore state (see store.applyBackDiff).
+      diff.push({ key, before: cloneDeep(a) })
     }
   }
   return diff
@@ -273,9 +278,13 @@ export function createEngine(script, options = {}) {
 
   function _runTrackedMove(fn) {
     const before = snapshotTrackedState(store)
+    const historyLength = store.history.length
     fn()
     const after = snapshotTrackedState(store)
     const diff = buildStateDiff(before, after)
+    if (store.history.length !== historyLength) {
+      diff.push({ key: HISTORY_DIFF_KEY, before: historyLength })
+    }
     if (diff.length > 0) store.pushBackDiff(diff)
   }
 
@@ -906,6 +915,23 @@ export function createEngine(script, options = {}) {
     _finishSession('exit-menu')
   }
 
+  // Re-emit side-effectful layers (audio/video) from the current store state.
+  // Needed after loading a save or restoring a session, since those set the
+  // store snapshot directly without replaying the script steps.
+  function syncRuntimeState() {
+    if (store.bgm) {
+      onAudio({ type: 'bgm', track: store.bgm, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: true })
+    } else {
+      onAudio({ type: 'bgm', track: null, volume: 0, loop: false })
+    }
+
+    if (store.video?.action === 'play' && store.video.track) {
+      onVideo({ ...store.video })
+    } else {
+      onVideo({ action: 'stop', track: null, volume: 0, loop: false, muted: false })
+    }
+  }
+
   function getVar(key) { return store.vars[key] }
   function setVar(key, value) { store.setVar({ key, value }) }
   function getSetting(key) { return store.settings?.[key] }
@@ -950,6 +976,7 @@ export function createEngine(script, options = {}) {
     restart,
     start,
     exitMenu,
+    syncRuntimeState,
     getVar,
     setVar,
     getSetting,

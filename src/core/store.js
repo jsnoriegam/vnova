@@ -21,6 +21,14 @@ const defaultSettings   = () => ({
   theme: 'default',
 })
 
+// Cap the dialogue history so long sessions don't grow memory/snapshots without
+// bound. Back-tracking only needs the last few dozen entries.
+export const MAX_HISTORY = 500
+
+// Synthetic diff key used by the engine to restore the append-only history on
+// `back()` by truncation.
+export const HISTORY_DIFF_KEY = '__historyLength'
+
 export const useVNovaStore = defineStore('vnova', {
   state: () => ({
     cursor:         0,
@@ -154,6 +162,9 @@ export const useVNovaStore = defineStore('vnova', {
     // ── History / backstack ──────────────────────────────────────────────────
     pushHistory(step) {
       this.history.push({ ...step, _cursor: this.cursor })
+      if (this.history.length > MAX_HISTORY) {
+        this.history.splice(0, this.history.length - MAX_HISTORY)
+      }
     },
 
     pushBackDiff(diff) {
@@ -170,6 +181,11 @@ export const useVNovaStore = defineStore('vnova', {
     applyBackDiff(diff) {
       if (!Array.isArray(diff)) return
       diff.forEach((entry) => {
+        // Append-only history is restored by truncation (see engine._runTrackedMove).
+        if (entry.key === HISTORY_DIFF_KEY) {
+          this.history = this.history.slice(0, entry.before)
+          return
+        }
         this[entry.key] = cloneDeep(entry.before)
       })
     },

@@ -21,6 +21,28 @@
  *   </VNovaTopHud>
  */
 
+const props = defineProps({
+  /** Opacidad del HUD (0 = invisible, 1 = sólido). */
+  opacity: {
+    type: Number,
+    default: 0.6,
+    validator: (v) => v >= 0 && v <= 1,
+  },
+  /**
+   * false → position absolute, pegado a top/left/right sin margen.
+   * true  → position absolute, con margen en top/left/right (flotante).
+   */
+  floating: {
+    type: Boolean,
+    default: true,
+  },
+  /** Clases CSS personalizadas para el contenedor del HUD. */
+  customClass: {
+    type: [String, Object],
+    default: null,
+  },
+})
+
 /**
  * Resuelve clases CSS personalizadas del autor.
  *
@@ -59,28 +81,6 @@ function resolveCustomClasses() {
   }
   return classes
 }
-
-const props = defineProps({
-  /** Opacidad del HUD (0 = invisible, 1 = sólido). */
-  opacity: {
-    type: Number,
-    default: 0.6,
-    validator: (v) => v >= 0 && v <= 1,
-  },
-  /**
-   * false → position absolute, pegado a top/left/right sin margen.
-   * true  → position absolute, con margen en top/left/right (flotante).
-   */
-  floating: {
-    type: Boolean,
-    default: true,
-  },
-  /** Clases CSS personalizadas para el contenedor del HUD. */
-  customClass: {
-    type: [String, Object, null],
-    default: null,
-  },
-})
 </script>
 
 <template>

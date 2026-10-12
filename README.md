@@ -1,35 +1,78 @@
+<div align="center">
+
+**English** · [Español](./README.es.md)
+
 # vnova-engine
 
-Framework de novela visual para Vue 3, script-first y Vite-native.
+### Build visual novels in Vue 3 without fighting the engine
 
-## Regla de Producto: No-Code First
+**Script-first · Vite-native · No-Code-First**
 
-El objetivo de vnova es que una persona con conocimientos minimos o nulos de programacion pueda publicar una novela funcional editando solo configuracion y contenido.
+Write your story as a list of steps and let vnova handle the rest:
+typewriter dialogue, sprites, music, choices, saves, backlog, settings, themes
+and i18n. All of it, ready to use.
 
-- Ruta principal: editar story/script.js, story/assets.js, story/characters.js y config.
-- Ruta avanzada: agregar hooks o componentes custom solo cuando realmente se necesite.
+[![npm version](https://img.shields.io/npm/v/vnova-engine.svg?style=flat-square)](https://www.npmjs.com/package/vnova-engine)
+[![license](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
+[![demo](https://img.shields.io/badge/demo-live-brightgreen.svg?style=flat-square)](https://jsnoriegam.github.io/vnova/demo/)
 
-Guia completa: docs/no-code-first.md
+**[▶ Try the live demo](https://jsnoriegam.github.io/vnova/demo/)** ·
+**[📚 Documentation](https://jsnoriegam.github.io/vnova/)** ·
+**[📦 npm](https://www.npmjs.com/package/vnova-engine)**
+
+If vnova is useful to you, buy me a coffee — it helps the project keep growing:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jsnoriegam)
+
+</div>
 
 ---
 
-## Que incluye hoy
+## Why vnova?
 
-- Motor de script con labels, branching, variables y quests.
-- Componentes listos para usar: VNovaRuntime, VNovaStage, VNovaTitleScreen, VNovaHud, VNovaSettingsModal, VNovaSaveModal, VNovaBacklogModal.
-- Composables: useVNova, useVNovaAudio, useVNovaSaves.
-- Plugin de Vite para validacion de scripts en build.
-- Tipos TypeScript completos en src/vnova.d.ts.
+- **No-Code-First, for real.** Someone with no programming background can ship a
+  working novel by editing only `script.js`, `assets.js`, `characters.js` and
+  `config.js`. Custom logic is the exception, not the requirement.
+- **Script-first.** Your story is a flat list of steps (`say`, `choice`, `scene`,
+  `bgm`…) that is easy to read, version, review and translate.
+- **Batteries included.** Menus, HUD, save slots + import/export, backlog,
+  settings, credits, themes, multi-language, preloader and visual effects, out of
+  the box.
+- **Vue 3 + Pinia + Vite.** No weird layers: it fits the stack you already use.
+- **Extensible when you need it.** Hooks, components, themes and custom effects
+  without touching the engine.
+
+Don't feel like installing anything? Check out the
+**[live demo](https://jsnoriegam.github.io/vnova/demo/)**.
 
 ---
 
-## Instalacion
+## What's included
+
+- **Script engine** with labels, jumps, branching, variables and quests.
+- **Ready-made components**: `VNovaRuntime`, `VNovaStage`, `VNovaTitleScreen`,
+  `VNovaLoadingScreen`, `VNovaHud`, `VNovaTopHud`, `VNovaSettingsModal`,
+  `VNovaSaveModal`, `VNovaBacklogModal`, `VNovaCreditsScreen`, `VNovaBaseModal`.
+- **Composables**: `useVNovaEngine`, `useUserStorage`, `useEngine`,
+  `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`, `useTheme`.
+- **Signed saves**: `localStorage` slots, file export/import, save/load to disk.
+- **Themes**: 5 built-in themes (`default`, `dark`, `light`, `ocean`, `forest`)
+  plus custom themes via CSS variables.
+- **Multi-language**: per-language scripts and translatable UI strings with
+  tree-shakeable locale packs.
+- **Preloader** with a loading screen and progress.
+- **Vite plugin** that validates your scripts at build time.
+- **Complete TypeScript types** in `src/vnova.d.ts`.
+
+---
+
+## Installation
 
 ```bash
 yarn add vnova-engine
 ```
 
-## Configuracion de Vite
+## Vite configuration
 
 ```js
 import { defineConfig } from 'vite'
@@ -49,9 +92,9 @@ export default defineConfig({
 
 ---
 
-## Quick Start No-Code (recomendado)
+## Quick Start (recommended)
 
-Este flujo esta pensado para autores: sin escribir logica custom.
+A workflow designed for authors: no custom logic required.
 
 ```vue
 <script setup>
@@ -72,6 +115,7 @@ import config from './story/config.js'
 </script>
 
 <template>
+  <!-- The order of these components matters: they render in declaration order. -->
   <VNovaRuntime :script="script" :assets="assets" :characters="characters" :config="config">
     <VNovaTitleScreen />
     <VNovaStage />
@@ -83,14 +127,14 @@ import config from './story/config.js'
 </template>
 ```
 
-Notas importantes:
-- VNovaRuntime ya incluye reproductor de audio por defecto.
-- Si no pasas hooks, bgm/sfx funcionan con el player interno.
-- El autor solo necesita editar archivos de story/config para una VN funcional.
+Notes:
+- `VNovaRuntime` ships a built-in audio player by default.
+- If you don't pass hooks, `bgm`/`sfx` work with the internal player.
+- For a working VN, the author only edits the `story/` files and `config`.
 
 ---
 
-## Estructura sugerida de story
+## Suggested `story` structure
 
 ```text
 src/story/
@@ -100,29 +144,19 @@ src/story/
   config.js
 ```
 
-### assets.js (declarativo)
+### `assets.js` (declarative)
 
 ```js
 export default {
-  scenes: {
-    intro: '/assets/scenes/intro.jpg',
-  },
-  music: {
-    main: '/assets/music/main.ogg',
-  },
-  sounds: {
-    click: '/assets/sfx/click.ogg',
-  },
-  images: {
-    overlay: '/assets/images/overlay.png',
-  },
-  videos: {
-    loop: '/assets/video/loop.mp4',
-  },
+  scenes: { intro: '/assets/scenes/intro.jpg' },
+  music:  { main: '/assets/music/main.ogg' },
+  sounds: { click: '/assets/sfx/click.ogg' },
+  images: { overlay: '/assets/images/overlay.png' },
+  videos: { loop: '/assets/video/loop.mp4' },
 }
 ```
 
-### characters.js (declarativo)
+### `characters.js` (declarative)
 
 ```js
 export default {
@@ -133,242 +167,206 @@ export default {
     defaultSprite: '/assets/chars/hana/default.png',
     sprites: {
       neutral: '/assets/chars/hana/neutral.png',
-      happy: '/assets/chars/hana/happy.png',
+      happy:   '/assets/chars/hana/happy.png',
     },
   },
 }
 ```
 
+### `config.js` (declarative)
+
+```js
+import esLocale from 'vnova-engine/i18n/es.js'
+
+export default {
+  title: 'My Novel',
+  subtitle: 'An interactive story',
+  saveKey: 'my-novel-v1',
+  slotCount: 8,
+  startLabel: 'start',
+  defaultLanguage: 'en',
+  preload: true,                       // preload assets and show the loading screen
+  guiTranslations: { es: esLocale },   // UI strings per language
+  stage: {
+    typewriterEnabled: true,
+    sessionKey: 'my-novel-session',    // resume the session on reload
+  },
+  themes: [
+    {
+      id: 'cyberpunk',
+      name: 'Cyberpunk',
+      variables: { '--vnova-color-primary': '#ff00ff' },
+    },
+  ],
+}
+```
+
 ---
 
-## DSL soportado (script steps)
+## Supported DSL (script steps)
 
-Tipos de paso soportados actualmente:
+Supported step types:
 
-- label
-- scene
-- image
-- show
-- hide
-- stop
-- effect
-- say
-- think
-- narrate
-- choice
-- input
-- select
-- modal
-- jump
-- bgm
-- sfx
-- video
-- particles
-- notify
-- wait
-- call
-- end
+`label` · `scene` · `image` · `show` · `hide` · `stop` · `effect` · `say` ·
+`think` · `narrate` · `choice` · `input` · `select` · `modal` · `jump` · `bgm` ·
+`sfx` · `video` · `particles` · `notify` · `wait` · `call` · `end`
 
-Mini ejemplo:
+Mini example:
 
 ```js
 export default [
   { type: 'label', id: 'start' },
   { type: 'scene', id: 'intro', transition: 'fade' },
   { type: 'bgm', id: 'main', volume: 0.6, loop: true },
-  { type: 'say', character: 'hana', text: 'Comenzamos.' },
+  { type: 'say', character: 'hana', text: 'Here we go.' },
   {
     type: 'choice',
-    prompt: 'Que hacemos?',
+    prompt: 'What do we do?',
     options: [
-      { label: 'Seguir', jump: 'route-a', set: { mood: 'calm' } },
-      { label: 'Salir', jump: 'end' },
+      { label: 'Continue', jump: 'route-a', set: { mood: 'calm' } },
+      { label: 'Leave', jump: 'end' },
     ],
   },
   { type: 'label', id: 'route-a' },
-  { type: 'narrate', text: 'La historia continua.' },
+  { type: 'narrate', text: 'The story goes on.' },
   { type: 'end' },
 ]
 ```
 
-### Otros steps útiles
+**Interpolation** works inside text: `'Hello {{ player.name }}'`.
 
-#### stop — Detener media
+### Other useful steps
 
-```js
-{ type: 'stop', bgm: true }           // Detener música
-{ type: 'stop', video: true }         // Detener video
-{ type: 'stop', particles: true }     // Detener partículas
-```
-
-#### hide — Ocultar capas visuales
+#### `stop` — Stop media
 
 ```js
-{ type: 'hide', character: 'hana' }   // Ocultar personaje específico
-{ type: 'hide', character: true }     // Ocultar todos los personajes
-{ type: 'hide', image: true }         // Ocultar capa de imagen
-{ type: 'hide', video: true }         // Ocultar video
-{ type: 'hide', particles: true }     // Ocultar partículas
-{ type: 'hide', image: true, transition: 'fade' }  // Con transición
+{ type: 'stop', bgm: true }           // Stop music
+{ type: 'stop', video: true }         // Stop video
+{ type: 'stop', particles: true }     // Stop particles
 ```
 
-#### input — Capturar texto
+#### `hide` — Hide visual layers
+
+```js
+{ type: 'hide', character: 'hana' }   // Hide a specific character
+{ type: 'hide', character: true }     // Hide all characters
+{ type: 'hide', image: true }         // Hide the image layer
+{ type: 'hide', video: true }         // Hide video
+{ type: 'hide', particles: true }     // Hide particles
+{ type: 'hide', image: true, transition: 'fade' }
+```
+
+#### `input` — Capture text
 
 ```js
 {
   type: 'input',
   store: 'player.name',
-  prompt: '¿Cómo te llamas?',
-  placeholder: 'Tu nombre',
-  default: 'Jugador',
+  prompt: 'What is your name?',
+  placeholder: 'Your name',
+  default: 'Player',
 }
 ```
 
-#### select — Selección de opciones
+#### `select` — Pick an option
 
 ```js
 {
   type: 'select',
   store: 'player.difficulty',
-  prompt: 'Selecciona dificultad:',
+  prompt: 'Choose a difficulty:',
   options: [
-    { label: 'Fácil', value: 'easy' },
+    { label: 'Easy',   value: 'easy' },
     { label: 'Normal', value: 'normal' },
-    { label: 'Difícil', value: 'hard' },
+    { label: 'Hard',   value: 'hard' },
   ],
 }
 ```
 
-#### particles — Efectos de partículas
+#### `particles` — Particle effects
 
 ```js
 { type: 'particles', id: 'stars' }
 { type: 'particles', id: 'snow', config: { /* custom config */ } }
-{ type: 'hide', particles: true }     // Detener partículas
+{ type: 'hide', particles: true }
 ```
 
 ---
 
-## Efectos visuales (animejs)
+## Visual effects (animejs)
 
-vnova incluye un sistema de efectos visuales basado en animejs. Los efectos se disparan con el step `effect`.
+Effects are triggered with the `effect` step and use animejs internally.
 
-### Transiciones de background e imagen
-
-Las transiciones de background e imagen también usan animejs internamente:
+### Background and image transitions
 
 ```js
 { type: 'scene', id: 'intro', transition: 'fade' }
 { type: 'image', id: 'overlay', transition: 'dissolve' }
 ```
 
-Transiciones disponibles:
-- `cut` — Cambio instantáneo
-- `fade` — Fade con easing
-- `dissolve` — Fade linear
-- `slide-left` — Slide desde la derecha
-- `slide-right` — Slide desde la izquierda
+Available transitions: `cut`, `fade`, `dissolve`, `slide-left`, `slide-right`.
 
-### Animaciones de sprites
+### Sprite animations
 
-Los sprites se animan automáticamente con animejs:
-- **Enter**: Fade in + slide up al mostrar un personaje
-- **Leave**: Fade out + slide down al ocultar un personaje
-- **Dim**: Los sprites que no están hablando se oscurecen automáticamente
+- **Enter**: fade in + slide up when a character appears.
+- **Leave**: fade out + slide down when a character is hidden.
+- **Dim**: sprites that are not speaking dim automatically.
+- **Stack**: several sprites in the same position fan out
+  (tunable with the `--vnova-stack-offset` CSS variable).
 
-### API de efectos
+### Effects API
 
 ```js
 {
   type: 'effect',
-  name: 'shake',              // nombre del efecto
-  target: 'stage',            // elemento a animar (default: 'stage')
-  duration: 500,              // duración en ms (default: 500)
-  wait: true,                 // bloquea avance si es true
-  config: { ... }             // parámetros específicos del efecto
+  name: 'shake',     // effect name
+  target: 'stage',   // element to animate (default: 'stage')
+  duration: 500,     // duration in ms (default: 500)
+  wait: true,        // block advancing until it finishes when true
+  config: { ... },   // effect-specific parameters
 }
 ```
 
-### Targets disponibles
+**Targets**: `'stage'` (container), `'bg'` (background), `'image'` (image layer),
+`'<character-id>'` (a specific sprite, e.g. `'hana'`).
 
-| Target | Descripción |
-|--------|-------------|
-| `'stage'` | Todo el contenedor del stage |
-| `'bg'` | Capa de background activa |
-| `'image'` | Capa de imagen activa |
-| `'<character-id>'` | Sprite específico (ej: `'hana'`) |
-
-### Efectos disponibles
-
-#### shake — Vibración
+#### `shake` — Shake
 
 ```js
 { type: 'effect', name: 'shake', duration: 600, config: { intensity: 10, direction: 'horizontal' }, wait: true }
 ```
 
-Parámetros de `config`:
-- `intensity` (px, default: 8) — Amplitud de la vibración
-- `direction` (`'horizontal'` | `'vertical'` | `'both'`, default: `'horizontal'`)
+- `intensity` (px, default 8) · `direction` (`'horizontal'` | `'vertical'` | `'both'`)
 
-#### flash — Flash de color
+#### `flash` — Color flash
 
 ```js
-{ type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255, 255, 255, 0.9)' }, wait: true }
-```
-
-Parámetros de `config`:
-- `color` (CSS color, default: `'rgba(255, 255, 255, 0.8)'`)
-
-#### zoom — Zoom in/out
-
-```js
-{ type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.2, zoomDirection: 'in' }, wait: true }
-```
-
-Parámetros de `config`:
-- `scale` (factor, default: 1.2)
-- `zoomDirection` (`'in'` | `'out'`, default: `'in'`)
-
-#### pulse — Pulsación de opacidad
-
-```js
-{ type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } }
-```
-
-Parámetros de `config`:
-- `cycles` (número, default: 2)
-- `opacity` (mínimo, default: 0.5)
-
-### Ejemplos de uso
-
-```js
-// Shake intenso que bloquea el avance
-{ type: 'effect', name: 'shake', target: 'stage', duration: 600, config: { intensity: 10 }, wait: true }
-
-// Shake en background (no bloquea)
-{ type: 'effect', name: 'shake', target: 'bg', duration: 400, config: { intensity: 5, direction: 'vertical' } }
-
-// Shake en sprite específico
-{ type: 'effect', name: 'shake', target: 'kenji', duration: 300, config: { intensity: 4 } }
-
-// Flash blanco rápido
 { type: 'effect', name: 'flash', duration: 400, config: { color: 'rgba(255,255,255,0.9)' }, wait: true }
+```
 
-// Zoom in suave
-{ type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.1, zoomDirection: 'in' }, wait: true }
+- `color` (CSS color, default `'rgba(255, 255, 255, 0.8)'`)
 
-// Pulse con 3 ciclos
+#### `zoom` — Zoom in/out
+
+```js
+{ type: 'effect', name: 'zoom', duration: 1000, config: { scale: 1.2, direction: 'in' }, wait: true }
+```
+
+- `scale` (default 1.2) · `direction` (`'in'` | `'out'`)
+
+#### `pulse` — Opacity pulse
+
+```js
 { type: 'effect', name: 'pulse', duration: 800, config: { cycles: 3, opacity: 0.4 } }
 ```
 
-### Callback custom onEffect
+- `cycles` (default 2) · `opacity` (minimum, default 0.5)
 
-Puedes implementar efectos custom pasando `onEffect` en la configuración:
+### Custom `onEffect` callback
 
 ```js
 const config = {
   onEffect: ({ name, target, duration, config }) => {
-    // Tu implementación custom
     console.log(`Effect: ${name} on ${target}`)
   },
 }
@@ -376,88 +374,119 @@ const config = {
 
 ---
 
-## Audio y video
+## Audio and video
 
-Comportamiento por defecto con VNovaRuntime:
+Default behavior with `VNovaRuntime`:
 
-- bgm y sfx se reproducen con el player interno (useVNovaAudio integrado).
-- video, notify y effect se enrutan por callbacks de runtime.
+- `bgm` and `sfx` play through the internal player (integrated `useVNovaAudio`).
+- `video`, `notify` and `effect` are routed through runtime callbacks.
 
-Override opcional:
+Optional override:
 
 ```js
 const config = {
-  onAudio: (event) => {
-    // Reemplaza el player interno
-  },
-  onVideo: (event) => {},
+  onAudio:  (event) => { /* replace the internal player */ },
+  onVideo:  (event) => {},
   onNotify: (event) => {},
-  onEffect: (event) => {
-    // Reemplaza la implementación interna de efectos
-    // event: { name, target, duration, config }
-  },
-  audioPlayer: false, // opcional: desactiva player interno si no usas onAudio
+  onEffect: (event) => {},
+  audioPlayer: false, // disable the internal player if you use onAudio
 }
 ```
 
 ---
 
-## APIs publicas
+## Multi-language (i18n)
 
-Exportado desde src/index.js:
-
-- createEngine
-- expandNestedLabels
-- createVNovaApp
-- useVNovaStore
-- createQuestEngine
-- QS
-- validateScript
-- useVNova
-- useVNovaAudio
-- useVNovaSaves
-- useUserStorage
-- useEngine
-- VNovaRuntime
-- VNovaStage
-- VNovaTitleScreen
-- VNovaHud
-- VNovaSettingsModal
-- VNovaSaveModal
-- VNovaBacklogModal
-
----
-
-## useVNova (modo integrador)
-
-Para UIs custom, useVNova expone estado y acciones del motor.
-
-Retorno principal:
-
-- state, store
-- userStorage, storage
-- stageArray, speakerName, speakerColor
-- displayedText, textComplete
-- bgLayers, bgLayerStyle, registerBgElement
-- imageLayers, imageLayerStyle, registerImageElement
-- registerSpriteElement, registerEffectTarget
-- interact, choose, back, jump, restart, start, exitMenu
-- save, load, clearSave
-- getVar, setVar, getSetting, setSetting
-- listQuests, getQuest, evaluateQuests, setQuestStatus
-- skipTypewriter, resumeTypewriter
-- engine
-
----
-
-## useUserStorage
-
-Helper para leer y modificar las variables de autor guardadas en `state.vars`.
-Acepta claves simples o paths con puntos:
+Pass the script as an object keyed by language and translate the UI with locale
+packs:
 
 ```js
-const { storage } = useVNova(script)
+import esLocale from 'vnova-engine/i18n/es.js'
 
+const config = {
+  defaultLanguage: 'en',
+  guiTranslations: { es: esLocale },
+}
+```
+
+```vue
+<VNovaRuntime :script="{ en: scriptEn, es: scriptEs }" :config="config">
+  ...
+</VNovaRuntime>
+```
+
+Players can switch language from Settings. `validateMultiLanguageScript` checks
+that every translation has the same structure.
+
+---
+
+## Themes
+
+5 built-in themes: `default`, `dark`, `light`, `ocean`, `forest`. Apply one and
+add your own with CSS variables:
+
+```js
+import { useTheme } from 'vnova-engine'
+
+const theme = useTheme()
+theme.applyTheme('dark')
+theme.registerCustomThemes([
+  { id: 'cyberpunk', name: 'Cyberpunk', variables: { '--vnova-color-primary': '#ff00ff' } },
+])
+```
+
+---
+
+## Public APIs
+
+Exported from `src/index.js`:
+
+- **Core**: `createEngine`, `expandNestedLabels`, `createVNovaApp`, `useVNovaStore`,
+  `createQuestEngine`, `QS`, `PARTICLE_PRESETS`
+- **Validation**: `validateScript`, `validateMultiLanguageScript`
+- **Composables**: `useVNovaEngine`, `useUserStorage`, `useEngine`,
+  `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`, `useTheme`
+- **Themes**: `registerTheme`, `getTheme`, `getAllThemes`, `hasTheme`,
+  `unregisterTheme`, `registerThemes`, `builtInThemes`, `defaultTheme`,
+  `darkTheme`, `lightTheme`, `oceanTheme`, `forestTheme`
+- **Runtime UI**: `registerRuntimeModal`, `registerRuntimeModals`
+- **Components**: `VNovaRuntime`, `VNOVA_RUNTIME_CONTEXT_KEY`, `VNovaStage`,
+  `VNovaTitleScreen`, `VNovaLoadingScreen`, `VNovaCreditsScreen`, `VNovaHud`,
+  `VNovaTopHud`, `VNovaSettingsModal`, `VNovaBacklogModal`, `VNovaSaveModal`,
+  `VNovaBaseModal`
+
+---
+
+## `useVNovaEngine` (integrator mode)
+
+For custom UIs, `useVNovaEngine` exposes engine state and actions.
+
+Main return values:
+
+- `state`, `store`
+- `storage` (author variables)
+- `stage`, `speakerName`, `speakerColor`
+- `displayedText`, `textComplete`
+- `bgLayers`, `bgLayerStyle`, `registerBgElement`
+- `imageLayers`, `imageLayerStyle`, `registerImageElement`
+- `registerSpriteElement`, `registerEffectTarget`
+- `interact`, `choose`, `back`, `jump`, `restart`, `start`, `exitMenu`
+- `submitInput`, `submitSelect`, `closeModal`
+- `getVar`, `setVar`, `getSetting`, `setSetting`
+- `skipTypewriter`, `resumeTypewriter`
+- `engine`
+
+---
+
+## `useUserStorage`
+
+Read and modify author variables stored in `state.vars`. Accepts simple keys or
+dot-notation paths:
+
+```js
+import { useUserStorage } from 'vnova-engine'
+
+const storage = useUserStorage()
 storage.set('player.name', 'Ada')
 storage.inc('stats.courage')
 storage.toggle('flags.metGuide')
@@ -465,37 +494,29 @@ storage.toggle('flags.metGuide')
 const playerName = storage.ref('player.name', '')
 ```
 
-Tambien puede importarse directo:
-
-```js
-import { useUserStorage } from 'vnova-engine'
-
-const storage = useUserStorage()
-```
-
-Helper equivalente para control de motor en callbacks:
+Equivalent helper to control the engine from callbacks:
 
 ```js
 import { useEngine } from 'vnova-engine'
 
 const engine = useEngine()
-engine.run('label-id')
+engine.jump('label-id')
 engine.setVar('tone', 'hopeful')
+engine.next()            // advance
 ```
 
 ---
 
-## VNovaStage slots
+## `VNovaStage` slots
 
-Slots disponibles:
-
-- overlay: can-back, has-save, history, back, save, load, open-save, open-load, close-save, restart, exit-menu
-- sprite: char, pos
-- end
+- **overlay**: `can-back`, `has-save`, `history`, `back`, `save`, `load`,
+  `open-save`, `open-load`, `close-save`, `restart`, `exit-menu`
+- **sprite**: `char`, `pos`
+- **end**
 
 ---
 
-## Validacion de script
+## Script validation
 
 ```js
 import { validateScript } from 'vnova-engine'
@@ -503,29 +524,36 @@ import { validateScript } from 'vnova-engine'
 const warnings = validateScript(script, characters)
 ```
 
-- Lanza Error en errores estructurales criticos.
-- Devuelve arreglo de warnings para problemas no bloqueantes.
+- Throws `Error` on critical structural issues.
+- Returns an array of warnings for non-blocking problems.
 
 ---
 
-## Comandos de este repo
+## Repo commands
 
 ```bash
-yarn dev
-yarn build:lib
+yarn dev          # dev server (root: docs-example/)
+yarn build:lib    # outputs dist/vnova.es.js and dist/vnova.umd.js
+yarn build:demo   # builds the demo
+yarn docs:dev     # documentation with VitePress
 ```
 
-- dev usa docs-example como root de Vite.
-- build:lib genera dist/vnova.es.js y dist/vnova.umd.js.
+- `dev` uses `docs-example/` as the Vite root.
+- `build:lib` outputs the ES and UMD bundles.
 
 ---
 
-## Soporte
+## Docs and support
 
-Si este proyecto te resulta útil, puedes apoyar su desarrollo invitándome a un café:
+- **Live demo**: https://jsnoriegam.github.io/vnova/demo/
+- **Documentation**: https://jsnoriegam.github.io/vnova/
+- **No-Code-First guide**: `docs/guide/no-code.md`
+- **Issues**: https://github.com/jsnoriegam/vnova/issues
 
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jsnoriegam)
+If the project is useful to you, you can support it by buying me a coffee:
+**[buymeacoffee.com/jsnoriegam](https://buymeacoffee.com/jsnoriegam)** ☕
 
-## Licencia
+## License
 
-Este proyecto está bajo la Licencia Apache 2.0. Para más información, consulta el archivo [LICENSE](LICENSE).
+This project is licensed under the Apache License 2.0. For more information, see
+the [LICENSE](LICENSE) file.

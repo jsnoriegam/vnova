@@ -24,15 +24,8 @@
 import { computed } from 'vue'
 import { useVNovaStore } from '../core/store.js'
 import { useQuestEngine } from './useQuestEngine.js'
-
-function isPlainObject(value) {
-  return Object.prototype.toString.call(value) === '[object Object]'
-}
-
-function cloneDeep(value) {
-  if (value === null || value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
+import { cloneDeep } from '../utils/clone.js'
+import { isPlainObject } from '../utils/predicates.js'
 
 function splitPath(path) {
   if (typeof path !== 'string') return []
