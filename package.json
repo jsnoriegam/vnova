@@ -16,7 +16,8 @@
   },
   "files": [
     "src",
-    "vite-plugin"
+    "vite-plugin",
+    "README.es.md"
   ],
   "scripts": {
     "dev": "vite",
