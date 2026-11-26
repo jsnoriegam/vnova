@@ -26,6 +26,7 @@ Complete reference for all script step types in vnova-engine.
 | `once` | Block executed once per save |
 | `random` | Weighted random branch |
 | `unlock` | Record CG / ending / achievement / chapter progress |
+| `item` | Give / take / use / set / clear inventory items |
 | `bgm` | Play background music |
 | `sfx` | Play sound effect |
 | `video` | Play video track |
@@ -48,6 +49,7 @@ export type ScriptStep =
   | SetStep    | IfStep    | OnceStep   | RandomStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
   | UnlockStep
+  | ItemStep
   | EndStep   | CallStep
 ```
 
@@ -80,6 +82,19 @@ operator list.
 
 The engine emits `onUnlock({ kind, id })` for each target. `VNovaRuntime`
 persists them through `useVNovaProgress()` under `progressKey`.
+
+### Inventory items
+
+```js
+{ type: 'item', id: 'potion', qty: 3 }                  // give
+{ type: 'item', action: 'take', id: 'potion', qty: 1 }
+{ type: 'item', action: 'use', id: 'potion' }
+{ type: 'item', action: 'set', id: 'potion', qty: 0 }
+{ type: 'item', action: 'clear' }
+```
+
+Usable items apply their declarative `use` effects (`set`, `inc`, `unset`,
+`notify`, `unlock`, `sfx`). `onItemUse` is emitted after the action.
 
 ### Voice lines
 

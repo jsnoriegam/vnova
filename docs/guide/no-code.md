@@ -94,6 +94,42 @@ gallery: {
 Add `<VNovaGalleryModal />` to the runtime slot. The HUD and title screen then
 show a **Gallery** button. Unlocked chapters jump to their `label`.
 
+### Items and inventory
+
+Define the catalog in `story/items.js`:
+
+```js
+export const itemTypes = {
+  consumable: { stackable: true, consumable: true, maxStack: 5, usable: true, icon: '🧪' },
+  special:    { stackable: false, consumable: false, maxStack: 1, icon: '⭐' },
+  weapon:     { extends: 'special', icon: '⚔️' },
+  cursed:     { icon: '☠️' },
+}
+
+export const items = {
+  stim: {
+    type: 'consumable',
+    name: 'Stim',
+    use: { inc: { focus: 1 }, notify: { text: '+1 focus' } },
+  },
+  cursedSword: {
+    type: ['weapon', 'cursed'],
+    name: 'Cursed Sword',
+  },
+}
+```
+
+Pass `:items="items" :item-types="itemTypes"` to `VNovaRuntime` and add
+`<VNovaInventoryModal />` to the slot. Then use script steps:
+
+```js
+{ type: 'item', id: 'stim', qty: 2 }
+{ type: 'item', action: 'use', id: 'stim' }
+```
+
+Conditions: `{ hasItem: 'stim' }`, `{ item: 'stim', gte: 2 }`,
+`{ hasType: 'cursed' }`, `{ typeCount: 'weapon', gte: 1 }`.
+
 ### assets.js
 
 Define all your assets in one place:

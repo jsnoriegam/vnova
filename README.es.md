@@ -60,6 +60,8 @@ Si vnova te resulta útil, invítame a un café — ayuda a que el proyecto siga
   y un canal de voz que baja el volumen del BGM.
 - **Meta-progreso y galería**: desbloquea CGs, finales, logros y capítulos entre
   partidas con un modal de galería y chapter select incluidos.
+- **Sistema de inventario**: items tipados, consumibles apilables, especiales
+  únicos, items multi-tipo, condiciones, efectos y modal de inventario incluido.
 - **Temas**: 5 temas incluidos (`default`, `dark`, `light`, `ocean`, `forest`)
   y temas custom con variables CSS.
 - **Multi-idioma**: guion por idioma y textos de UI traducibles con paquetes de
@@ -514,6 +516,72 @@ gallery: {
 - `useVNovaProgress(key)` expone `has()`, `unlock()`, `unlockMany()`, `reset()`
   y `state`/`counts` reactivos para UIs propias.
 
+### Inventario
+
+Define tipos e items en `story/items.js`:
+
+```js
+export const itemTypes = {
+  consumable: { stackable: true, consumable: true, maxStack: 99, usable: true, icon: '🧪' },
+  special:    { stackable: false, consumable: false, maxStack: 1, icon: '⭐' },
+  weapon:     { extends: 'special', icon: '⚔️', slot: 'hand' },
+  cursed:     { icon: '☠️' },
+}
+
+export const items = {
+  potion: {
+    type: 'consumable',
+    name: 'Poción',
+    use: { inc: { hp: 10 }, notify: { text: '+10 HP' } },
+  },
+  cursedSword: {
+    type: ['weapon', 'cursed'],
+    name: 'Espada maldita',
+    tags: ['melee', 'quest'],
+  },
+}
+```
+
+Pásalos al runtime:
+
+```vue
+<VNovaRuntime :items="items" :item-types="itemTypes" ...>
+  ...
+  <VNovaInventoryModal />
+</VNovaRuntime>
+```
+
+Steps:
+
+```js
+{ type: 'item', id: 'potion', qty: 3 }
+{ type: 'item', action: 'take', id: 'potion', qty: 1 }
+{ type: 'item', action: 'use', id: 'potion' }
+{ type: 'item', action: 'set', id: 'potion', qty: 0 }
+{ type: 'item', action: 'clear' }
+```
+
+Condiciones:
+
+```js
+condition: { hasItem: 'potion' }
+condition: { item: 'potion', gte: 2 }
+condition: { hasType: 'cursed' }
+condition: { typeCount: 'weapon', gte: 2 }
+```
+
+Reglas:
+
+- `type` acepta un string o `[primario, ...secundarios]`.
+- Solo el **tipo primario** aporta defaults de comportamiento; los secundarios
+  son pertenencia/filtros.
+- Los campos del item siempre ganan a los del tipo.
+- `tags` son etiquetas libres sin comportamiento.
+- Los consumibles bajan cantidad al usarse; los especiales son únicos por defecto.
+- El inventario se guarda con la partida y `back()` lo restaura.
+- `useVNovaInventory()` expone `count`, `has`, `add`, `remove`, `use`, `entries`,
+  `byType`, etc.
+
 ---
 
 ## Multi-idioma (i18n)
@@ -660,6 +728,19 @@ yarn docs:dev     # documentación con VitePress
 
 - `dev` usa `docs-example/` como root de Vite.
 - `build:lib` genera los bundles ES y UMD.
+
+---
+
+## Assets y créditos del demo
+
+La historia del showcase usa:
+
+- **Sprites de personajes:** [Free Anime VN Character Sampler — Cy2026](https://cy2026.itch.io/free-anime-vn-sampler)
+- **Fondos escolares:** [Backgrounds for Visual Novel by Pixel Marten](https://pixel-marten.itch.io/backgrounds-for-visual-novel-by-pixel-marten-school)
+- **Música:** “The Grid” — Savfk.
+
+La misma atribución aparece en la pantalla de Créditos del juego
+(`docs-example/src/story/credits.js`).
 
 ---
 

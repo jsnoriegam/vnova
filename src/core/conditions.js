@@ -116,6 +116,34 @@ export function evaluateCondition(condition, ctx) {
     return !evaluateCondition(condition.not, ctx)
   }
 
+  if ('hasItem' in condition) {
+    const ids = Array.isArray(condition.hasItem) ? condition.hasItem : [condition.hasItem]
+    return ids.every((id) => Number(ctx.itemCount?.(id) ?? 0) > 0)
+  }
+
+  if ('item' in condition) {
+    const count = Number(ctx.itemCount?.(condition.item) ?? 0)
+    if (hasComparisonOperator(condition)) {
+      const operator = Object.keys(condition).find((key) => COMPARISON_OPS.has(key))
+      return compareValues(count, operator, condition[operator])
+    }
+    return count > 0
+  }
+
+  if ('hasType' in condition) {
+    const types = Array.isArray(condition.hasType) ? condition.hasType : [condition.hasType]
+    return types.every((type) => Number(ctx.typeCount?.(type) ?? 0) > 0)
+  }
+
+  if ('typeCount' in condition) {
+    const count = Number(ctx.typeCount?.(condition.typeCount) ?? 0)
+    if (hasComparisonOperator(condition)) {
+      const operator = Object.keys(condition).find((key) => COMPARISON_OPS.has(key))
+      return compareValues(count, operator, condition[operator])
+    }
+    return count > 0
+  }
+
   const get = typeof ctx?.get === 'function' ? ctx.get : () => undefined
 
   if ('var' in condition || 'path' in condition) {

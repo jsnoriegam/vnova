@@ -19,8 +19,9 @@ Tests live in `tests/` and use Vitest + jsdom (`vitest.config.js`).
 - **Script compilation:** `src/core/compiler.js` flattens nested labels and `if`/`once`/`random` blocks into jumps; `src/core/conditions.js` evaluates declarative conditions.
 - **Read/voice state:** `src/core/readTracker.js` persists read lines for skip mode; `src/core/voiceBus.js` shares voice playback state with auto mode.
 - **Meta-progress:** `src/core/progress.js` persists CGs/endings/achievements/chapters; `src/core/unlocks.js` normalizes the `unlock` step.
+- **Inventory:** `src/core/inventory.js` resolves item types/catalog and exposes a reactive inventory view; state lives in `store.inventory`.
 - **Components:** `src/components/*.vue` — order in template matters (render order = declaration order).
-- **Composables:** `src/composables/` — author-facing hooks (`useVNovaEngine`, `useUserStorage`, `useEngine`, `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`).
+- **Composables:** `src/composables/` — author-facing hooks (`useVNovaEngine`, `useUserStorage`, `useEngine`, `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`, `useVNovaInventory`).
 - **Vite plugin:** `vite-plugin/index.js` — injects `vnova-engine` alias, validates scripts at dev/build time.
 - **Demo/playground:** `docs-example/` — the dev root. Its `story/` dir is the reference for the no-code author flow.
 

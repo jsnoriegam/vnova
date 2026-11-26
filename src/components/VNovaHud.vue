@@ -23,6 +23,7 @@ const props = defineProps({
   visible: { type: Boolean, default: true },
   showBacklog: { type: Boolean, default: true },
   showGallery: { type: Boolean, default: false },
+  showInventory: { type: Boolean, default: false },
   showCredits: { type: Boolean, default: false },
 })
 
@@ -32,6 +33,7 @@ const emit = defineEmits([
   'open-load',
   'open-backlog',
   'open-gallery',
+  'open-inventory',
   'open-credits',
   'open-settings',
   'restart',
@@ -45,6 +47,7 @@ const emit = defineEmits([
       <button class="vnova-hud-link" :disabled="!props.canBack" @click="emit('back')">{{ t('hud.back') }}</button>
       <button v-if="props.showBacklog" class="vnova-hud-link" @click="emit('open-backlog')">{{ t('hud.log') }}</button>
       <button v-if="props.showGallery" class="vnova-hud-link" @click="emit('open-gallery')">{{ t('hud.gallery') }}</button>
+      <button v-if="props.showInventory" class="vnova-hud-link" @click="emit('open-inventory')">{{ t('hud.inventory') }}</button>
       <button
         class="vnova-hud-link"
         :class="{ 'is-active': autoMode }"

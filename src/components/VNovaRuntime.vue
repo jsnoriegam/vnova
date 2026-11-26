@@ -21,6 +21,7 @@ import VNovaBaseModal from './VNovaBaseModal.vue'
 import VNovaCreditsScreen from './VNovaCreditsScreen.vue'
 import VNovaHud from './VNovaHud.vue'
 import VNovaGalleryModal from './VNovaGalleryModal.vue'
+import VNovaInventoryModal from './VNovaInventoryModal.vue'
 import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
@@ -46,6 +47,7 @@ const BUILTIN_NAMES = {
   save: ['VNovaSaveModal'],
   backlog: ['VNovaBacklogModal'],
   gallery: ['VNovaGalleryModal'],
+  inventory: ['VNovaInventoryModal'],
   credits: ['VNovaCreditsScreen'],
   modal: ['VNovaBaseModal'],
 }
@@ -169,6 +171,8 @@ export default defineComponent({
     assets: { type: Object, default: () => ({}) },
     credits: { type: Array, default: () => [] },
     particles: { type: Object, default: () => ({}) },
+    items: { type: [Object, Array], default: () => ({}) },
+    itemTypes: { type: [Object, Array], default: () => ({}) },
     config: { type: Object, default: () => ({}) },
     modals: { type: Object, default: () => ({}) },
     componentResolvers: { type: Object, default: () => ({}) },
@@ -195,12 +199,14 @@ export default defineComponent({
     const settingsOpen = ref(false)
     const backlogOpen = ref(false)
     const galleryOpen = ref(false)
+    const inventoryOpen = ref(false)
     const creditsOpen = ref(false)
     const saveOpen = ref(false)
     const saveMode = ref('save')
     const audioLog = ref('')
     const hasBacklogRenderer = ref(false)
     const hasGalleryRenderer = ref(false)
+    const hasInventoryRenderer = ref(false)
     const hasCreditsRenderer = ref(false)
     const hasSettingsRenderer = ref(false)
     const hasSaveRenderer = ref(false)
@@ -269,6 +275,9 @@ export default defineComponent({
         .some((kind) => Array.isArray(gallery[kind]) && gallery[kind].length > 0)
     })
     const hasGallery = computed(() => hasGalleryRenderer.value && galleryAvailable.value)
+    const activeInventory = computed(() => activeStage.value?.inventory ?? null)
+    const inventoryDefinitions = computed(() => maybeUnref(activeInventory.value?.definitions) ?? [])
+    const hasInventory = computed(() => hasInventoryRenderer.value && inventoryDefinitions.value.length > 0)
     const uiModalRegistry = computed(() => {
       const fromConfig = isPlainObject(props.config?.ui?.modals) ? props.config.ui.modals : {}
       const fromProps = isPlainObject(props.modals) ? props.modals : {}
@@ -315,6 +324,7 @@ export default defineComponent({
       settingsOpen.value = false
       backlogOpen.value = false
       galleryOpen.value = false
+      inventoryOpen.value = false
       creditsOpen.value = false
       saveOpen.value = false
       callStage('closeSave')
@@ -409,6 +419,20 @@ export default defineComponent({
 
     function handleCloseGallery() {
       galleryOpen.value = false
+      callStage('resumeTypewriter')
+    }
+
+    function handleOpenInventory() {
+      if (!hasInventoryRenderer.value) {
+        notifyMissingComponent('VNovaInventoryModal')
+        return
+      }
+      closeAllModals({ resumeTypewriter: false })
+      inventoryOpen.value = true
+    }
+
+    function handleCloseInventory() {
+      inventoryOpen.value = false
       callStage('resumeTypewriter')
     }
 
@@ -551,6 +575,8 @@ export default defineComponent({
         assets: props.assets,
         credits: props.credits,
         particles: props.particles,
+        items: props.items,
+        itemTypes: props.itemTypes,
         saveKey: saveKey.value,
         slotCount: slotCount.value,
         autosave: props.config?.autosave,
@@ -559,6 +585,7 @@ export default defineComponent({
         readKey: props.config?.readKey,
         progressKey: progressKey.value,
         onUnlock: asFunction(props.config?.onUnlock),
+        onItemUse: asFunction(props.config?.onItemUse),
         deferStart: titleOpen.value,
         ...(props.config?.stage || {}),
         onAudio: handleAudio,
@@ -581,12 +608,15 @@ export default defineComponent({
       skipActive: computed(() => Boolean(maybeUnref(activeStage.value?.skipActive))),
       currentLineRead: computed(() => Boolean(maybeUnref(activeStage.value?.currentLineRead))),
       hasGallery,
+      inventory: activeInventory,
+      hasInventory,
       t: (key, params) => i18n.value.t(key, params),
       ui: {
         titleOpen,
         settingsOpen,
         backlogOpen,
         galleryOpen,
+        inventoryOpen,
         creditsOpen,
         saveOpen,
         saveMode,
@@ -606,6 +636,8 @@ export default defineComponent({
         openBacklog: handleOpenBacklog,
         openGallery: handleOpenGallery,
         closeGallery: handleCloseGallery,
+        openInventory: handleOpenInventory,
+        closeInventory: handleCloseInventory,
         selectChapter: handleSelectChapter,
         openCredits: handleOpenCredits,
         openSettings: handleOpenSettings,
@@ -884,6 +916,7 @@ export default defineComponent({
             visible: !titleOpen.value && !loadingOpen.value,
             showBacklog: hasBacklogRenderer.value,
             showGallery: hasGallery.value,
+            showInventory: hasInventory.value,
             showCredits: hasCreditsRenderer.value,
           },
           listeners: {
@@ -892,6 +925,7 @@ export default defineComponent({
             onOpenLoad: handleOpenLoad,
             onOpenBacklog: handleOpenBacklog,
             onOpenGallery: handleOpenGallery,
+            onOpenInventory: handleOpenInventory,
             onOpenCredits: handleOpenCredits,
             onOpenSettings: handleOpenSettings,
             onRestart: handleRestart,
@@ -998,6 +1032,19 @@ export default defineComponent({
           },
           listeners: {
             onClose: handleCloseGallery,
+          },
+        }),
+      },
+      {
+        ref: VNovaInventoryModal,
+        names: BUILTIN_NAMES.inventory,
+        build: () => ({
+          props: {
+            open: inventoryOpen.value,
+            title: typeof props.config?.inventory?.title === 'string' ? props.config.inventory.title : '',
+          },
+          listeners: {
+            onClose: handleCloseInventory,
           },
         }),
       },
@@ -1167,6 +1214,7 @@ export default defineComponent({
       const found = {
         backlog: false,
         gallery: false,
+        inventory: false,
         credits: false,
         settings: false,
         save: false,
@@ -1178,6 +1226,7 @@ export default defineComponent({
         if (isDeclarativeModal(vnode)) found.declarativeModal = true
         if (matchesComponent(vnode, VNovaBacklogModal, BUILTIN_NAMES.backlog)) found.backlog = true
         if (matchesComponent(vnode, VNovaGalleryModal, BUILTIN_NAMES.gallery)) found.gallery = true
+        if (matchesComponent(vnode, VNovaInventoryModal, BUILTIN_NAMES.inventory)) found.inventory = true
         if (matchesComponent(vnode, VNovaCreditsScreen, BUILTIN_NAMES.credits)) found.credits = true
         if (matchesComponent(vnode, VNovaSettingsModal, BUILTIN_NAMES.settings)) found.settings = true
         if (matchesComponent(vnode, VNovaSaveModal, BUILTIN_NAMES.save)) found.save = true
@@ -1195,6 +1244,7 @@ export default defineComponent({
       const found = scanRuntimeNodes(nodes)
       if (hasBacklogRenderer.value !== found.backlog) hasBacklogRenderer.value = found.backlog
       if (hasGalleryRenderer.value !== found.gallery) hasGalleryRenderer.value = found.gallery
+      if (hasInventoryRenderer.value !== found.inventory) hasInventoryRenderer.value = found.inventory
       if (hasCreditsRenderer.value !== found.credits) hasCreditsRenderer.value = found.credits
       if (hasSettingsRenderer.value !== found.settings) hasSettingsRenderer.value = found.settings
       if (hasSaveRenderer.value !== found.save) hasSaveRenderer.value = found.save

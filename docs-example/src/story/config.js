@@ -1,109 +1,28 @@
-import esLocale from 'vnova-engine/i18n/es.js'
+import { gallery } from './gallery.js'
 
 export const defaultConfig = {
-    title: 'VNova Showcase',
-    subtitle: 'Interactive Runtime Demo',
-    meta: 'Scenes, branches, state, media hooks',
-    saveKey: 'vnova-showcase-v1',
+    title: 'Hoshimi Academy: The Last Light',
+    subtitle: 'A VNova Engine showcase',
+    meta: 'Branches · inventory · gallery · chapters · auto/skip',
+    saveKey: 'hoshimi-academy-v1',
     slotCount: 10,
-    progressKey: 'vnova-showcase-v1',
+    progressKey: 'hoshimi-academy-v1',
     startLabel: 'start',
-    gallery: {
-        title: 'VNova Archive',
-        cgs: [
-            {
-                id: 'cg-canals',
-                title: 'Canal District',
-                description: 'A quiet insertion through the old water lanes.',
-                src: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1400&q=80',
-            },
-            {
-                id: 'cg-relay',
-                title: 'Relay Core',
-                description: 'Redlining the relay before it melts.',
-                src: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1400&q=80',
-            },
-            {
-                id: 'cg-observatory',
-                title: 'Signal Observatory',
-                description: 'Reading the storm in the packet telemetry.',
-                src: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1400&q=80',
-            },
-            {
-                id: 'cg-dawn',
-                title: 'Dawn Over the City',
-                description: 'The city wakes up changed.',
-                src: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1400&q=80',
-            },
-        ],
-        endings: [
-            {
-                id: 'ending-open',
-                title: 'Open Channel',
-                description: 'You told the whole city the truth.',
-            },
-            {
-                id: 'ending-shield',
-                title: 'Encrypted Channel',
-                description: 'You protected the team and let the data speak.',
-            },
-        ],
-        achievements: [
-            {
-                id: 'first-contact',
-                title: 'First Contact',
-                description: 'Identified yourself and chose a comm mode.',
-            },
-            {
-                id: 'pattern-seeker',
-                title: 'Pattern Seeker',
-                description: 'Found the jammer through telemetry.',
-            },
-            {
-                id: 'above-noise',
-                title: 'Above the Noise',
-                description: 'Reached the relay tower.',
-            },
-        ],
-        chapters: [
-            {
-                id: 'chapter-1',
-                title: 'Chapter 1 — The Relay',
-                description: 'Control room, first decision.',
-                label: 'start',
-            },
-            {
-                id: 'chapter-2',
-                title: 'Chapter 2 — The Tower',
-                description: 'The final broadcast.',
-                label: 'checkpoint',
-            },
-        ],
+    inventory: {
+        title: 'Hoshimi Kit',
     },
-    // Multi-language: selects the active language on startup.
-    // Switch via Settings → Language / Idioma at runtime.
-    defaultLanguage: 'en',
-    // Preload all assets before showing the title screen.
-    // Set to false to disable the loading screen entirely.
-    preload: true,
-    // Title screen background: CSS value or asset URL.
-    // Example: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-    // titleBackground: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-    // GUI translations for different languages.
-    // Import locale packs from 'vnova-engine/i18n/*' and pass them here.
-    guiTranslations: {
-        es: esLocale,
-    },
+    gallery,
+    // The demo ships many high-resolution sprites, so load them on demand
+    // instead of preloading the whole catalog on first paint.
+    preload: false,
     audio: {
         bgmVolume: 0.5,
         sfxVolume: 0.8,
     },
     stage: {
         typewriterEnabled: true,
-        sessionKey: 'vnova-showcase-session',
+        sessionKey: 'hoshimi-academy-session-v1',
     },
-    // Custom themes — extend the built-in themes (default, dark, light, ocean, forest).
-    // Each theme defines CSS custom property overrides for colors, typography, and layout.
     themes: [
         {
             id: 'cyberpunk',

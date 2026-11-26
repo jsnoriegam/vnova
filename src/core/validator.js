@@ -10,7 +10,7 @@ import { collectSteps } from './compiler.js'
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
   'choice', 'modal', 'input', 'select', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end', 'stop', 'effect',
-  'set', 'if', 'once', 'random', 'unlock',
+  'set', 'if', 'once', 'random', 'unlock', 'item',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
@@ -280,6 +280,43 @@ export function validateScript(script, characters = {}) {
       }
     }
 
+    if (step.type === 'item') {
+      const actions = ['give', 'add', 'take', 'remove', 'use', 'set', 'clear']
+      let action = typeof step.action === 'string' ? step.action : null
+      let itemId = step.id ?? step.item
+
+      if (!action) {
+        if (typeof step.give === 'string') { action = 'give'; itemId = step.give }
+        else if (typeof step.take === 'string') { action = 'take'; itemId = step.take }
+        else if (typeof step.use === 'string') { action = 'use'; itemId = step.use }
+        else if (step.clear !== undefined) {
+          action = 'clear'
+          if (typeof step.clear === 'string') itemId = step.clear
+        } else {
+          action = 'give'
+        }
+      }
+
+      if (!actions.includes(action)) {
+        errors.push(`${at} item action must be one of: ${actions.join(', ')}`)
+      }
+
+      const clearsAll = action === 'clear' && (itemId === undefined || itemId === null)
+      if (!clearsAll && (typeof itemId !== 'string' || itemId.length === 0)) {
+        errors.push(`${at} item step requires a non-empty id (or item) field`)
+      }
+
+      if (step.qty !== undefined && (!Number.isFinite(Number(step.qty)) || Number(step.qty) < 0)) {
+        errors.push(`${at} item qty must be a non-negative number when provided`)
+      }
+      if (step.quantity !== undefined && (!Number.isFinite(Number(step.quantity)) || Number(step.quantity) < 0)) {
+        errors.push(`${at} item quantity must be a non-negative number when provided`)
+      }
+      if (step.data !== undefined && !isPlainObjectLike(step.data)) {
+        errors.push(`${at} item data must be a plain object when provided`)
+      }
+    }
+
     if (step.type === 'choice') {
       if (!Array.isArray(step.options) || step.options.length < 2)
         errors.push(`${at} choice step requires at least 2 options`)
@@ -465,6 +502,7 @@ export function validateMultiLanguageScript(multiScript, characters = {}) {
       const criticalFields = [
         'id', 'character', 'position', 'variant', 'expression', 'target', 'store', 'name', 'wait',
         'cg', 'cgs', 'ending', 'endings', 'achievement', 'achievements', 'chapter', 'chapters', 'kind', 'targets',
+        'action', 'item', 'qty', 'quantity', 'data', 'give', 'take', 'use', 'clear',
       ]
       for (const field of criticalFields) {
         if (JSON.stringify(stepA[field]) !== JSON.stringify(stepB[field])) {

@@ -55,6 +55,8 @@ export function useVNovaEngine(script, options = {}) {
     credits          = [],
     particles        = {},
     quests           = [],
+    items            = {},
+    itemTypes        = {},
     initialState     = {},
     typewriterSpeed  = 30,
     typewriterEnabled = true,
@@ -75,6 +77,7 @@ export function useVNovaEngine(script, options = {}) {
     readKey          = null,
     progressKey      = null,
     onUnlock         = null,
+    onItemUse        = null,
   } = options
 
   // ── Effect targets registry ─────────────────────────────────────────────
@@ -128,6 +131,8 @@ export function useVNovaEngine(script, options = {}) {
     credits,
     particles,
     quests,
+    items,
+    itemTypes,
     initialState,
     autoAdvanceDelay,
     deferStart: deferStart || !!sessionKey, // Defer if sessionKey to allow restoration
@@ -137,6 +142,7 @@ export function useVNovaEngine(script, options = {}) {
     onNotify,
     onEffect: handleEffect,
     onUnlock: handleUnlock,
+    onItemUse,
     onEnd,
     pinia,
   })
@@ -834,6 +840,9 @@ export function useVNovaEngine(script, options = {}) {
 
     // Meta-progreso (CGs, finales, logros, capítulos)
     progress,
+
+    // Inventario
+    inventory: engine.inventory,
 
     // Motor interno (para casos avanzados)
     engine,

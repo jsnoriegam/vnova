@@ -99,6 +99,8 @@ Heads-up display component.
 - `audioLog` — Audio log text
 - `visible` — Whether HUD is visible
 - `showBacklog` — Show backlog button
+- `showGallery` — Show gallery button
+- `showInventory` — Show inventory button
 - `showCredits` — Show credits button
 
 The built-in HUD also renders **Auto** and **Skip** toggles. Their state comes
@@ -111,6 +113,8 @@ extra props.
 - `open-save` — Open save requested
 - `open-load` — Open load requested
 - `open-backlog` — Open backlog requested
+- `open-gallery` — Open gallery requested
+- `open-inventory` — Open inventory requested
 - `open-credits` — Open credits requested
 - `open-settings` — Open settings requested
 - `restart` — Restart requested
@@ -145,6 +149,23 @@ Render it inside the `VNovaRuntime` slot to enable the **Gallery** button in
 
 - `close` — Modal closed
 - `select-chapter` — A chapter was chosen (only used without a runtime context)
+
+## VNovaInventoryModal
+
+Inventory browser. Render it inside the `VNovaRuntime` slot to enable the
+**Inventory** button in `VNovaHud`.
+
+```vue
+<VNovaInventoryModal />
+```
+
+### Props
+
+- `open` — Whether the modal is open (managed by the runtime)
+- `title` — Optional title override (defaults to `inventory.title`)
+
+Items, quantities, types and the **Use**/**Drop** actions come from the active
+engine inventory and the catalog passed to `VNovaRuntime`.
 
 ## VNovaSaveModal
 

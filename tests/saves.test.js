@@ -138,6 +138,28 @@ describe('useVNovaSaves', () => {
     expect(saves.slots.value[1]).not.toBeNull()
   })
 
+  it('saves and loads inventory state', async () => {
+    const engine = createEngine([
+      { type: 'item', id: 'potion', qty: 2 },
+      { type: 'say', text: 'primera' },
+      { type: 'item', id: 'potion', qty: 1 },
+      { type: 'say', text: 'segunda' },
+    ], {
+      items: { potion: { type: 'consumable', name: 'Potion' } },
+    })
+    const saves = useVNovaSaves({ saveKey: 'test-inventory', slotCount: 1, store: engine.store })
+
+    expect(engine.inventory.count('potion')).toBe(2)
+    expect(await saves.saveSlot(1)).toBe(true)
+
+    engine.advance()
+    expect(engine.inventory.count('potion')).toBe(3)
+
+    expect(await saves.loadSlot(1)).toBe(true)
+    expect(engine.inventory.count('potion')).toBe(2)
+    expect(engine.store.current.text).toBe('primera')
+  })
+
   it('rejects corrupted payloads instead of throwing', async () => {
     const engine = createStoryEngine()
     const saves = useVNovaSaves({ saveKey: 'test-corrupt', slotCount: 1, store: engine.store })

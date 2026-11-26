@@ -77,6 +77,7 @@ const {
   toggleAuto, toggleSkip, setAutoMode, setSkipMode,
   isLineRead, clearReadState, readCount,
   progress,
+  inventory,
 } = vn
 
 const state = store
@@ -397,6 +398,7 @@ defineExpose({
   clearReadState,
   readCount,
   progress,
+  inventory,
   state,
 })
 </script>

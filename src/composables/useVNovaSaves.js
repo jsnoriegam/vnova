@@ -209,6 +209,7 @@ function buildPayload(store, thumbnail = null, engine = null) {
       particles:      store.particles,
       vars:           store.vars,
       quests:         store.quests,
+      inventory:      store.inventory,
       awaitingChoice: store.awaitingChoice,
       ended:          store.ended,
       history:        store.history,

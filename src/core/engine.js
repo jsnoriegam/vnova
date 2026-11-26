@@ -9,6 +9,14 @@ import { normalizeAssetUrl } from '../utils/normalize.js'
 import { compileScript, SYNTHETIC_LABEL_PREFIX } from './compiler.js'
 import { evaluateCondition } from './conditions.js'
 import { collectUnlockTargets } from './unlocks.js'
+import {
+  countInventoryByType,
+  countInventoryItem,
+  createInventoryView,
+  normalizeItemQuantity,
+  resolveItemCatalog,
+  resolveItemTypes,
+} from './inventory.js'
 
 export { expandNestedLabels } from './compiler.js'
 
@@ -44,6 +52,7 @@ export { expandNestedLabels } from './compiler.js'
  *   particles  — play particle effects
  *   notify     — push a UI notification event (host app controlled)
  *   unlock     — record meta-progress (CG, ending, achievement, chapter)
+ *   item       — add/remove/use/set/clear inventory items
  *   modal      — render a custom modal component by id (optional options behave like choice)
  *   wait       — pause for N milliseconds before auto-advancing
  *   end        — stop the current session and return control to the initial menu
@@ -85,7 +94,7 @@ function setActiveEngineHandle(handle) {
 // truncates it.
 const TRACKED_STATE_KEYS = [
   'cursor', 'current', 'stage', 'background', 'image', 'video',
-  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'lastLabel',
+  'bgm', 'particles', 'vars', 'quests', 'inventory', 'awaitingChoice', 'ended', 'lastLabel',
 ]
 
 function normalizeImageFit(value) {
@@ -157,42 +166,25 @@ function createQuestContext(store) {
       if (prop === 'flags' || prop === 'vars') return store.vars
       if (prop === 'vnova' || prop === 'store') return store
       if (prop === 'quests') return store.quests
+      if (prop === 'inventory') return store.inventory
       return store.vars?.[prop]
     },
     set(_target, prop, value) {
-      if (['flags', 'vars', 'vnova', 'store', 'quests'].includes(prop)) return false
+      if (['flags', 'vars', 'vnova', 'store', 'quests', 'inventory'].includes(prop)) return false
       store.setVar({ key: prop, value })
       return true
     },
   })
 }
 
-function createConditionContext(store) {
-  return {
-    get: (path) => _readVarByPathFrom(store, path),
-    proxy: createQuestContext(store),
-  }
-}
-
-function evaluateChoiceCondition(option, store) {
+function evaluateChoiceCondition(option, context) {
   if (option?.condition === undefined) return true
-  return evaluateCondition(option.condition, createConditionContext(store))
+  return evaluateCondition(option.condition, context)
 }
 
-function evaluateChoiceDisabled(option, store) {
+function evaluateChoiceDisabled(option, context) {
   if (option?.disabled === undefined) return false
-  return evaluateCondition(option.disabled, createConditionContext(store))
-}
-
-function _readVarByPathFrom(store, path) {
-  const parts = splitPath(path)
-  if (parts.length === 0) return undefined
-  let cursor = store.vars
-  for (const part of parts) {
-    if (!isPlainObject(cursor) || !(part in cursor)) return undefined
-    cursor = cursor[part]
-  }
-  return cursor
+  return evaluateCondition(option.disabled, context)
 }
 
 function stripChoiceRuntimeFields(option) {
@@ -232,12 +224,15 @@ export function createEngine(script, options = {}) {
     credits = [],
     particles = {},
     quests = [],
+    items = {},
+    itemTypes = {},
     onAudio = noop,
     onParticles = noop,
     onVideo = noop,
     onNotify = noop,
     onEffect = noop,
     onUnlock = noop,
+    onItemUse = noop,
     onEnd = noop,
     autoAdvanceDelay = 0,
     initialState = null,
@@ -253,6 +248,8 @@ export function createEngine(script, options = {}) {
   const labelIndex = buildIndex(runtimeScript)
   let authoredLabelPositions = buildAuthoredLabelPositions(runtimeScript)
   const particleRegistry = { ...PARTICLE_PRESETS, ...(particles ?? {}) }
+  const resolvedItemTypes = resolveItemTypes(itemTypes)
+  const itemCatalog = resolveItemCatalog(items, resolvedItemTypes)
   let _bgmBaseVolume = 1
   let _voiceActive = false
 
@@ -375,6 +372,8 @@ export function createEngine(script, options = {}) {
   const conditionContext = {
     get: _readVarByPath,
     proxy: createQuestContext(store),
+    itemCount: (id) => countInventoryItem(store.inventory, id),
+    typeCount: (type) => countInventoryByType(store.inventory, itemCatalog, type),
   }
 
   function _applyVarSet(map) {
@@ -392,6 +391,211 @@ export function createEngine(script, options = {}) {
       _setVarByPath(key, base + delta)
     }
   }
+
+  // ── inventory ──────────────────────────────────────────────────────────────
+  function _inventoryState() {
+    return isPlainObject(store.inventory) ? store.inventory : {}
+  }
+
+  function _writeInventory(inventory) {
+    store.setInventory(inventory)
+  }
+
+  function _addItem(id, qty = 1, data = null) {
+    if (typeof id !== 'string' || id.length === 0) return false
+    const definition = itemCatalog.get(id)
+    if (!definition) {
+      if (import.meta.env.DEV) console.warn(`[vnova] unknown item: "${id}"`)
+      return false
+    }
+
+    const amount = normalizeItemQuantity(qty, 1)
+    if (amount <= 0) return false
+
+    const inventory = _inventoryState()
+    const current = inventory[id]
+    const currentQty = Math.max(0, Number(current?.qty) || 0)
+    const nextQty = definition.stackable
+      ? Math.min(definition.maxStack, currentQty + amount)
+      : 1
+
+    const mergedData = data
+      ? { ...(isPlainObject(current?.data) ? current.data : {}), ...data }
+      : current?.data
+
+    if (nextQty === currentQty && JSON.stringify(mergedData) === JSON.stringify(current?.data)) {
+      return false
+    }
+
+    const nextEntry = { qty: nextQty }
+    if (mergedData !== undefined && mergedData !== null) nextEntry.data = mergedData
+    _writeInventory({ ...inventory, [id]: nextEntry })
+    return true
+  }
+
+  function _removeItem(id, qty = 1) {
+    const inventory = _inventoryState()
+    const current = inventory[id]
+    if (!current) return false
+
+    const amount = normalizeItemQuantity(qty, 1)
+    if (amount <= 0) return false
+
+    const currentQty = Math.max(0, Number(current.qty) || 0)
+    if (currentQty <= 0) return false
+
+    const nextQty = currentQty - amount
+    const next = { ...inventory }
+    if (nextQty <= 0) delete next[id]
+    else next[id] = { ...current, qty: nextQty }
+    _writeInventory(next)
+    return true
+  }
+
+  function _setItem(id, qty = 1, data = null) {
+    const definition = itemCatalog.get(id)
+    if (!definition) {
+      if (import.meta.env.DEV) console.warn(`[vnova] unknown item: "${id}"`)
+      return false
+    }
+
+    const amount = normalizeItemQuantity(qty, 1)
+    if (amount <= 0) return _clearItem(id)
+
+    const inventory = { ..._inventoryState() }
+    const current = inventory[id]
+    const nextQty = definition.stackable
+      ? Math.min(definition.maxStack, amount)
+      : 1
+    const mergedData = data
+      ? { ...(isPlainObject(current?.data) ? current.data : {}), ...data }
+      : current?.data
+
+    const nextEntry = { qty: nextQty }
+    if (mergedData !== undefined && mergedData !== null) nextEntry.data = mergedData
+    inventory[id] = nextEntry
+    _writeInventory(inventory)
+    return true
+  }
+
+  function _clearItem(id) {
+    const inventory = _inventoryState()
+    if (!inventory[id]) return false
+    const next = { ...inventory }
+    delete next[id]
+    _writeInventory(next)
+    return true
+  }
+
+  function _clearInventory() {
+    if (Object.keys(_inventoryState()).length === 0) return false
+    _writeInventory({})
+    return true
+  }
+
+  function _applyItemEffects(effects) {
+    if (!isPlainObject(effects)) return
+
+    if (Array.isArray(effects.unset)) {
+      for (const path of effects.unset) _unsetVarByPath(path)
+    }
+    _applyVarSet(effects.set)
+    _applyVarInc(effects.inc)
+
+    const notifications = Array.isArray(effects.notify) ? effects.notify : [effects.notify]
+    for (const notification of notifications) {
+      if (!isPlainObject(notification)) continue
+      onNotify({
+        status: notification.status ?? 'info',
+        title: notification.title ?? '',
+        text: notification.text ?? '',
+      })
+    }
+
+    const unlockValue = effects.unlock
+    if (Array.isArray(unlockValue)) {
+      for (const entry of unlockValue) {
+        if (!isPlainObject(entry)) continue
+        if (typeof entry.kind === 'string' && typeof entry.id === 'string') {
+          onUnlock({ kind: entry.kind, id: entry.id })
+          continue
+        }
+        for (const target of collectUnlockTargets(entry)) onUnlock(target)
+      }
+    } else if (isPlainObject(unlockValue)) {
+      for (const target of collectUnlockTargets(unlockValue)) onUnlock(target)
+    }
+
+    if (effects.sfx) {
+      const sfx = isPlainObject(effects.sfx) ? effects.sfx : { id: effects.sfx }
+      const track = normalizeAssetUrl(sfx.src ?? resolveAsset('sounds', sfx.id, sfx.id))
+      if (track) onAudio({ type: 'sfx', track, volume: _effectiveVolume('sfx', sfx.volume ?? 1) })
+    }
+  }
+
+  function _useItem(id) {
+    const definition = itemCatalog.get(id)
+    if (!definition) {
+      if (import.meta.env.DEV) console.warn(`[vnova] unknown item: "${id}"`)
+      return false
+    }
+    if (!definition.usable) return false
+
+    const entry = _inventoryState()[id]
+    if (!entry || (Number(entry.qty) || 0) <= 0) return false
+
+    if (definition.consumable) _removeItem(id, 1)
+    _applyItemEffects(definition.use)
+
+    onItemUse({
+      id,
+      item: definition,
+      entry: _inventoryState()[id] ?? null,
+      inventory: _inventoryState(),
+    })
+    return true
+  }
+
+  function _withTrackedInventory(fn) {
+    let result = false
+    _runTrackedMove(() => {
+      result = fn()
+    })
+    return result
+  }
+
+  function addItem(id, qty = 1, data = null) {
+    return _withTrackedInventory(() => _addItem(id, qty, data))
+  }
+
+  function removeItem(id, qty = 1) {
+    return _withTrackedInventory(() => _removeItem(id, qty))
+  }
+
+  function setItem(id, qty = 1, data = null) {
+    return _withTrackedInventory(() => _setItem(id, qty, data))
+  }
+
+  function clearItem(id) {
+    return _withTrackedInventory(() => _clearItem(id))
+  }
+
+  function clearInventory() {
+    return _withTrackedInventory(() => _clearInventory())
+  }
+
+  function useItem(id) {
+    return _withTrackedInventory(() => _useItem(id))
+  }
+
+  const inventory = createInventoryView(store, itemCatalog, {
+    add: addItem,
+    remove: removeItem,
+    set: setItem,
+    use: useItem,
+    clear: clearItem,
+    clearAll: clearInventory,
+  })
 
   function _interpolateString(text) {
     if (typeof text !== 'string') return text
@@ -482,6 +686,7 @@ export function createEngine(script, options = {}) {
     // Keep direct state/store aliases for advanced call handlers.
     state: store,
     store,
+    inventory,
   })
 
   function _applyStep(step) {
@@ -691,6 +896,50 @@ export function createEngine(script, options = {}) {
         return
       }
 
+      case 'item': {
+        let action = typeof step.action === 'string' ? step.action : null
+        let itemId = step.id ?? step.item
+        const qty = step.qty ?? step.quantity ?? 1
+
+        if (!action) {
+          if (typeof step.give === 'string') { action = 'give'; itemId = step.give }
+          else if (typeof step.take === 'string') { action = 'take'; itemId = step.take }
+          else if (typeof step.use === 'string') { action = 'use'; itemId = step.use }
+          else if (step.clear !== undefined) {
+            action = 'clear'
+            if (typeof step.clear === 'string') itemId = step.clear
+          } else {
+            action = 'give'
+          }
+        }
+
+        switch (action) {
+          case 'give':
+          case 'add':
+            _addItem(itemId, qty, step.data)
+            break
+          case 'take':
+          case 'remove':
+            _removeItem(itemId, qty)
+            break
+          case 'use':
+            _useItem(itemId)
+            break
+          case 'set':
+            _setItem(itemId, qty, step.data)
+            break
+          case 'clear':
+            if (typeof itemId === 'string' && itemId.length > 0) _clearItem(itemId)
+            else _clearInventory()
+            break
+          default:
+            if (import.meta.env.DEV) console.warn(`[vnova] unknown item action: "${action}"`)
+        }
+
+        _moveTo(store.cursor + 1)
+        return
+      }
+
       case 'scene': {
         const sceneId = step.id ?? null
         const sceneSrc = normalizeAssetUrl(step.src ?? resolveAsset('scenes', sceneId, null))
@@ -732,7 +981,13 @@ export function createEngine(script, options = {}) {
       case 'show': {
         const characterDef = characters[step.character] ?? {}
         const variant = step.variant ?? step.expression ?? 'default'
-        const spriteFromReg = normalizeAssetUrl(characterDef.sprites?.[variant] ?? characterDef.defaultSprite ?? null)
+        const spriteFromReg = normalizeAssetUrl(
+          characterDef.sprites?.[variant]
+          ?? characterDef.expressions?.[variant]
+          ?? characterDef.sprites?.neutral
+          ?? characterDef.defaultSprite
+          ?? null
+        )
         store.showCharacter({
           character: step.character,
           data: {
@@ -863,13 +1118,13 @@ export function createEngine(script, options = {}) {
 
       case 'choice': {
         const visibleOptions = (step.options ?? [])
-          .filter((option) => evaluateChoiceCondition(option, store))
+          .filter((option) => evaluateChoiceCondition(option, conditionContext))
           .map((option) => {
             const serializableOption = stripChoiceRuntimeFields(option)
             if (!isPlainObject(serializableOption)) return serializableOption
             return {
               ...serializableOption,
-              disabled: evaluateChoiceDisabled(option, store),
+              disabled: evaluateChoiceDisabled(option, conditionContext),
             }
           })
         if (visibleOptions.length === 0) {
@@ -1229,6 +1484,16 @@ export function createEngine(script, options = {}) {
     setSetting,
     updateScript,
     unlock,
+    inventory,
+    items: itemCatalog.list,
+    itemTypes: itemCatalog.types,
+    getItemDefinition: (id) => itemCatalog.get(id),
+    addItem,
+    removeItem,
+    setItem,
+    useItem,
+    clearItem,
+    clearInventory,
     getSaveAnchor,
     resolveSaveAnchor,
     resolveSaveSnapshot,

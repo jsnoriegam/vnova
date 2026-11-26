@@ -17,6 +17,7 @@ export default {
     back: 'Atrás',
     log: 'Historial',
     gallery: 'Galería',
+    inventory: 'Inventario',
     auto: 'Auto',
     skip: 'Saltar',
     save: 'Guardar',
@@ -82,6 +83,13 @@ export default {
     fileSaved: 'Archivo guardado',
     fileLoaded: 'Archivo cargado',
     loadCancelledOrFailed: 'Carga cancelada o fallida',
+  },
+  inventory: {
+    title: 'Inventario',
+    empty: 'Tu inventario está vacío.',
+    all: 'Todos',
+    use: 'Usar',
+    drop: 'Soltar',
   },
   gallery: {
     title: 'Galería',

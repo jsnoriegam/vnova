@@ -79,6 +79,11 @@ export type Condition =
       exists?: boolean
       truthy?: boolean
       falsy?: boolean
+      /** Inventory checks. */
+      hasItem?: string | string[]
+      item?: string
+      hasType?: string | string[]
+      typeCount?: string
     } & Record<string, unknown>)
 
 export interface LabelStep {
@@ -310,6 +315,21 @@ export interface UnlockStep {
   /** Multiple targets in one step. */
   targets?: UnlockTarget[]
 }
+export type ItemAction = 'give' | 'add' | 'take' | 'remove' | 'use' | 'set' | 'clear'
+export interface ItemStep {
+  type: 'item'
+  action?: ItemAction
+  id?: string
+  item?: string
+  qty?: number
+  quantity?: number
+  data?: Record<string, unknown>
+  /** Shorthand forms. */
+  give?: string
+  take?: string
+  use?: string
+  clear?: boolean | string
+}
 export interface BgmStep {
   type: 'bgm'
   /**
@@ -427,6 +447,7 @@ export type ScriptStep =
   | SetStep    | IfStep    | OnceStep   | RandomStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
   | UnlockStep
+  | ItemStep
   | EndStep   | CallStep
 // ─── Character registry ───────────────────────────────────────────────────────
 export interface CharacterDef {
@@ -634,6 +655,8 @@ export interface CreateEngineOptions {
   credits?:          CreditsRegistry
   particles?:        ParticleRegistry
   quests?:           QuestDefinition[]
+  items?:            Record<string, ItemDefinition> | ItemDefinition[]
+  itemTypes?:        Record<string, ItemTypeDefinition> | ItemTypeDefinition[]
   initialState?: {
     vars?: Record<string, unknown>
     quests?: Record<string, unknown>
@@ -646,6 +669,7 @@ export interface CreateEngineOptions {
   onNotify?:         (event: NotifyEvent) => void
   onEffect?:         (event: EffectEvent) => void
   onUnlock?:         (target: UnlockTarget) => void
+  onItemUse?:        (event: { id: string; item: ItemDefinition; entry: InventoryEntry | null; inventory: Record<string, unknown> }) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
   autoAdvanceDelay?: Milliseconds
   /** External Pinia instance. When omitted, a fresh one is created. */
@@ -680,6 +704,16 @@ export interface EngineHandle {
   getSetting(key: keyof EngineSettings): unknown
   setSetting(key: keyof EngineSettings, value: unknown): void
   unlock(kind: ProgressKind, id: string): boolean
+  inventory: InventoryView
+  items: ItemDefinition[]
+  itemTypes: Record<string, ItemTypeDefinition>
+  getItemDefinition(id: string): ItemDefinition | null
+  addItem(id: string, qty?: number, data?: Record<string, unknown> | null): boolean
+  removeItem(id: string, qty?: number): boolean
+  setItem(id: string, qty?: number, data?: Record<string, unknown> | null): boolean
+  useItem(id: string): boolean
+  clearItem(id: string): boolean
+  clearInventory(): boolean
   getSaveAnchor(cursor?: number): SaveAnchor | null
   resolveSaveAnchor(anchor: SaveAnchor | null | undefined): number | null
   resolveSaveSnapshot(snapshot: SaveSnapshot): SaveSnapshot
@@ -804,6 +838,8 @@ export interface VNovaComposable {
   setSetting(key: keyof EngineSettings, value: unknown): void
   /** Meta-progress: unlocked CGs, endings, achievements and chapters. */
   progress:          VNovaProgressHandle
+  /** Reactive inventory view. */
+  inventory:         InventoryView
   /** The underlying engine handle for advanced use. */
   engine:            EngineHandle
 }
@@ -942,11 +978,14 @@ export interface VNovaRuntimeContext {
   skipActive: ComputedRef<boolean>
   currentLineRead: ComputedRef<boolean>
   hasGallery: ComputedRef<boolean>
+  hasInventory: ComputedRef<boolean>
+  inventory: ComputedRef<InventoryView | null>
   ui: {
     titleOpen: Ref<boolean>
     settingsOpen: Ref<boolean>
     backlogOpen: Ref<boolean>
     galleryOpen: Ref<boolean>
+    inventoryOpen: Ref<boolean>
     creditsOpen: Ref<boolean>
     saveOpen: Ref<boolean>
     saveMode: Ref<'save' | 'load'>
@@ -966,6 +1005,8 @@ export interface VNovaRuntimeContext {
     openBacklog(): void
     openGallery(): void
     closeGallery(): void
+    openInventory(): void
+    closeInventory(): void
     selectChapter(chapter: GalleryItem): boolean
     openCredits(): void
     openSettings(): void
@@ -991,6 +1032,7 @@ export interface GuiTranslations {
     back?: string
     log?: string
     gallery?: string
+    inventory?: string
     auto?: string
     skip?: string
     save?: string
@@ -1066,6 +1108,13 @@ export interface GuiTranslations {
     close?: string
     jumpToChapter?: string
   }
+  inventory?: {
+    title?: string
+    empty?: string
+    all?: string
+    use?: string
+    drop?: string
+  }
   backlog?: {
     title?: string
     noHistory?: string
@@ -1108,6 +1157,10 @@ export interface VNovaRuntimeConfig {
   gallery?: GalleryDefinitions
   /** Called after an `unlock` step records meta-progress. */
   onUnlock?: (target: UnlockTarget) => void
+  /** Called after a usable item is consumed/handled. */
+  onItemUse?: (event: { id: string; item: ItemDefinition; entry: InventoryEntry | null; inventory: Record<string, unknown> }) => void
+  /** Inventory modal options. */
+  inventory?: { title?: string }
   startLabel?: string
   stage?: UseVNovaOptions
   /** Custom themes to register. Merged with built-in themes. */
@@ -1178,6 +1231,8 @@ export interface VNovaRuntimeProps {
   assets?: AssetRegistry
   credits?: CreditsRegistry
   particles?: ParticleRegistry
+  items?: Record<string, ItemDefinition> | ItemDefinition[]
+  itemTypes?: Record<string, ItemTypeDefinition> | ItemTypeDefinition[]
   config?: VNovaRuntimeConfig
   /** Direct modal registry shortcut (merged over config.ui.modals). */
   modals?: Record<string, Component>
@@ -1215,6 +1270,7 @@ export interface VNovaStageExposed {
   clearReadState(): void
   readCount: Ref<number>
   progress: VNovaProgressHandle
+  inventory: InventoryView
   exitMenu():   void
   resumeTypewriter(): void
   canBack:      ComputedRef<boolean>
@@ -1269,6 +1325,66 @@ export interface GalleryDefinitions {
   achievements?: GalleryItem[]
   chapters?: GalleryItem[]
 }
+export interface ItemTypeDefinition {
+  id?: string
+  /** Inherit behavior/defaults from another type. */
+  extends?: string
+  label?: string
+  icon?: string
+  color?: string
+  slot?: string
+  stackable?: boolean
+  consumable?: boolean
+  unique?: boolean
+  maxStack?: number
+  usable?: boolean
+  [key: string]: unknown
+}
+export interface ItemUseEffects {
+  set?: Record<string, unknown>
+  inc?: Record<string, number>
+  unset?: string[]
+  notify?: NotifyEvent | NotifyEvent[]
+  unlock?: UnlockTarget | UnlockTarget[] | Record<string, unknown>
+  sfx?: string | { id?: string; src?: Url; volume?: number }
+}
+export interface ItemDefinition extends ItemTypeDefinition {
+  id: string
+  /** Primary type, or `[primary, ...secondary]`. */
+  type?: string | string[]
+  types?: string[]
+  tags?: string[]
+  name?: string
+  description?: string
+  use?: ItemUseEffects
+}
+export interface InventoryEntry extends ItemDefinition {
+  primaryType: string
+  types: string[]
+  tags: string[]
+  qty: number
+  data: Record<string, unknown> | null
+  missing?: boolean
+}
+export interface InventoryView {
+  types: Record<string, ItemTypeDefinition>
+  definitions: ItemDefinition[]
+  definition(id: string): ItemDefinition | null
+  entries: ComputedRef<InventoryEntry[]>
+  get(id: string): InventoryEntry | null
+  count(id: string): number
+  has(id: string, qty?: number): boolean
+  hasType(type: string): boolean
+  typeCount(type: string): number
+  byType(type: string): InventoryEntry[]
+  add(id: string, qty?: number, data?: Record<string, unknown> | null): boolean
+  remove(id: string, qty?: number): boolean
+  set(id: string, qty?: number, data?: Record<string, unknown> | null): boolean
+  use(id: string): boolean
+  clear(id: string): boolean
+  clearAll(): boolean
+}
+export declare function useVNovaInventory(): InventoryView
 export declare function useVNovaProgress(key?: string): VNovaProgressHandle
 export declare function resetAllProgress(): void
 export declare function normalizeProgressKind(kind: string): string | null
@@ -1363,9 +1479,9 @@ export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStag
 export declare const VNovaTitleScreen: DefineComponent<{ visible?: boolean; hasSave?: boolean; hasCredits?: boolean; hasGallery?: boolean; title?: string; subtitle?: string; meta?: string; background?: string }>
 export declare const VNovaCreditsScreen: DefineComponent<{ open?: boolean; title?: string; credits?: CreditsRegistry }>
 export declare const VNovaHud: DefineComponent<
-  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showGallery?: boolean; showCredits?: boolean },
+  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showGallery?: boolean; showInventory?: boolean; showCredits?: boolean },
   Record<string, never>,
-  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-gallery': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
+  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-gallery': []; 'open-inventory': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
 >
 export declare const VNovaTopHud: DefineComponent<
   { opacity?: number; floating?: boolean; customClass?: string | string[] | Record<string, boolean> | null }
@@ -1392,6 +1508,11 @@ export declare const VNovaGalleryModal: DefineComponent<
   { open?: boolean; title?: string; progressKey?: string; gallery?: GalleryDefinitions },
   Record<string, never>,
   { close: []; 'select-chapter': [chapter: GalleryItem] }
+>
+export declare const VNovaInventoryModal: DefineComponent<
+  { open?: boolean; title?: string },
+  Record<string, never>,
+  { close: [] }
 >
 // ─── VNovaLoadingScreen ───────────────────────────────────────────────────────
 export declare const VNovaLoadingScreen: DefineComponent<{

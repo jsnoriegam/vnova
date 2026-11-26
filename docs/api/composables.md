@@ -193,6 +193,31 @@ progress.reset()       // clear all meta-progress
 - `reset(kind?)` clears one category or everything.
 - Stored in `localStorage` under `<key>:progress`, separate from save slots.
 
+## useVNovaInventory
+
+Reactive view over the active engine inventory.
+
+```js
+import { useVNovaInventory } from 'vnova-engine'
+
+const inventory = useVNovaInventory()
+
+inventory.count('potion')       // quantity
+inventory.has('potion', 2)
+inventory.add('potion', 3)
+inventory.remove('potion', 1)
+inventory.use('potion')
+inventory.entries.value         // [{ id, qty, types, primaryType, ... }]
+inventory.byType('weapon')
+inventory.hasType('cursed')
+inventory.typeCount('consumable')
+inventory.clear('potion')
+inventory.clearAll()
+```
+
+Requires an active engine (rendered `VNovaStage`/`VNovaRuntime`). Mutations are
+tracked so `back()` restores the inventory.
+
 ## useVNovaSaves
 
 Save/load system composable.

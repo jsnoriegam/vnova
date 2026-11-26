@@ -8,6 +8,8 @@ import scriptEn from '../docs-example/src/story/script_en.js'
 import { characters } from '../docs-example/src/story/characters.js'
 import { assets } from '../docs-example/src/story/assets.js'
 import config from '../docs-example/src/story/config.js'
+import { items as demoItems, itemTypes as demoItemTypes } from '../docs-example/src/story/items.js'
+import { resolveItemCatalog, resolveItemTypes } from '../src/core/inventory.js'
 
 describe('demo story', () => {
   it('validates both languages and their structural equivalence', () => {
@@ -23,7 +25,7 @@ describe('demo story', () => {
     const engine = createEngine(scriptEs, { characters, assets })
 
     expect(engine.store.current?.type).toBe('narrate')
-    expect(engine.store.background.src).toContain('unsplash.com')
+    expect(engine.store.background.src).toContain('school-yard')
     expect(engine.store.stage).toEqual({})
   })
 
@@ -41,6 +43,49 @@ describe('demo story', () => {
 
     for (const target of targets) {
       expect(ids[target.kind].has(target.id)).toBe(true)
+    }
+  })
+
+  it('keeps demo item steps in sync with the item catalog', () => {
+    const catalog = resolveItemCatalog(demoItems, resolveItemTypes(demoItemTypes))
+
+    const itemIds = collectSteps(scriptEn)
+      .filter((step) => step.type === 'item')
+      .map((step) => step.id ?? step.item ?? step.give ?? step.take ?? step.use)
+      .filter((id) => typeof id === 'string')
+
+    expect(itemIds.length).toBeGreaterThan(0)
+    for (const id of itemIds) expect(catalog.get(id)).toBeTruthy()
+  })
+
+  it('references existing scenes, sprites, music and items', () => {
+    const catalog = resolveItemCatalog(demoItems, resolveItemTypes(demoItemTypes))
+
+    for (const step of collectSteps(scriptEn)) {
+      if (step.type === 'scene' && step.id) {
+        expect(assets.scenes?.[step.id], `scene "${step.id}"`).toBeTruthy()
+      }
+
+      if (step.type === 'bgm' && step.id) {
+        expect(assets.music?.[step.id], `music "${step.id}"`).toBeTruthy()
+      }
+
+      if (step.type === 'show') {
+        const character = characters[step.character]
+        expect(character, `character "${step.character}"`).toBeTruthy()
+        const expression = step.expression ?? step.variant
+        if (expression && expression !== 'default') {
+          expect(
+            character.sprites?.[expression] ?? character.defaultSprite,
+            `sprite "${step.character}/${expression}"`,
+          ).toBeTruthy()
+        }
+      }
+
+      if (step.type === 'item') {
+        const id = step.id ?? step.item ?? step.give ?? step.take ?? step.use
+        if (typeof id === 'string') expect(catalog.get(id), `item "${id}"`).toBeTruthy()
+      }
     }
   })
 })

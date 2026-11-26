@@ -43,6 +43,7 @@ export const useVNovaStore = defineStore('vnova', {
     particles:      null,
     vars:           {},
     quests:         {},
+    inventory:      {},
     awaitingChoice: false,
     ended:          false,
     history:        [],
@@ -84,6 +85,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.particles      = null
       this.vars           = {}
       this.quests         = {}
+      this.inventory      = {}
       this.awaitingChoice = false
       this.ended          = false
       this.history        = []
@@ -103,6 +105,7 @@ export const useVNovaStore = defineStore('vnova', {
       this.particles      = snapshot.particles      ?? null
       this.vars           = snapshot.vars           ?? {}
       this.quests         = snapshot.quests         ?? {}
+      this.inventory      = snapshot.inventory      ?? {}
       this.awaitingChoice = Boolean(snapshot.awaitingChoice)
       this.ended          = Boolean(snapshot.ended)
       this.history        = Array.isArray(snapshot.history)   ? snapshot.history   : []
@@ -156,6 +159,11 @@ export const useVNovaStore = defineStore('vnova', {
     // ── Quests ───────────────────────────────────────────────────────────────
     setQuests(quests) {
       this.quests = quests ?? {}
+    },
+
+    // ── Inventory ────────────────────────────────────────────────────────────
+    setInventory(inventory) {
+      this.inventory = inventory ?? {}
     },
 
     // ── Settings ─────────────────────────────────────────────────────────────

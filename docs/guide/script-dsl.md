@@ -133,6 +133,30 @@ Text fields support interpolation with double braces:
 { type: 'say', text: 'Hello, {{ player.name }}!' }
 ```
 
+### `item`
+
+```js
+{ type: 'item', id: 'potion', qty: 3 }                  // give (default)
+{ type: 'item', action: 'take', id: 'potion', qty: 1 }
+{ type: 'item', action: 'use', id: 'potion' }
+{ type: 'item', action: 'set', id: 'potion', qty: 0 }
+{ type: 'item', action: 'clear', id: 'potion' }
+{ type: 'item', action: 'clear' }                       // clear all
+```
+
+Short forms `{ give }`, `{ take }`, `{ use }` and `{ clear }` are also accepted.
+Inventory conditions:
+
+```js
+condition: { hasItem: 'potion' }
+condition: { item: 'potion', gte: 2 }
+condition: { hasType: 'cursed' }
+condition: { typeCount: 'weapon', gte: 2 }
+```
+
+Only the primary type contributes behavior defaults; secondary types are
+membership and filters. See the README inventory section for the catalog format.
+
 ### `unlock`
 
 ```js
