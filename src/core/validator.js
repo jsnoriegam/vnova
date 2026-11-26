@@ -5,16 +5,25 @@
  * before passing the script to createEngine(). Throws descriptive errors early.
  */
 
-import { expandNestedLabels } from './engine.js'
+import { collectSteps } from './compiler.js'
 
 const VALID_TYPES = new Set([
   'label', 'scene', 'show', 'hide', 'say', 'think', 'narrate',
   'choice', 'modal', 'input', 'select', 'jump', 'bgm', 'sfx', 'video', 'particles', 'wait', 'call', 'image', 'notify', 'end', 'stop', 'effect',
+  'set', 'if', 'once', 'random', 'unlock',
 ])
 
 const VALID_POSITIONS  = new Set(['left', 'center', 'right', 'left-far', 'right-far'])
 const VALID_TRANSITIONS = new Set(['fade', 'cut', 'dissolve', 'slide-left', 'slide-right'])
 const VALID_IMAGE_FIT  = new Set(['x', 'y', 'width', 'height', 'both'])
+
+function isPlainObjectLike(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isConditionLike(value) {
+  return typeof value === 'function' || typeof value === 'boolean' || Array.isArray(value) || isPlainObjectLike(value)
+}
 
 /**
  * @param {object[]} script
@@ -23,7 +32,7 @@ const VALID_IMAGE_FIT  = new Set(['x', 'y', 'width', 'height', 'both'])
  * @throws   {Error}             — on critical structural errors
  */
 export function validateScript(script, characters = {}) {
-  const flatScript = expandNestedLabels(script)
+  const flatScript = collectSteps(script)
   const errors   = []
   const warnings = []
   const labels   = new Set()
@@ -33,7 +42,10 @@ export function validateScript(script, characters = {}) {
   flatScript.forEach((step, i) => {
     if (step.type === 'label') {
       if (!step.id) errors.push(`[step ${i}] label missing required field: id`)
-      else labels.add(step.id)
+      else {
+        if (labels.has(step.id)) warnings.push(`[step ${i}] duplicate label "${step.id}" — later definition wins`)
+        labels.add(step.id)
+      }
     }
   })
 
@@ -164,6 +176,108 @@ export function validateScript(script, characters = {}) {
         errors.push(`${at} jump step missing required field: target`)
       else if (!labels.has(step.target))
         errors.push(`${at} jump target "${step.target}" has no matching label in script`)
+
+      const condition = step.if ?? step.condition ?? step.when
+      if (condition !== undefined && !isConditionLike(condition))
+        errors.push(`${at} jump condition must be a boolean, function or condition object`)
+    }
+
+    if (step.type === 'set') {
+      if (step.vars === undefined && step.inc === undefined && step.unset === undefined)
+        errors.push(`${at} set step requires at least one of: vars, inc, unset`)
+      if (step.vars !== undefined && !isPlainObjectLike(step.vars))
+        errors.push(`${at} set.vars must be a plain object`)
+      if (step.inc !== undefined && !isPlainObjectLike(step.inc))
+        errors.push(`${at} set.inc must be a plain object`)
+      if (step.unset !== undefined) {
+        if (!Array.isArray(step.unset) || step.unset.some((path) => typeof path !== 'string' || path.length === 0))
+          errors.push(`${at} set.unset must be an array of non-empty strings`)
+      }
+    }
+
+    if (step.type === 'if') {
+      if (step.condition === undefined)
+        errors.push(`${at} if step requires a condition field`)
+      else if (!isConditionLike(step.condition))
+        errors.push(`${at} if condition must be a boolean, function or condition object`)
+
+      const thenSteps = Array.isArray(step.then) ? step.then : step.steps
+      if (!Array.isArray(thenSteps))
+        errors.push(`${at} if step requires then (or steps) to be an array of steps`)
+      if (step.else !== undefined && !Array.isArray(step.else))
+        errors.push(`${at} if.else must be an array of steps`)
+    }
+
+    if (step.type === 'once') {
+      if (!step.id || typeof step.id !== 'string')
+        errors.push(`${at} once step requires a string id field`)
+      const onceSteps = Array.isArray(step.steps) ? step.steps : step.then
+      if (!Array.isArray(onceSteps))
+        errors.push(`${at} once step requires steps (or then) to be an array of steps`)
+    }
+
+    if (step.type === 'random') {
+      if (!Array.isArray(step.options) || step.options.length === 0) {
+        errors.push(`${at} random step requires at least 1 option`)
+      } else {
+        step.options.forEach((opt, oi) => {
+          const optAt = `${at} option[${oi}]`
+          if (!isPlainObjectLike(opt)) {
+            errors.push(`${optAt} must be a plain object`)
+            return
+          }
+          const optSteps = Array.isArray(opt.steps) ? opt.steps : opt.then
+          if (!Array.isArray(optSteps))
+            errors.push(`${optAt} requires steps (or then) to be an array of steps`)
+          if (opt.weight !== undefined && (!Number.isFinite(Number(opt.weight)) || Number(opt.weight) <= 0))
+            errors.push(`${optAt}.weight must be a positive number`)
+        })
+      }
+    }
+
+    if (step.type === 'unlock') {
+      const targetFields = ['cg', 'cgs', 'ending', 'endings', 'achievement', 'achievements', 'chapter', 'chapters']
+      let validTargets = 0
+
+      for (const field of targetFields) {
+        if (step[field] === undefined) continue
+        const value = step[field]
+        if (typeof value === 'string' && value.length > 0) {
+          validTargets++
+          continue
+        }
+        if (Array.isArray(value) && value.length > 0 && value.every((id) => typeof id === 'string' && id.length > 0)) {
+          validTargets += value.length
+          continue
+        }
+        errors.push(`${at} unlock.${field} must be a non-empty string or an array of non-empty strings`)
+      }
+
+      if (step.kind !== undefined || step.id !== undefined) {
+        if (typeof step.kind === 'string' && typeof step.id === 'string' && step.id.length > 0) {
+          validTargets++
+        } else {
+          errors.push(`${at} unlock kind/id must both be non-empty strings when used`)
+        }
+      }
+
+      if (step.targets !== undefined) {
+        if (!Array.isArray(step.targets)) {
+          errors.push(`${at} unlock.targets must be an array`)
+        } else {
+          step.targets.forEach((target, index) => {
+            if (!isPlainObjectLike(target) || typeof target.kind !== 'string' || typeof target.id !== 'string' || target.id.length === 0) {
+              errors.push(`${at} unlock.targets[${index}] requires string kind and id fields`)
+            } else {
+              validTargets++
+            }
+          })
+        }
+      }
+
+      if (validTargets === 0) {
+        errors.push(`${at} unlock step requires at least one target (cg, ending, achievement or chapter)`)
+      }
     }
 
     if (step.type === 'choice') {
@@ -177,10 +291,10 @@ export function validateScript(script, characters = {}) {
             errors.push(`${at} option[${oi}].jump target "${opt.jump}" has no matching label`)
           if (opt.inc && typeof opt.inc !== 'object')
             errors.push(`${at} option[${oi}].inc must be an object`)
-          if (opt.condition !== undefined && typeof opt.condition !== 'function' && typeof opt.condition !== 'boolean')
-            errors.push(`${at} option[${oi}].condition must be a function or boolean`)
-          if (opt.disabled !== undefined && typeof opt.disabled !== 'function' && typeof opt.disabled !== 'boolean')
-            errors.push(`${at} option[${oi}].disabled must be a function or boolean`)
+          if (opt.condition !== undefined && !isConditionLike(opt.condition))
+            errors.push(`${at} option[${oi}].condition must be a function, boolean or condition object`)
+          if (opt.disabled !== undefined && !isConditionLike(opt.disabled))
+            errors.push(`${at} option[${oi}].disabled must be a function, boolean or condition object`)
           if (opt.disabledText !== undefined && typeof opt.disabledText !== 'string')
             errors.push(`${at} option[${oi}].disabledText must be a string`)
         })
@@ -325,11 +439,11 @@ export function validateMultiLanguageScript(multiScript, characters = {}) {
 
   // Verify structural equivalence between all languages
   const baseLang = languages[0]
-  const baseScript = expandNestedLabels(multiScript[baseLang])
+  const baseScript = collectSteps(multiScript[baseLang])
 
   for (let i = 1; i < languages.length; i++) {
     const targetLang = languages[i]
-    const targetScript = expandNestedLabels(multiScript[targetLang])
+    const targetScript = collectSteps(multiScript[targetLang])
 
     if (baseScript.length !== targetScript.length) {
       throw new Error(
@@ -348,9 +462,12 @@ export function validateMultiLanguageScript(multiScript, characters = {}) {
       }
 
       // Check specific fields that control flow or logic
-      const criticalFields = ['id', 'character', 'position', 'variant', 'expression', 'target', 'store', 'name', 'wait']
+      const criticalFields = [
+        'id', 'character', 'position', 'variant', 'expression', 'target', 'store', 'name', 'wait',
+        'cg', 'cgs', 'ending', 'endings', 'achievement', 'achievements', 'chapter', 'chapters', 'kind', 'targets',
+      ]
       for (const field of criticalFields) {
-        if (stepA[field] !== stepB[field]) {
+        if (JSON.stringify(stepA[field]) !== JSON.stringify(stepB[field])) {
           throw new Error(
             `[vnova] Structural equivalence mismatch at ${at} (type: "${stepA.type}"): Field "${field}" differs between "${baseLang}" ("${stepA[field]}") and "${targetLang}" ("${stepB[field]}").`
           )

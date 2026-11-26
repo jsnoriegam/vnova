@@ -15,7 +15,7 @@
  *   loaded(slot)   — slot was loaded
  *   deleted(slot)  — slot was deleted
  */
-import { inject, ref } from 'vue'
+import { inject, ref, watch } from 'vue'
 import { useVNovaSaves } from '../composables/useVNovaSaves.js'
 import { VNOVA_RUNTIME_CONTEXT_KEY } from './VNovaRuntime.vue'
 
@@ -42,12 +42,18 @@ const saves = useVNovaSaves({
 
 // Use saves.slots directly in the template — it's a plain ref<array>,
 // no computed wrapper needed (that was causing the recursive update cycle).
-const { slots, saving, lastFileError } = saves
+const { slots, autoSlot, saving, lastFileError } = saves
 
 // ── interaction ─────────────────────────────────────────────────────────────
 const pendingSlot    = ref(null)   // slot awaiting overwrite confirmation
 const notification   = ref(null)   // { message, type: 'ok'|'err' }
 let _notifTimer      = null
+
+// Refresh metadata when the dialog opens: autosaves are written outside this
+// component, so the initial snapshot can be stale.
+watch(() => props.open, (open) => {
+  if (open) void saves.refresh()
+})
 
 function _notify(message, type = 'ok') {
   notification.value = { message, type }
@@ -81,6 +87,18 @@ async function handleLoad(slot) {
   const ok = await saves.loadSlot(slot)
   if (ok) { _notify(t('saves.slotLoaded', { slot })); emit('loaded', slot); emit('close') }
   else    { _notify(t('saves.loadFailed'), 'err') }
+}
+
+async function handleLoadAuto() {
+  if (!autoSlot.value) return
+  const ok = await saves.loadAuto()
+  if (ok) { _notify(t('saves.autosaveLoaded')); emit('loaded', 'auto'); emit('close') }
+  else    { _notify(t('saves.loadFailed'), 'err') }
+}
+
+function handleDeleteAuto() {
+  saves.deleteAuto()
+  _notify(t('saves.autosaveCleared'))
 }
 
 function handleDelete(slot) {
@@ -146,6 +164,31 @@ async function handleLoadFromDisk() {
         <!-- ── In Browser section ───────────────────────────── -->
         <div class="vnsm-section-label">{{ t('saves.inBrowser') }}</div>
 
+        <!-- ── autosave ─────────────────────────────────────── -->
+        <div v-if="autoSlot" class="vnsm-auto">
+          <div class="vnsm-slot vnsm-slot--auto">
+            <div class="vnsm-thumb" :style="autoSlot.thumbnail ? `background-image:url(${autoSlot.thumbnail})` : autoSlot.bgSrc ? `background-image:url(${autoSlot.bgSrc})` : autoSlot.bgColor ? `background:${autoSlot.bgColor}` : ''" />
+
+            <div class="vnsm-slot-info">
+              <span class="vnsm-slot-label vnsm-slot-label--auto">
+                {{ t('saves.autosave') }}
+                <span v-if="autoSlot.chapter" class="vnsm-slot-chapter">{{ autoSlot.chapter }}</span>
+              </span>
+              <span v-if="autoSlot.preview" class="vnsm-slot-preview">{{ autoSlot.preview }}</span>
+              <span v-if="autoSlot.formattedDate" class="vnsm-slot-date">{{ autoSlot.formattedDate }}</span>
+            </div>
+
+            <div class="vnsm-slot-actions">
+              <button class="vnsm-btn vnsm-btn--icon" :title="t('saves.load')" @click="handleLoadAuto">
+                ▶
+              </button>
+              <button class="vnsm-btn vnsm-btn--icon vnsm-btn--trash" :title="t('saves.delete')" @click="handleDeleteAuto">
+                🗑
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="vnsm-slots">
           <div
             v-for="(meta, i) in slots"
@@ -164,6 +207,8 @@ async function handleLoadFromDisk() {
             <!-- slot info -->
             <div class="vnsm-slot-info">
               <span class="vnsm-slot-label">{{ meta?.label ?? `${t('saves.slot')} ${i + 1}` }}</span>
+              <span v-if="meta?.chapter" class="vnsm-slot-chapter">{{ meta.chapter }}</span>
+              <span v-if="meta?.preview" class="vnsm-slot-preview">{{ meta.preview }}</span>
               <span v-if="meta?.formattedDate" class="vnsm-slot-date">{{ meta.formattedDate }}</span>
               <span v-else class="vnsm-slot-empty-text">{{ t('saves.empty') }}</span>
             </div>
@@ -353,6 +398,11 @@ async function handleLoadFromDisk() {
 }
 .vnsm-slot:hover              { background: #2e2e36; }
 .vnsm-slot--confirm           { background: #2a1f1f; }
+.vnsm-slot--auto              { background: rgba(74, 108, 247, 0.08); }
+.vnsm-auto                    { border-bottom: 1px solid var(--vnsm-border); }
+.vnsm-slot-label--auto        { display: flex; align-items: center; gap: 0.5rem; }
+.vnsm-slot-chapter            { font-size: 0.73rem; font-weight: 600; color: #93c5fd; }
+.vnsm-slot-preview            { font-size: 0.72rem; color: var(--vnsm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Thumbnail ── */
 .vnsm-thumb {

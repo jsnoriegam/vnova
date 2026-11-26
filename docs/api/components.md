@@ -101,6 +101,10 @@ Heads-up display component.
 - `showBacklog` — Show backlog button
 - `showCredits` — Show credits button
 
+The built-in HUD also renders **Auto** and **Skip** toggles. Their state comes
+from the injected runtime context, so they work with `VNovaRuntime` without
+extra props.
+
 ### Emits
 
 - `back` — Back button clicked
@@ -119,6 +123,28 @@ Settings modal component.
 ```vue
 <VNovaSettingsModal />
 ```
+
+## VNovaGalleryModal
+
+Meta-progress browser for CGs, endings, achievements and chapter select.
+Render it inside the `VNovaRuntime` slot to enable the **Gallery** button in
+`VNovaHud` and `VNovaTitleScreen`.
+
+```vue
+<VNovaGalleryModal />
+```
+
+### Props
+
+- `open` — Whether the modal is open (managed by the runtime)
+- `title` — Optional title override
+- `progressKey` — Progress namespace (defaults to the runtime's `progressKey`)
+- `gallery` — Definitions from `config.gallery`
+
+### Emits
+
+- `close` — Modal closed
+- `select-chapter` — A chapter was chosen (only used without a runtime context)
 
 ## VNovaSaveModal
 
@@ -148,8 +174,10 @@ Save/load modal component.
 
 - `close` — Modal closed
 - `saved` — Save completed
-- `loaded` — Load completed
+- `loaded` — Load completed (`slot` number or `'auto'`)
 - `deleted` — Save deleted
+
+The modal shows a dedicated autosave card above the manual slots when one exists.
 
 ## VNovaBacklogModal
 

@@ -20,6 +20,7 @@ import VNovaBacklogModal from './VNovaBacklogModal.vue'
 import VNovaBaseModal from './VNovaBaseModal.vue'
 import VNovaCreditsScreen from './VNovaCreditsScreen.vue'
 import VNovaHud from './VNovaHud.vue'
+import VNovaGalleryModal from './VNovaGalleryModal.vue'
 import VNovaSaveModal from './VNovaSaveModal.vue'
 import VNovaSettingsModal from './VNovaSettingsModal.vue'
 import VNovaStage from './VNovaStage.vue'
@@ -44,6 +45,7 @@ const BUILTIN_NAMES = {
   settings: ['VNovaSettingsModal'],
   save: ['VNovaSaveModal'],
   backlog: ['VNovaBacklogModal'],
+  gallery: ['VNovaGalleryModal'],
   credits: ['VNovaCreditsScreen'],
   modal: ['VNovaBaseModal'],
 }
@@ -173,7 +175,7 @@ export default defineComponent({
   },
   setup(props) {
     const slots = useSlots()
-    const builtInAudio = useVNovaAudio({ bgmVolume: 1, sfxVolume: 1 })
+    const builtInAudio = useVNovaAudio({ bgmVolume: 1, sfxVolume: 1, voiceVolume: 1 })
     const theme = useTheme()
     const particlesContainerId = `vnova-particles-${Math.random().toString(36).slice(2, 10)}`
 
@@ -192,11 +194,13 @@ export default defineComponent({
 
     const settingsOpen = ref(false)
     const backlogOpen = ref(false)
+    const galleryOpen = ref(false)
     const creditsOpen = ref(false)
     const saveOpen = ref(false)
     const saveMode = ref('save')
     const audioLog = ref('')
     const hasBacklogRenderer = ref(false)
+    const hasGalleryRenderer = ref(false)
     const hasCreditsRenderer = ref(false)
     const hasSettingsRenderer = ref(false)
     const hasSaveRenderer = ref(false)
@@ -257,6 +261,14 @@ export default defineComponent({
 
     const saveKey = computed(() => props.config?.saveKey || 'vnova')
     const slotCount = computed(() => Number(props.config?.slotCount ?? 8))
+    const progressKey = computed(() => props.config?.progressKey || props.config?.saveKey || 'vnova')
+    const galleryDefinitions = computed(() => isPlainObject(props.config?.gallery) ? props.config.gallery : {})
+    const galleryAvailable = computed(() => {
+      const gallery = galleryDefinitions.value
+      return ['cgs', 'endings', 'achievements', 'chapters']
+        .some((kind) => Array.isArray(gallery[kind]) && gallery[kind].length > 0)
+    })
+    const hasGallery = computed(() => hasGalleryRenderer.value && galleryAvailable.value)
     const uiModalRegistry = computed(() => {
       const fromConfig = isPlainObject(props.config?.ui?.modals) ? props.config.ui.modals : {}
       const fromProps = isPlainObject(props.modals) ? props.modals : {}
@@ -269,6 +281,7 @@ export default defineComponent({
 
     const bgmVolume = computed(() => Number(stageState.value?.settings?.bgmVolume ?? 0.5))
     const sfxVolume = computed(() => Number(stageState.value?.settings?.sfxVolume ?? 0.5))
+    const voiceVolume = computed(() => Number(stageState.value?.settings?.voiceVolume ?? 0.8))
     const typewriterSpeed = computed(() => Number(stageState.value?.settings?.typewriterSpeed ?? 30))
     const spacebarFastForward = computed(() => stageState.value?.settings?.spacebarFastForward ?? 'fullspeed')
     const textSize = computed(() => stageState.value?.settings?.textSize ?? 'medium')
@@ -301,6 +314,7 @@ export default defineComponent({
       const { resumeTypewriter = true } = options
       settingsOpen.value = false
       backlogOpen.value = false
+      galleryOpen.value = false
       creditsOpen.value = false
       saveOpen.value = false
       callStage('closeSave')
@@ -383,6 +397,33 @@ export default defineComponent({
       backlogOpen.value = true
     }
 
+    function handleOpenGallery() {
+      if (!hasGalleryRenderer.value) {
+        notifyMissingComponent('VNovaGalleryModal')
+        return
+      }
+      if (!galleryAvailable.value) return
+      closeAllModals({ resumeTypewriter: false })
+      galleryOpen.value = true
+    }
+
+    function handleCloseGallery() {
+      galleryOpen.value = false
+      callStage('resumeTypewriter')
+    }
+
+    function handleSelectChapter(chapter) {
+      if (!chapter || typeof chapter.label !== 'string' || chapter.label.length === 0) return false
+      closeAllModals({ resumeTypewriter: false })
+      galleryOpen.value = false
+      titleOpen.value = false
+      callStage('setAutoMode', false)
+      callStage('setSkipMode', false)
+      callStage('jump', chapter.label)
+      requestAnimationFrame(() => callStage('resumeTypewriter'))
+      return true
+    }
+
     function handleOpenCredits() {
       if (!hasCreditsRenderer.value) {
         notifyMissingComponent('VNovaCreditsScreen')
@@ -432,6 +473,10 @@ export default defineComponent({
       if (event?.type === 'sfx') {
         const track = event.track || 'none'
         audioLog.value = `SFX: ${track}`
+      }
+      if (event?.type === 'voice') {
+        const track = event.track || 'none'
+        audioLog.value = `VOICE: ${track}`
       }
 
       const forward = asFunction(props.config?.onAudio)
@@ -508,6 +553,12 @@ export default defineComponent({
         particles: props.particles,
         saveKey: saveKey.value,
         slotCount: slotCount.value,
+        autosave: props.config?.autosave,
+        autosaveDelay: props.config?.autosaveDelay,
+        autoDelay: props.config?.autoDelay,
+        readKey: props.config?.readKey,
+        progressKey: progressKey.value,
+        onUnlock: asFunction(props.config?.onUnlock),
         deferStart: titleOpen.value,
         ...(props.config?.stage || {}),
         onAudio: handleAudio,
@@ -525,11 +576,17 @@ export default defineComponent({
       history,
       audioLog,
       hasDeclarativeModal,
+      autoMode: computed(() => Boolean(maybeUnref(activeStage.value?.autoMode))),
+      skipMode: computed(() => Boolean(maybeUnref(activeStage.value?.skipMode))),
+      skipActive: computed(() => Boolean(maybeUnref(activeStage.value?.skipActive))),
+      currentLineRead: computed(() => Boolean(maybeUnref(activeStage.value?.currentLineRead))),
+      hasGallery,
       t: (key, params) => i18n.value.t(key, params),
       ui: {
         titleOpen,
         settingsOpen,
         backlogOpen,
+        galleryOpen,
         creditsOpen,
         saveOpen,
         saveMode,
@@ -547,10 +604,17 @@ export default defineComponent({
         openSave: handleOpenSave,
         openLoad: handleOpenLoad,
         openBacklog: handleOpenBacklog,
+        openGallery: handleOpenGallery,
+        closeGallery: handleCloseGallery,
+        selectChapter: handleSelectChapter,
         openCredits: handleOpenCredits,
         openSettings: handleOpenSettings,
         closeAllModals,
         setSetting: handleSetSetting,
+        toggleAuto: () => callStage('toggleAuto'),
+        toggleSkip: () => callStage('toggleSkip'),
+        setAutoMode: (enabled) => callStage('setAutoMode', enabled),
+        setSkipMode: (enabled) => callStage('setSkipMode', enabled),
       },
       registerStageApi(api) {
         customStageApi.value = api
@@ -795,6 +859,7 @@ export default defineComponent({
             visible: titleOpen.value && !loadingOpen.value,
             hasSave: hasSave.value,
             hasCredits: hasCreditsRenderer.value,
+            hasGallery: hasGallery.value,
             title: props.config?.title,
             subtitle: props.config?.subtitle,
             meta: props.config?.meta,
@@ -805,6 +870,7 @@ export default defineComponent({
             onOpenLoad: handleOpenLoad,
             onOpenSettings: handleOpenSettings,
             onOpenCredits: handleOpenCredits,
+            onOpenGallery: handleOpenGallery,
           },
         }),
       },
@@ -817,6 +883,7 @@ export default defineComponent({
             audioLog: audioLog.value,
             visible: !titleOpen.value && !loadingOpen.value,
             showBacklog: hasBacklogRenderer.value,
+            showGallery: hasGallery.value,
             showCredits: hasCreditsRenderer.value,
           },
           listeners: {
@@ -824,6 +891,7 @@ export default defineComponent({
             onOpenSave: handleOpenSave,
             onOpenLoad: handleOpenLoad,
             onOpenBacklog: handleOpenBacklog,
+            onOpenGallery: handleOpenGallery,
             onOpenCredits: handleOpenCredits,
             onOpenSettings: handleOpenSettings,
             onRestart: handleRestart,
@@ -839,6 +907,7 @@ export default defineComponent({
             open: settingsOpen.value,
             bgmVolume: bgmVolume.value,
             sfxVolume: sfxVolume.value,
+            voiceVolume: voiceVolume.value,
             typewriterSpeed: typewriterSpeed.value,
             spacebarFastForward: spacebarFastForward.value,
             textSize: textSize.value,
@@ -854,6 +923,7 @@ export default defineComponent({
             },
             'onUpdate:bgmVolume': (value) => handleSetSetting('bgmVolume', value),
             'onUpdate:sfxVolume': (value) => handleSetSetting('sfxVolume', value),
+            'onUpdate:voiceVolume': (value) => handleSetSetting('voiceVolume', value),
             'onUpdate:typewriterSpeed': (value) => handleSetSetting('typewriterSpeed', value),
             'onUpdate:spacebarFastForward': (value) => handleSetSetting('spacebarFastForward', value),
             'onUpdate:textSize': (value) => handleSetSetting('textSize', value),
@@ -891,6 +961,8 @@ export default defineComponent({
             onLoaded: () => {
               saveOpen.value = false
               titleOpen.value = false
+              callStage('setAutoMode', false)
+              callStage('setSkipMode', false)
               callStage('closeSave')
               callStage('resumeTypewriter')
             },
@@ -911,6 +983,21 @@ export default defineComponent({
               backlogOpen.value = false
               callStage('resumeTypewriter')
             },
+          },
+        }),
+      },
+      {
+        ref: VNovaGalleryModal,
+        names: BUILTIN_NAMES.gallery,
+        build: () => ({
+          props: {
+            open: galleryOpen.value,
+            title: typeof props.config?.gallery?.title === 'string' ? props.config.gallery.title : '',
+            gallery: galleryDefinitions.value,
+            progressKey: progressKey.value,
+          },
+          listeners: {
+            onClose: handleCloseGallery,
           },
         }),
       },
@@ -1079,6 +1166,7 @@ export default defineComponent({
     function scanRuntimeNodes(nodes) {
       const found = {
         backlog: false,
+        gallery: false,
         credits: false,
         settings: false,
         save: false,
@@ -1089,6 +1177,7 @@ export default defineComponent({
         if (!isVNode(vnode) || vnode.type === Comment) return
         if (isDeclarativeModal(vnode)) found.declarativeModal = true
         if (matchesComponent(vnode, VNovaBacklogModal, BUILTIN_NAMES.backlog)) found.backlog = true
+        if (matchesComponent(vnode, VNovaGalleryModal, BUILTIN_NAMES.gallery)) found.gallery = true
         if (matchesComponent(vnode, VNovaCreditsScreen, BUILTIN_NAMES.credits)) found.credits = true
         if (matchesComponent(vnode, VNovaSettingsModal, BUILTIN_NAMES.settings)) found.settings = true
         if (matchesComponent(vnode, VNovaSaveModal, BUILTIN_NAMES.save)) found.save = true
@@ -1105,6 +1194,7 @@ export default defineComponent({
       const nodes = slots.default ? slots.default() : []
       const found = scanRuntimeNodes(nodes)
       if (hasBacklogRenderer.value !== found.backlog) hasBacklogRenderer.value = found.backlog
+      if (hasGalleryRenderer.value !== found.gallery) hasGalleryRenderer.value = found.gallery
       if (hasCreditsRenderer.value !== found.credits) hasCreditsRenderer.value = found.credits
       if (hasSettingsRenderer.value !== found.settings) hasSettingsRenderer.value = found.settings
       if (hasSaveRenderer.value !== found.save) hasSaveRenderer.value = found.save

@@ -34,6 +34,66 @@ export default [
 
 See [Script DSL](/guide/script-dsl) for all available step types.
 
+### Logic without code
+
+Branching on variables no longer requires JavaScript:
+
+```js
+{ type: 'set', vars: { 'flags.foundKey': true }, inc: { 'stats.courage': 1 } }
+
+{
+  type: 'if',
+  condition: { var: 'flags.foundKey', eq: true },
+  then: [{ type: 'jump', target: 'secret-door' }],
+  else: [{ type: 'narrate', text: 'The door stays locked.' }],
+}
+
+{ type: 'once', id: 'first-visit', steps: [{ type: 'notify', text: 'Tip: press Space' }] }
+```
+
+Conditions also support `any`, `all`, `not`, numeric comparisons, `in`,
+`contains` and shorthand maps. See the
+[Script DSL conditions reference](/guide/script-dsl#conditions).
+
+### Voices and player comfort
+
+```js
+{ type: 'say', character: 'hana', text: 'We have one chance.', voice: 'hana-01' }
+```
+
+- Register voice files under `assets.voices`.
+- `voice` also accepts a direct URL. `voiceVolume` adjusts a single line.
+- The built-in player ducks the music while a voice plays and auto mode waits
+  for the line to finish.
+- Players can toggle **Auto** (A) and **Skip** (S or holding Ctrl) from the
+  keyboard or the HUD. Skip stops automatically at unread lines, choices and
+  other input prompts.
+- Read progress is stored outside save slots and shared across playthroughs.
+
+### Meta-progress and gallery
+
+Record unlocks directly in the script:
+
+```js
+{ type: 'unlock', cg: 'cg-01' }
+{ type: 'unlock', ending: 'true-end', achievement: 'first-choice' }
+{ type: 'unlock', chapter: 'chapter-2' }
+```
+
+Then describe what the gallery shows in `config.gallery`:
+
+```js
+gallery: {
+  cgs: [{ id: 'cg-01', title: 'Rooftop', src: '/assets/cg/rooftop.jpg' }],
+  endings: [{ id: 'true-end', title: 'True Ending', description: '...' }],
+  achievements: [{ id: 'first-choice', title: 'First Step', description: '...' }],
+  chapters: [{ id: 'chapter-2', title: 'Chapter 2', label: 'chapter-2' }],
+}
+```
+
+Add `<VNovaGalleryModal />` to the runtime slot. The HUD and title screen then
+show a **Gallery** button. Unlocked chapters jump to their `label`.
+
 ### assets.js
 
 Define all your assets in one place:
@@ -51,6 +111,10 @@ export default {
   sounds: {
     click: '/assets/sfx/click.ogg',
     door: '/assets/sfx/door.ogg',
+  },
+  voices: {
+    'hana-01': '/assets/voices/hana-01.ogg',
+    'kenji-01': '/assets/voices/kenji-01.ogg',
   },
   images: {
     overlay: '/assets/images/overlay.png',

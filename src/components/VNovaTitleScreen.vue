@@ -10,13 +10,14 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   hasSave: { type: Boolean, default: false },
   hasCredits: { type: Boolean, default: false },
+  hasGallery: { type: Boolean, default: false },
   title: { type: String, default: 'VNOVA ENGINE' },
   subtitle: { type: String, default: 'Vuex-powered visual novel framework' },
   meta: { type: String, default: '' },
   background: { type: String, default: '' },
 })
 
-const emit = defineEmits(['new-game', 'open-load', 'open-settings', 'open-credits'])
+const emit = defineEmits(['new-game', 'open-load', 'open-settings', 'open-credits', 'open-gallery'])
 
 const titleBgStyle = computed(() => {
   if (!props.background) return {}
@@ -49,6 +50,7 @@ const titleBgStyle = computed(() => {
         <div class="menu-actions">
           <button class="menu-btn primary" @click="emit('new-game')">{{ t('titleScreen.newGame') }}</button>
           <button class="menu-btn secondary" @click="emit('open-load')">{{ t('titleScreen.loadGame') }}</button>
+          <button v-if="props.hasGallery" class="menu-btn secondary" @click="emit('open-gallery')">{{ t('titleScreen.gallery') }}</button>
           <button v-if="props.hasCredits" class="menu-btn secondary" @click="emit('open-credits')">{{ t('titleScreen.credits') }}</button>
           <button class="menu-btn secondary" @click="emit('open-settings')">{{ t('titleScreen.settings') }}</button>
         </div>

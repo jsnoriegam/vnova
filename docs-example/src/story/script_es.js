@@ -51,6 +51,7 @@ export default [
           { label: 'Modo observador silencioso', value: 'silent', inc: { trust: 0, risk: -1 } },
         ],
       },
+      { type: 'unlock', chapter: 'chapter-1', achievement: 'first-contact' },
       { type: 'narrate', text: 'Operadora {{player.name}} en línea. Perfil de comunicación: {{player.commMode}}.' },
 
       {
@@ -89,6 +90,7 @@ export default [
     type: 'label',
     id: 'route-steady',
     steps: [
+      { type: 'unlock', cg: 'cg-canals' },
       {
         type: 'notify',
         status: 'success',
@@ -106,6 +108,7 @@ export default [
     type: 'label',
     id: 'route-risky',
     steps: [
+      { type: 'unlock', cg: 'cg-relay' },
       {
         type: 'notify',
         status: 'error',
@@ -130,6 +133,7 @@ export default [
     type: 'label',
     id: 'route-analyst',
     steps: [
+      { type: 'unlock', cg: 'cg-observatory', achievement: 'pattern-seeker' },
       { type: 'image', id: 'diagnostic-overlay', transition: 'dissolve', fit: 'both' },
       { type: 'effect', name: 'pulse', target: 'image', duration: 1000, config: { cycles: 2, opacity: 0.6 }, wait: true },
       {
@@ -150,6 +154,7 @@ export default [
     type: 'label',
     id: 'checkpoint',
     steps: [
+      { type: 'unlock', chapter: 'chapter-2', achievement: 'above-noise' },
       {
         type: 'call',
         fn: () => {
@@ -180,6 +185,7 @@ export default [
     type: 'label',
     id: 'ending-open',
     steps: [
+      { type: 'unlock', ending: 'ending-open' },
       { type: 'say', character: 'hana', text: 'No más secretos. Transmitimos todo.' },
       {
         type: 'notify',
@@ -198,6 +204,7 @@ export default [
     type: 'label',
     id: 'ending-shield',
     steps: [
+      { type: 'unlock', ending: 'ending-shield' },
       { type: 'say', character: 'hana', text: 'Mantenemos las identidades selladas. Datos afuera, nombres protegidos.' },
       {
         type: 'notify',
@@ -215,6 +222,7 @@ export default [
     type: 'label',
     id: 'epilogue',
     steps: [
+      { type: 'unlock', cg: 'cg-dawn' },
       { type: 'hide', particles: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
       { type: 'narrate', text: 'Al amanecer, la ciudad es [b]diferente[/b]. No [i]curada[/i], pero [color=#98c379]despierta[/color].' },

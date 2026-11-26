@@ -6,6 +6,7 @@ import {
   VNovaSaveModal,
   VNovaSettingsModal,
   VNovaBacklogModal,
+  VNovaGalleryModal,
   VNovaCreditsScreen,
   VNovaHud,
   VNovaTopHud,
@@ -38,6 +39,7 @@ import config from './story/config.js'
     <OperatorStoragePanel />
     <VNovaCreditsScreen />
     <VNovaBacklogModal />
+    <VNovaGalleryModal />
     <VNovaSettingsModal />
     <VNovaSaveModal />
   </VNovaRuntime>

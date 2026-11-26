@@ -20,7 +20,12 @@ Complete reference for all script step types in vnova-engine.
 | `input` | Capture text input |
 | `select` | Select from options |
 | `modal` | Custom modal component |
-| `jump` | Unconditional jump |
+| `jump` | Unconditional (or conditional) jump |
+| `set` | Assign / increment / delete variables |
+| `if` | Conditional `then` / `else` block |
+| `once` | Block executed once per save |
+| `random` | Weighted random branch |
+| `unlock` | Record CG / ending / achievement / chapter progress |
 | `bgm` | Play background music |
 | `sfx` | Play sound effect |
 | `video` | Play video track |
@@ -40,11 +45,54 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | ModalStep | InputStep | SelectStep | JumpStep
+  | SetStep    | IfStep    | OnceStep   | RandomStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
+  | UnlockStep
   | EndStep   | CallStep
 ```
 
 ## Common Properties
+
+### Declarative conditions
+
+`if`, conditional `jump`, `choice.condition` and `choice.disabled` accept
+booleans, functions or condition objects:
+
+```js
+{ var: 'stats.courage', gte: 3 }
+{ all: [{ var: 'flags.metHana', eq: true }, { var: 'stats.courage', gt: 1 }] }
+{ 'flags.metHana': true }   // shorthand AND map
+```
+
+See [Script DSL — Conditions](/guide/script-dsl#conditions) for the full
+operator list.
+
+### Meta-progress unlocks
+
+```js
+{ type: 'unlock', cg: 'cg-01' }
+{ type: 'unlock', cgs: ['cg-02', 'cg-03'], achievement: 'explorer' }
+{ type: 'unlock', ending: 'true-end' }
+{ type: 'unlock', chapter: 'chapter-2' }
+{ type: 'unlock', kind: 'achievement', id: 'speedrun' }
+{ type: 'unlock', targets: [{ kind: 'cg', id: 'cg-04' }] }
+```
+
+The engine emits `onUnlock({ kind, id })` for each target. `VNovaRuntime`
+persists them through `useVNovaProgress()` under `progressKey`.
+
+### Voice lines
+
+Dialogue steps accept an optional voice:
+
+```js
+{ type: 'say', character: 'hana', text: 'Hello.', voice: 'hana-01' }
+{ type: 'think', character: 'hana', text: '...', voice: 'hana-02' }
+{ type: 'narrate', text: '...', voice: '/assets/voices/narrator-01.ogg' }
+```
+
+`voice` can be a key from `assets.voices` or a direct URL. `voiceVolume`
+multiplies the line volume before the global voice setting is applied.
 
 ### Text Interpolation
 

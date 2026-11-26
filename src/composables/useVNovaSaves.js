@@ -18,14 +18,16 @@ const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 const HAS_GZIP_STREAMS =
   typeof CompressionStream === 'function' &&
-  typeof DecompressionStream === 'function'
+  typeof DecompressionStream === 'function' &&
+  typeof Blob === 'function' &&
+  typeof Blob.prototype.stream === 'function'
 
 // Deriving the HMAC key (SHA-256 + importKey) is relatively expensive and it is
 // deterministic per saveKey/version/origin, so cache the imported CryptoKey.
 const _hmacKeyCache = new Map()
 
 function storageKey(saveKey, slot) {
-  return `${saveKey}:slot:${slot}`
+  return slot === 'auto' ? `${saveKey}:auto` : `${saveKey}:slot:${slot}`
 }
 
 function _toBase64(bytes) {
@@ -185,7 +187,11 @@ function _readFileText(file) {
   return file.arrayBuffer().then((buffer) => textDecoder.decode(buffer))
 }
 
-function buildPayload(store, thumbnail = null) {
+function buildPayload(store, thumbnail = null, engine = null) {
+  const anchor = typeof engine?.getSaveAnchor === 'function'
+    ? engine.getSaveAnchor(store.cursor)
+    : null
+
   return {
     version:   VERSION,
     savedAt:   Date.now(),
@@ -193,6 +199,8 @@ function buildPayload(store, thumbnail = null) {
     snapshot: {
       cursor:         store.cursor,
       current:        store.current,
+      anchor,
+      lastLabel:      store.lastLabel ?? null,
       stage:          store.stage,
       background:     store.background,
       image:          store.image,
@@ -287,8 +295,12 @@ async function captureThumbnail(stageEl) {
 // Apply a loaded snapshot to the store and re-sync side-effectful layers
 // (BGM/video) that are not covered by the snapshot itself.
 function applyLoadedSnapshot(store, snapshot) {
-  store.loadSnapshot(snapshot)
   const engine = getActiveEngineHandle()
+  const prepared = typeof engine?.resolveSaveSnapshot === 'function'
+    ? engine.resolveSaveSnapshot(snapshot)
+    : snapshot
+
+  store.loadSnapshot(prepared)
   if (typeof engine?.syncRuntimeState === 'function') engine.syncRuntimeState()
 }
 
@@ -296,14 +308,22 @@ async function readSlotMeta(saveKey, slot) {
   try {
     const data = await _readSaveFromStorage({ saveKey, slot })
     if (!data) return null
+
+    const snapshot = data.snapshot ?? {}
+    const current = snapshot.current
+    const preview = current?.text ?? current?.prompt ?? current?.title ?? null
+
     return {
       slot,
-      label:         `Slot ${slot}`,
+      kind:          slot === 'auto' ? 'auto' : 'slot',
+      label:         slot === 'auto' ? null : `Slot ${slot}`,
+      chapter:       snapshot.anchor?.label ?? snapshot.lastLabel ?? null,
+      preview:       typeof preview === 'string' ? preview.slice(0, 90) : null,
       savedAt:       data.savedAt ?? null,
       formattedDate: formatDate(data.savedAt),
       thumbnail:     data.thumbnail ?? null,
-      bgColor:       data.snapshot?.background?.color ?? null,
-      bgSrc:         data.snapshot?.background?.src   ?? null,
+      bgColor:       snapshot.background?.color ?? null,
+      bgSrc:         snapshot.background?.src   ?? null,
     }
   } catch {
     return null
@@ -333,6 +353,7 @@ export function useVNovaSaves(options = {}) {
   // Plain array ref — no readonly wrapper, no computed on top
   const lastFileError = ref(null)
   const slots = ref(Array.from({ length: slotCount }, () => null))
+  const autoSlot = ref(null)
 
   function _setFileError(code, message) {
     lastFileError.value = { code, message }
@@ -346,34 +367,53 @@ export function useVNovaSaves(options = {}) {
     slots.value[slot - 1] = await readSlotMeta(saveKey, slot)
   }
 
+  async function _refreshAuto() {
+    autoSlot.value = await readSlotMeta(saveKey, 'auto')
+  }
+
   async function _refreshAll() {
-    const next = await Promise.all(
-      Array.from({ length: slotCount }, (_, i) => readSlotMeta(saveKey, i + 1))
-    )
+    const [next, auto] = await Promise.all([
+      Promise.all(
+        Array.from({ length: slotCount }, (_, i) => readSlotMeta(saveKey, i + 1))
+      ),
+      readSlotMeta(saveKey, 'auto'),
+    ])
     slots.value = next
+    autoSlot.value = auto
   }
 
   // ── save ─────────────────────────────────────────────────────────────────
   const saving = ref(false)
-  const hasSave = computed(() => slots.value.some(Boolean))
+  const autosaving = ref(false)
+  let autoQueued = false
+  const hasAuto = computed(() => Boolean(autoSlot.value))
+  const hasSave = computed(() => slots.value.some(Boolean) || hasAuto.value)
   void _refreshAll()
+
+  async function _writeSlot(slot, options = {}) {
+    const store = resolveStore()
+    if (!store) return false
+    const engine = getActiveEngineHandle()
+    const thumbnail = options.thumbnail === false
+      ? null
+      : await captureThumbnail(resolveStageElement(stageRef))
+    const payload = buildPayload(store, thumbnail, engine)
+    const packed = await _packSignedFile({
+      kind: 'save',
+      saveKey,
+      data: payload,
+    })
+    localStorage.setItem(storageKey(saveKey, slot), packed)
+    return true
+  }
 
   async function saveSlot(slot) {
     if (saving.value) return false
     saving.value = true
     try {
-      const store = resolveStore()
-      if (!store) return false
-      const thumbnail = await captureThumbnail(resolveStageElement(stageRef))
-      const payload   = buildPayload(store, thumbnail)
-      const packed = await _packSignedFile({
-        kind: 'save',
-        saveKey,
-        data: payload,
-      })
-      localStorage.setItem(storageKey(saveKey, slot), packed)
-      await _refreshSlot(slot)
-      return true
+      const ok = await _writeSlot(slot)
+      if (ok) await _refreshSlot(slot)
+      return ok
     } catch (e) {
       console.warn('[vnova] saveSlot failed:', e)
       return false
@@ -382,8 +422,30 @@ export function useVNovaSaves(options = {}) {
     }
   }
 
+  async function saveAuto() {
+    if (autosaving.value) {
+      autoQueued = true
+      return false
+    }
+    autosaving.value = true
+    try {
+      const ok = await _writeSlot('auto', { thumbnail: false })
+      if (ok) await _refreshAuto()
+      return ok
+    } catch (e) {
+      console.warn('[vnova] saveAuto failed:', e)
+      return false
+    } finally {
+      autosaving.value = false
+      if (autoQueued) {
+        autoQueued = false
+        void saveAuto()
+      }
+    }
+  }
+
   // ── load ──────────────────────────────────────────────────────────────────
-  async function loadSlot(slot) {
+  async function _loadSlot(slot) {
     try {
       const store = resolveStore()
       if (!store) return false
@@ -400,15 +462,29 @@ export function useVNovaSaves(options = {}) {
     }
   }
 
+  function loadSlot(slot) {
+    return _loadSlot(slot)
+  }
+
+  function loadAuto() {
+    return _loadSlot('auto')
+  }
+
   // ── delete ────────────────────────────────────────────────────────────────
   function deleteSlot(slot) {
     localStorage.removeItem(storageKey(saveKey, slot))
     void _refreshSlot(slot)
   }
 
+  function deleteAuto() {
+    localStorage.removeItem(storageKey(saveKey, 'auto'))
+    autoSlot.value = null
+  }
+
   function clearAll() {
     for (let i = 1; i <= slotCount; i++)
       localStorage.removeItem(storageKey(saveKey, i))
+    localStorage.removeItem(storageKey(saveKey, 'auto'))
     void _refreshAll()
   }
 
@@ -423,10 +499,14 @@ export function useVNovaSaves(options = {}) {
           if (data) allSlots[i] = data
         } catch {}
       }
+      let auto = null
+      try {
+        auto = await _readSaveFromStorage({ saveKey, slot: 'auto' })
+      } catch {}
       const content = await _packSignedFile({
         kind: 'bundle',
         saveKey,
-        data: { saveKey, version: VERSION, slots: allSlots },
+        data: { saveKey, version: VERSION, slots: allSlots, auto },
       })
       const blob = new Blob([content], { type: 'application/octet-stream' })
       const url = URL.createObjectURL(blob)
@@ -466,6 +546,14 @@ export function useVNovaSaves(options = {}) {
               })
               localStorage.setItem(storageKey(saveKey, slot), packed)
             }
+            if (data?.auto?.snapshot) {
+              const packedAuto = await _packSignedFile({
+                kind: 'save',
+                saveKey,
+                data: data.auto,
+              })
+              localStorage.setItem(storageKey(saveKey, 'auto'), packedAuto)
+            }
             await _refreshAll()
             _clearFileError()
             resolve(true)
@@ -500,7 +588,7 @@ export function useVNovaSaves(options = {}) {
       const content = await _packSignedFile({
         kind: 'save',
         saveKey,
-        data: buildPayload(store, thumbnail),
+        data: buildPayload(store, thumbnail, getActiveEngineHandle()),
       })
       if (window.showSaveFilePicker) {
         try {
@@ -573,11 +661,17 @@ export function useVNovaSaves(options = {}) {
 
   return {
     slots,
+    autoSlot,
     hasSave,
+    hasAuto,
     saving,
+    autosaving,
     saveSlot,
+    saveAuto,
     loadSlot,
+    loadAuto,
     deleteSlot,
+    deleteAuto,
     clearAll,
     exportSaves,
     importSaves,

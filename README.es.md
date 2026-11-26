@@ -53,8 +53,13 @@ Si vnova te resulta útil, invítame a un café — ayuda a que el proyecto siga
   `VNovaSaveModal`, `VNovaBacklogModal`, `VNovaCreditsScreen`, `VNovaBaseModal`.
 - **Composables**: `useVNovaEngine`, `useUserStorage`, `useEngine`,
   `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`, `useTheme`.
-- **Guardado firmado**: slots en `localStorage`, export/import a archivo,
-  guardar/cargar a disco.
+- **Guardado firmado**: slots en `localStorage`, autoguardado, export/import a archivo,
+  guardar/cargar a disco. Las partidas se anclan a etiquetas del guion, así que
+  sobreviven a cambios anteriores al punto guardado (por ejemplo, un nuevo prólogo).
+- **Modo Auto, salto de texto leído y voces**, con progreso de lectura persistente
+  y un canal de voz que baja el volumen del BGM.
+- **Meta-progreso y galería**: desbloquea CGs, finales, logros y capítulos entre
+  partidas con un modal de galería y chapter select incluidos.
 - **Temas**: 5 temas incluidos (`default`, `dark`, `light`, `ocean`, `forest`)
   y temas custom con variables CSS.
 - **Multi-idioma**: guion por idioma y textos de UI traducibles con paquetes de
@@ -182,6 +187,10 @@ export default {
   subtitle: 'Una historia interactiva',
   saveKey: 'mi-novela-v1',
   slotCount: 8,
+  autosave: true,                      // guarda al entrar en cada etiqueta
+  autosaveDelay: 600,                  // debounce en ms
+  autoDelay: 1200,                     // retardo base del modo Auto
+  readKey: 'mi-novela-v1',             // espacio de progreso de lectura
   startLabel: 'start',
   defaultLanguage: 'es',
   preload: true,                       // precarga assets y muestra la pantalla de carga
@@ -207,8 +216,9 @@ export default {
 Tipos de paso soportados:
 
 `label` · `scene` · `image` · `show` · `hide` · `stop` · `effect` · `say` ·
-`think` · `narrate` · `choice` · `input` · `select` · `modal` · `jump` · `bgm` ·
-`sfx` · `video` · `particles` · `notify` · `wait` · `call` · `end`
+`think` · `narrate` · `choice` · `input` · `select` · `modal` · `jump` · `set` ·
+`if` · `once` · `random` · `bgm` · `sfx` · `video` · `particles` · `notify` ·
+`wait` · `call` · `end`
 
 Mini ejemplo:
 
@@ -233,6 +243,54 @@ export default [
 ```
 
 La **interpolación** funciona en los textos: `'Hola {{ player.name }}'`.
+
+### Lógica declarativa
+
+Las ramas y los cambios de estado ya no requieren JavaScript:
+
+```js
+// Asignar, incrementar o borrar variables (rutas con puntos)
+{ type: 'set', vars: { 'flags.conocioAHana': true }, inc: { 'stats.valor': 1 } }
+{ type: 'set', unset: ['temporal.eleccion'] }
+
+// Bloques condicionales
+{
+  type: 'if',
+  condition: { var: 'stats.valor', gte: 3 },
+  then: [{ type: 'say', text: 'Das un paso al frente.' }],
+  else: [{ type: 'say', text: 'Dudas.' }],
+}
+
+// Salto condicional
+{ type: 'jump', target: 'ruta-valiente', if: { var: 'flags.conocioAHana', eq: true } }
+
+// Ejecutar un bloque solo la primera vez en esta partida
+{ type: 'once', id: 'pista-inicial', steps: [{ type: 'notify', text: 'Consejo: pulsa Espacio' }] }
+
+// Rama aleatoria con pesos
+{
+  type: 'random',
+  options: [
+    { weight: 3, steps: [{ type: 'say', text: 'Un día tranquilo.' }] },
+    { weight: 1, steps: [{ type: 'say', text: 'Estalla una tormenta.' }] },
+  ],
+}
+```
+
+Las condiciones aceptan `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`,
+`contains`, `matches`, `exists`, `truthy` y `falsy`, además de `all`, `any` y
+`not`. Los mapas abreviados como `{ 'flags.conocioAHana': true }` se combinan
+con AND. Los mismos objetos funcionan en las opciones de `choice`:
+
+```js
+{
+  type: 'choice',
+  options: [
+    { label: 'Abrir la puerta', condition: { var: 'llaves.puerta', eq: true } },
+    { label: 'Forzarla', disabled: { var: 'stats.fuerza', lt: 5 }, disabledText: 'Demasiado débil' },
+  ],
+}
+```
 
 ### Otros steps útiles
 
@@ -391,6 +449,70 @@ const config = {
   audioPlayer: false, // desactiva el player interno si usas onAudio
 }
 ```
+
+---
+
+### Voces
+
+Registra las voces en `assets.voices` y referéncialas desde el diálogo:
+
+```js
+// story/assets.js
+export default {
+  voices: {
+    'hana-01': '/assets/voices/hana-01.ogg',
+    'kenji-01': '/assets/voices/kenji-01.ogg',
+  },
+}
+
+// story/script.js
+{ type: 'say', character: 'hana', text: 'Tenemos una oportunidad.', voice: 'hana-01' }
+{ type: 'say', character: 'kenji', text: 'Copiado.', voice: '/assets/voices/kenji-01.ogg', voiceVolume: 0.9 }
+```
+
+- `voice` acepta una clave de `assets.voices` o una URL directa.
+- El player interno corta la voz anterior, baja el BGM mientras habla y muestra un deslizador de **Volumen de Voces** en Ajustes.
+- El modo Auto espera a que termine la voz antes de avanzar.
+- `think` y `narrate` también aceptan `voice` y `voiceVolume`.
+
+### Modo Auto y Saltar
+
+- Pulsa **A** para activar/desactivar Auto, **S** para Saltar, o mantén **Ctrl** para saltar mientras esté pulsado. **Esc** detiene ambos.
+- Los mismos controles aparecen como botones **Auto** y **Saltar** en `VNovaHud`.
+- Auto avanza cuando terminan el typewriter (y la voz, si existe). El retardo crece con la longitud del texto y parte de `autoDelay` (por defecto `1200` ms).
+- Saltar solo avanza por líneas ya leídas. Se detiene en texto nuevo, elecciones, inputs y modales.
+- El progreso de lectura se guarda aparte de los slots y se comparte entre partidas. Usa `readKey` para separarlo (por defecto usa `saveKey`).
+- `useVNovaReadTracker()` expone `isRead()`, `markRead()`, `reset()` y `readCount` para UIs propias.
+
+### Meta-progreso y galería
+
+Desbloquea extras de forma declarativa:
+
+```js
+{ type: 'unlock', cg: 'cg-01' }
+{ type: 'unlock', ending: 'true-end', achievement: 'first-choice' }
+{ type: 'unlock', chapter: 'chapter-2' }
+{ type: 'unlock', targets: [{ kind: 'achievement', id: 'speedrun' }] }
+```
+
+Define lo que muestra la galería en `config.gallery`:
+
+```js
+gallery: {
+  cgs:   [{ id: 'cg-01', title: 'Azotea', src: '/assets/cg/rooftop.jpg' }],
+  endings: [{ id: 'true-end', title: 'Final Verdadero', description: '...' }],
+  achievements: [{ id: 'first-choice', title: 'Primer Paso', description: '...' }],
+  chapters: [{ id: 'chapter-2', title: 'Capítulo 2', label: 'chapter-2' }],
+}
+```
+
+- El progreso se guarda aparte de los slots y se comparte entre partidas.
+- `progressKey` lo separa por historia (por defecto usa `readKey`/`saveKey`).
+- Añade `<VNovaGalleryModal />` al slot de `VNovaRuntime` para activar el botón
+  **Galería** en el HUD y en la pantalla de título.
+- Los capítulos desbloqueados saltan a su `label`; es un chapter select simple.
+- `useVNovaProgress(key)` expone `has()`, `unlock()`, `unlockMany()`, `reset()`
+  y `state`/`counts` reactivos para UIs propias.
 
 ---
 

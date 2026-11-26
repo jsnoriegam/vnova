@@ -55,7 +55,13 @@ Don't feel like installing anything? Check out the
   `VNovaSaveModal`, `VNovaBacklogModal`, `VNovaCreditsScreen`, `VNovaBaseModal`.
 - **Composables**: `useVNovaEngine`, `useUserStorage`, `useEngine`,
   `useQuestEngine`, `useVNovaAudio`, `useVNovaSaves`, `useTheme`.
-- **Signed saves**: `localStorage` slots, file export/import, save/load to disk.
+- **Signed saves**: `localStorage` slots, autosave, file export/import, save/load to disk.
+  Saves are anchored to script labels, so they survive edits before the saved point
+  (for example, adding a new prologue).
+- **Auto mode, skip read text and voice lines**, with persisted read progress and
+  a voice channel that ducks BGM.
+- **Meta-progress and gallery**: unlock CGs, endings, achievements and chapters
+  across playthroughs with a ready-made gallery modal and chapter select.
 - **Themes**: 5 built-in themes (`default`, `dark`, `light`, `ocean`, `forest`)
   plus custom themes via CSS variables.
 - **Multi-language**: per-language scripts and translatable UI strings with
@@ -183,6 +189,10 @@ export default {
   subtitle: 'An interactive story',
   saveKey: 'my-novel-v1',
   slotCount: 8,
+  autosave: true,                      // save automatically on every label
+  autosaveDelay: 600,                  // debounce in ms
+  autoDelay: 1200,                     // auto-mode base delay after text
+  readKey: 'my-novel-v1',              // read/skip progress namespace
   startLabel: 'start',
   defaultLanguage: 'en',
   preload: true,                       // preload assets and show the loading screen
@@ -208,8 +218,9 @@ export default {
 Supported step types:
 
 `label` · `scene` · `image` · `show` · `hide` · `stop` · `effect` · `say` ·
-`think` · `narrate` · `choice` · `input` · `select` · `modal` · `jump` · `bgm` ·
-`sfx` · `video` · `particles` · `notify` · `wait` · `call` · `end`
+`think` · `narrate` · `choice` · `input` · `select` · `modal` · `jump` · `set` ·
+`if` · `once` · `random` · `bgm` · `sfx` · `video` · `particles` · `notify` ·
+`wait` · `call` · `end`
 
 Mini example:
 
@@ -234,6 +245,54 @@ export default [
 ```
 
 **Interpolation** works inside text: `'Hello {{ player.name }}'`.
+
+### Declarative logic
+
+Branching and state changes no longer require JavaScript:
+
+```js
+// Assign, increment or delete variables (dot paths supported)
+{ type: 'set', vars: { 'flags.metHana': true }, inc: { 'stats.courage': 1 } }
+{ type: 'set', unset: ['temporary.choice'] }
+
+// Conditional blocks
+{
+  type: 'if',
+  condition: { var: 'stats.courage', gte: 3 },
+  then: [{ type: 'say', text: 'You step forward.' }],
+  else: [{ type: 'say', text: 'You hesitate.' }],
+}
+
+// Conditional jump
+{ type: 'jump', target: 'brave-route', if: { var: 'flags.metHana', eq: true } }
+
+// Run a block only the first time this save reaches it
+{ type: 'once', id: 'first-hint', steps: [{ type: 'notify', text: 'Tip: press Space' }] }
+
+// Weighted random branch
+{
+  type: 'random',
+  options: [
+    { weight: 3, steps: [{ type: 'say', text: 'A calm day.' }] },
+    { weight: 1, steps: [{ type: 'say', text: 'A storm breaks.' }] },
+  ],
+}
+```
+
+Conditions accept `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`,
+`contains`, `matches`, `exists`, `truthy` and `falsy`, plus `all`, `any` and
+`not`. Shorthand maps such as `{ 'flags.metHana': true }` are combined with AND.
+The same objects work in `choice` options:
+
+```js
+{
+  type: 'choice',
+  options: [
+    { label: 'Open the door', condition: { var: 'keys.door', eq: true } },
+    { label: 'Force it', disabled: { var: 'stats.strength', lt: 5 }, disabledText: 'Too weak' },
+  ],
+}
+```
 
 ### Other useful steps
 
@@ -392,6 +451,68 @@ const config = {
   audioPlayer: false, // disable the internal player if you use onAudio
 }
 ```
+
+### Voice lines
+
+Register voices in `assets.voices` and reference them from dialogue:
+
+```js
+// story/assets.js
+export default {
+  voices: {
+    'hana-01': '/assets/voices/hana-01.ogg',
+    'kenji-01': '/assets/voices/kenji-01.ogg',
+  },
+}
+
+// story/script.js
+{ type: 'say', character: 'hana', text: 'We have one chance.', voice: 'hana-01' }
+{ type: 'say', character: 'kenji', text: 'Copy that.', voice: '/assets/voices/kenji-01.ogg', voiceVolume: 0.9 }
+```
+
+- `voice` accepts an `assets.voices` key or a direct URL.
+- The internal player stops the previous line, ducks BGM while speaking and exposes a **Voice Volume** slider in Settings.
+- Auto mode waits for the voice line to finish before advancing.
+- `think` and `narrate` also accept `voice` and `voiceVolume`.
+
+### Auto mode and skip
+
+- Press **A** to toggle auto mode, **S** to toggle skip, or hold **Ctrl** to skip while held. **Esc** stops both.
+- The same controls are available as **Auto** and **Skip** buttons in `VNovaHud`.
+- Auto advances when the typewriter (and voice, if any) finishes. The delay grows with text length and starts at `autoDelay` (default `1200` ms).
+- Skip only advances through lines you have already read. It stops at unread text, choices, inputs and modals.
+- Read progress is stored separately from save slots and shared across playthroughs. Use `readKey` to namespace it (defaults to `saveKey`).
+- `useVNovaReadTracker()` exposes `isRead()`, `markRead()`, `reset()` and `readCount` for custom UIs.
+
+### Meta-progress and gallery
+
+Unlock extras declaratively:
+
+```js
+{ type: 'unlock', cg: 'cg-01' }
+{ type: 'unlock', ending: 'true-end', achievement: 'first-choice' }
+{ type: 'unlock', chapter: 'chapter-2' }
+{ type: 'unlock', targets: [{ kind: 'achievement', id: 'speedrun' }] }
+```
+
+Define what the gallery shows in `config.gallery`:
+
+```js
+gallery: {
+  cgs:   [{ id: 'cg-01', title: 'Rooftop', src: '/assets/cg/rooftop.jpg' }],
+  endings: [{ id: 'true-end', title: 'True Ending', description: '...' }],
+  achievements: [{ id: 'first-choice', title: 'First Step', description: '...' }],
+  chapters: [{ id: 'chapter-2', title: 'Chapter 2', label: 'chapter-2' }],
+}
+```
+
+- Progress is stored separately from save slots and shared across playthroughs.
+- `progressKey` namespaces it (defaults to `readKey`/`saveKey`).
+- Add `<VNovaGalleryModal />` to the `VNovaRuntime` slot to enable the
+  **Gallery** button in the HUD and title screen.
+- Unlocked chapters jump to their `label`; this is a simple chapter select.
+- `useVNovaProgress(key)` exposes `has()`, `unlock()`, `unlockMany()`, `reset()`
+  and reactive `state`/`counts` for custom UIs.
 
 ---
 

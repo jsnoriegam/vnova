@@ -6,6 +6,11 @@ import { PARTICLE_PRESETS } from './particles.js'
 import { cloneDeep } from '../utils/clone.js'
 import { isPlainObject } from '../utils/predicates.js'
 import { normalizeAssetUrl } from '../utils/normalize.js'
+import { compileScript, SYNTHETIC_LABEL_PREFIX } from './compiler.js'
+import { evaluateCondition } from './conditions.js'
+import { collectUnlockTargets } from './unlocks.js'
+
+export { expandNestedLabels } from './compiler.js'
 
 /**
  * vnova-engine — core/engine.js
@@ -23,15 +28,22 @@ import { normalizeAssetUrl } from '../utils/normalize.js'
  *   say        — dialogue line attributed to a character or narrator
  *   think      — inner monologue line, rendered like dialogue but stylable
  *   narrate    — unattributed narration (no nameplate)
+ *                say/think/narrate accept `voice` (asset id or URL) and
+ *                `voiceVolume`; the engine emits a `voice` audio event.
  *   choice     — branch: presents options, each with a label + jump target
  *   input      — capture a text value and store it in vars (supports dotted paths)
  *   select     — choose one option and store its value in vars (supports dotted paths)
- *   jump       — unconditional jump to a label
+ *   set        — assign / increment / delete variables (declarative)
+ *   if         — conditional block with then/else branches
+ *   once       — block executed only once per save (guarded by id)
+ *   random     — pick a weighted random branch
+ *   jump       — unconditional (or conditionally guarded) jump to a label
  *   bgm        — play background music
  *   sfx        — play a sound effect (stub)
  *   video      — play a video track (host app controlled)
  *   particles  — play particle effects
  *   notify     — push a UI notification event (host app controlled)
+ *   unlock     — record meta-progress (CG, ending, achievement, chapter)
  *   modal      — render a custom modal component by id (optional options behave like choice)
  *   wait       — pause for N milliseconds before auto-advancing
  *   end        — stop the current session and return control to the initial menu
@@ -73,7 +85,7 @@ function setActiveEngineHandle(handle) {
 // truncates it.
 const TRACKED_STATE_KEYS = [
   'cursor', 'current', 'stage', 'background', 'image', 'video',
-  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended',
+  'bgm', 'particles', 'vars', 'quests', 'awaitingChoice', 'ended', 'lastLabel',
 ]
 
 function normalizeImageFit(value) {
@@ -122,17 +134,21 @@ function splitPath(path) {
 
 const INTERPOLATION_PATTERN = /\{\{\s*([\w$.]+)\s*\}\}/g
 
-export function expandNestedLabels(script) {
-  const expanded = []
-  for (const step of script) {
-    if (step?.type === 'label' && Array.isArray(step.steps)) {
-      expanded.push({ type: 'label', id: step.id })
-      for (const nestedStep of step.steps) expanded.push(nestedStep)
-      continue
-    }
-    expanded.push(step)
-  }
-  return expanded
+// Reserved namespace inside `vars` for the declarative `once` step. Authors
+// should avoid using this key for their own variables.
+const ONCE_VAR_KEY = '__vnova_once'
+
+const DISPLAY_STEP_TYPES = new Set(['say', 'think', 'narrate', 'choice', 'input', 'select', 'modal'])
+const RECOMPUTABLE_STEP_TYPES = new Set(['say', 'think', 'narrate'])
+
+function buildAuthoredLabelPositions(script) {
+  const positions = []
+  script.forEach((step, index) => {
+    if (step?.type !== 'label' || typeof step.id !== 'string') return
+    if (step.id.startsWith(SYNTHETIC_LABEL_PREFIX)) return
+    positions.push({ id: step.id, index })
+  })
+  return positions
 }
 
 function createQuestContext(store) {
@@ -151,30 +167,32 @@ function createQuestContext(store) {
   })
 }
 
-function evaluateChoiceCondition(option, store) {
-  if (typeof option?.condition !== 'function') {
-    if (typeof option?.condition === 'boolean') return option.condition
-    return true
-  }
-  try {
-    return Boolean(option.condition(createQuestContext(store)))
-  } catch (error) {
-    console.warn('[vnova] choice option condition failed:', error)
-    return false
+function createConditionContext(store) {
+  return {
+    get: (path) => _readVarByPathFrom(store, path),
+    proxy: createQuestContext(store),
   }
 }
 
+function evaluateChoiceCondition(option, store) {
+  if (option?.condition === undefined) return true
+  return evaluateCondition(option.condition, createConditionContext(store))
+}
+
 function evaluateChoiceDisabled(option, store) {
-  if (typeof option?.disabled !== 'function') {
-    if (typeof option?.disabled === 'boolean') return option.disabled
-    return false
+  if (option?.disabled === undefined) return false
+  return evaluateCondition(option.disabled, createConditionContext(store))
+}
+
+function _readVarByPathFrom(store, path) {
+  const parts = splitPath(path)
+  if (parts.length === 0) return undefined
+  let cursor = store.vars
+  for (const part of parts) {
+    if (!isPlainObject(cursor) || !(part in cursor)) return undefined
+    cursor = cursor[part]
   }
-  try {
-    return Boolean(option.disabled(createQuestContext(store)))
-  } catch (error) {
-    console.warn('[vnova] choice option disabled failed:', error)
-    return false
-  }
+  return cursor
 }
 
 function stripChoiceRuntimeFields(option) {
@@ -219,6 +237,7 @@ export function createEngine(script, options = {}) {
     onVideo = noop,
     onNotify = noop,
     onEffect = noop,
+    onUnlock = noop,
     onEnd = noop,
     autoAdvanceDelay = 0,
     initialState = null,
@@ -230,10 +249,12 @@ export function createEngine(script, options = {}) {
   if (!Array.isArray(script) || script.length === 0)
     throw new Error('[vnova] script must be a non-empty array')
 
-  const runtimeScript = expandNestedLabels(script)
+  const runtimeScript = compileScript(script)
   const labelIndex = buildIndex(runtimeScript)
+  let authoredLabelPositions = buildAuthoredLabelPositions(runtimeScript)
   const particleRegistry = { ...PARTICLE_PRESETS, ...(particles ?? {}) }
   let _bgmBaseVolume = 1
+  let _voiceActive = false
 
   // ── Pinia setup ────────────────────────────────────────────────────────────
   const _pinia = pinia ?? getActivePinia() ?? createPinia()
@@ -250,6 +271,16 @@ export function createEngine(script, options = {}) {
     if (!key) return fallback
     const resolved = (assets?.[group] ?? {})[key] ?? fallback
     return resolved
+  }
+
+  function resolveVoice(value) {
+    if (!value || typeof value !== 'string') return null
+    const fromRegistry = resolveAsset('voices', value, null)
+    if (fromRegistry) return normalizeAssetUrl(fromRegistry)
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value) || value.includes('/') || value.includes('\\')) {
+      return normalizeAssetUrl(value)
+    }
+    return null
   }
 
   // ── quest engine ───────────────────────────────────────────────────────────
@@ -320,6 +351,32 @@ export function createEngine(script, options = {}) {
     store.setVars(root)
   }
 
+  function _unsetVarByPath(path) {
+    const parts = splitPath(path)
+    if (parts.length === 0) return
+
+    const root = isPlainObject(store.vars) ? cloneDeep(store.vars) : {}
+    if (parts.length === 1) {
+      delete root[parts[0]]
+      store.setVars(root)
+      return
+    }
+
+    let cursor = root
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]
+      if (!isPlainObject(cursor[part])) return
+      cursor = cursor[part]
+    }
+    delete cursor[parts[parts.length - 1]]
+    store.setVars(root)
+  }
+
+  const conditionContext = {
+    get: _readVarByPath,
+    proxy: createQuestContext(store),
+  }
+
   function _applyVarSet(map) {
     if (!isPlainObject(map)) return
     for (const [key, value] of Object.entries(map)) _setVarByPath(key, value)
@@ -358,7 +415,9 @@ export function createEngine(script, options = {}) {
 
   function _effectiveVolume(type, baseVolume = 1) {
     const safeBase = Number.isFinite(Number(baseVolume)) ? Number(baseVolume) : 1
-    const masterKey = type === 'bgm' ? 'bgmVolume' : 'sfxVolume'
+    const masterKey = type === 'bgm'
+      ? 'bgmVolume'
+      : (type === 'voice' ? 'voiceVolume' : 'sfxVolume')
     const safeMaster = Number.isFinite(Number(store.settings?.[masterKey] ?? 1))
       ? Number(store.settings[masterKey])
       : 1
@@ -376,6 +435,12 @@ export function createEngine(script, options = {}) {
     onAudio({ type: 'bgm', track: null, volume: 0, loop: false })
   }
 
+  function _stopVoice() {
+    if (!_voiceActive) return
+    _voiceActive = false
+    onAudio({ type: 'voice', track: null, volume: 0, loop: false, character: null })
+  }
+
   function _stopVideo() {
     store.setVideo(null)
     onVideo({ action: 'stop', track: null, volume: 0, loop: false, muted: false })
@@ -388,6 +453,7 @@ export function createEngine(script, options = {}) {
 
   function _finishSession(reason = 'end') {
     _clearAuto()
+    _stopVoice()
     _stopBgm()
     _stopParticles()
     _stopVideo()
@@ -421,10 +487,69 @@ export function createEngine(script, options = {}) {
   function _applyStep(step) {
     if (!step) { _finishSession('script-end'); return }
 
+    if (_voiceActive && step.type !== 'say' && step.type !== 'think' && step.type !== 'narrate') {
+      _stopVoice()
+    }
+
     switch (step.type) {
       case 'label':
+        if (typeof step.id === 'string' && step.id.length > 0 && !step.id.startsWith(SYNTHETIC_LABEL_PREFIX)) {
+          store.setLastLabel(step.id)
+        }
         _moveTo(store.cursor + 1)
         return
+
+      case 'set': {
+        if (Array.isArray(step.unset)) {
+          for (const path of step.unset) _unsetVarByPath(path)
+        }
+        _applyVarSet(step.vars)
+        _applyVarInc(step.inc)
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case '__branch': {
+        if (evaluateCondition(step.condition, conditionContext)) {
+          _moveTo(store.cursor + 1)
+        } else {
+          _jumpTo(step.fail)
+        }
+        return
+      }
+
+      case '__once': {
+        const onceState = isPlainObject(store.vars[ONCE_VAR_KEY]) ? store.vars[ONCE_VAR_KEY] : {}
+        if (onceState[step.id]) {
+          _jumpTo(step.fail)
+          return
+        }
+        store.setVars({
+          ...store.vars,
+          [ONCE_VAR_KEY]: { ...onceState, [step.id]: true },
+        })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case '__random': {
+        const choices = (step.choices ?? []).filter((choice) => Number(choice.weight) > 0)
+        if (choices.length === 0) {
+          _moveTo(store.cursor + 1)
+          return
+        }
+        const total = choices.reduce((sum, choice) => sum + Number(choice.weight), 0)
+        let roll = Math.random() * total
+        for (const choice of choices) {
+          roll -= Number(choice.weight)
+          if (roll < 0) {
+            _jumpTo(choice.label)
+            return
+          }
+        }
+        _jumpTo(choices[choices.length - 1].label)
+        return
+      }
 
       case 'jump':
         _jumpTo(step.target)
@@ -550,6 +675,18 @@ export function createEngine(script, options = {}) {
           title: resolvedNotify.title ?? '',
           text: resolvedNotify.text ?? '',
         })
+        _moveTo(store.cursor + 1)
+        return
+      }
+
+      case 'unlock': {
+        for (const target of collectUnlockTargets(step)) {
+          try {
+            onUnlock(target)
+          } catch (error) {
+            console.warn('[vnova] onUnlock failed:', error)
+          }
+        }
         _moveTo(store.cursor + 1)
         return
       }
@@ -750,6 +887,22 @@ export function createEngine(script, options = {}) {
       case 'think':
       case 'narrate': {
         const resolvedLine = _interpolateDeep(step)
+        const voiceTrack = resolveVoice(resolvedLine.voice)
+
+        if (voiceTrack) {
+          _stopVoice()
+          _voiceActive = true
+          onAudio({
+            type: 'voice',
+            track: voiceTrack,
+            volume: _effectiveVolume('voice', resolvedLine.voiceVolume ?? 1),
+            loop: false,
+            character: resolvedLine.character ?? null,
+          })
+        } else {
+          _stopVoice()
+        }
+
         store.setCurrent(resolvedLine)
         store.pushHistory(resolvedLine)
         if (autoAdvanceDelay > 0) _scheduleAuto(autoAdvanceDelay)
@@ -772,6 +925,86 @@ export function createEngine(script, options = {}) {
     if (!labelIndex.has(target))
       throw new Error(`[vnova] jump target not found: "${target}"`)
     _moveTo(labelIndex.get(target))
+  }
+
+  // ── save anchors ───────────────────────────────────────────────────────────
+
+  function getSaveAnchor(cursor = store.cursor) {
+    if (!Number.isInteger(cursor) || cursor < 0) return null
+
+    let base = null
+    for (const entry of authoredLabelPositions) {
+      if (entry.index > cursor) break
+      base = entry
+    }
+
+    return base
+      ? { label: base.id, offset: cursor - base.index, cursor }
+      : { label: null, offset: cursor, cursor }
+  }
+
+  function resolveSaveAnchor(anchor) {
+    if (!anchor || typeof anchor !== 'object') return null
+
+    let index = null
+    if (typeof anchor.label === 'string' && labelIndex.has(anchor.label)) {
+      const offset = Number(anchor.offset)
+      const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0
+      index = labelIndex.get(anchor.label) + safeOffset
+    }
+
+    if (index === null && Number.isInteger(anchor.cursor)) index = anchor.cursor
+    if (index === null) return null
+
+    const maxIndex = runtimeScript.length - 1
+    if (maxIndex < 0) return null
+    return Math.min(Math.max(index, 0), maxIndex)
+  }
+
+  function getCurrentLabel() {
+    return getSaveAnchor(store.cursor)?.label ?? null
+  }
+
+  // Re-anchors a loaded snapshot against the current script, so saves survive
+  // edits made before the saved point (new prologues, moved labels, etc.).
+  function resolveSaveSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return snapshot
+
+    const anchoredCursor = resolveSaveAnchor(snapshot.anchor)
+    let cursor = anchoredCursor ?? snapshot.cursor
+    if (!Number.isInteger(cursor) || cursor < 0) return snapshot
+
+    cursor = Math.min(cursor, runtimeScript.length - 1)
+    if (cursor < 0) return snapshot
+
+    let displayCursor = cursor
+    while (displayCursor < runtimeScript.length - 1 && !DISPLAY_STEP_TYPES.has(runtimeScript[displayCursor]?.type)) {
+      displayCursor++
+    }
+
+    const rawStep = runtimeScript[displayCursor]
+    let current = snapshot.current
+
+    if (rawStep && RECOMPUTABLE_STEP_TYPES.has(rawStep.type)) {
+      const previousVars = store.vars
+      try {
+        store.setVars(isPlainObject(snapshot.vars) ? snapshot.vars : {})
+        current = _interpolateDeep(rawStep)
+      } finally {
+        store.setVars(previousVars)
+      }
+    }
+
+    const awaitingChoice = rawStep
+      ? (
+        rawStep.type === 'choice' ||
+        rawStep.type === 'input' ||
+        rawStep.type === 'select' ||
+        (rawStep.type === 'modal' && Array.isArray(rawStep.options) && rawStep.options.length > 0)
+      )
+      : snapshot.awaitingChoice
+
+    return { ...snapshot, cursor: displayCursor, current, awaitingChoice }
   }
 
   // ── public API ─────────────────────────────────────────────────────────────
@@ -866,11 +1099,16 @@ export function createEngine(script, options = {}) {
   }
 
   function jump(target) {
-    _runTrackedMove(() => _jumpTo(target))
+    _runTrackedMove(() => {
+      store.setEnded(false)
+      store.setAwaitingChoice(false)
+      _jumpTo(target)
+    })
   }
 
   function back() {
     _clearAuto()
+    _stopVoice()
     if (store.backStack.length === 0) return false
     const latestDiff = store.backStack[store.backStack.length - 1]
     store.applyBackDiff(latestDiff)
@@ -880,12 +1118,13 @@ export function createEngine(script, options = {}) {
 
   function updateScript(newScript) {
     if (!Array.isArray(newScript) || newScript.length === 0) return
-    runtimeScript.splice(0, runtimeScript.length, ...expandNestedLabels(newScript))
+    runtimeScript.splice(0, runtimeScript.length, ...compileScript(newScript))
     labelIndex.clear()
     const newIndex = buildIndex(runtimeScript)
     for (const [key, val] of newIndex.entries()) {
       labelIndex.set(key, val)
     }
+    authoredLabelPositions = buildAuthoredLabelPositions(runtimeScript)
     // Refresh current step in store if game is active
     if (store.cursor >= 0 && store.cursor < runtimeScript.length && !store.ended && store.current) {
       const rawStep = runtimeScript[store.cursor]
@@ -896,6 +1135,7 @@ export function createEngine(script, options = {}) {
 
   function restart() {
     _clearAuto()
+    _stopVoice()
     _stopBgm()
     _stopParticles()
     _stopVideo()
@@ -919,6 +1159,7 @@ export function createEngine(script, options = {}) {
   // Needed after loading a save or restoring a session, since those set the
   // store snapshot directly without replaying the script steps.
   function syncRuntimeState() {
+    _stopVoice()
     if (store.bgm) {
       onAudio({ type: 'bgm', track: store.bgm, volume: _effectiveVolume('bgm', _bgmBaseVolume), loop: true })
     } else {
@@ -934,6 +1175,11 @@ export function createEngine(script, options = {}) {
 
   function getVar(key) { return store.vars[key] }
   function setVar(key, value) { store.setVar({ key, value }) }
+  function unlock(kind, id) {
+    if (typeof kind !== 'string' || typeof id !== 'string' || !id) return false
+    onUnlock({ kind, id })
+    return true
+  }
   function getSetting(key) { return store.settings?.[key] }
   function setSetting(key, value) {
     store.setSetting({ key, value })
@@ -982,6 +1228,11 @@ export function createEngine(script, options = {}) {
     getSetting,
     setSetting,
     updateScript,
+    unlock,
+    getSaveAnchor,
+    resolveSaveAnchor,
+    resolveSaveSnapshot,
+    getCurrentLabel,
     // expose pinia instance for apps that want to install it themselves
     pinia: _pinia,
   }

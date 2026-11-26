@@ -6,7 +6,80 @@ export const defaultConfig = {
     meta: 'Scenes, branches, state, media hooks',
     saveKey: 'vnova-showcase-v1',
     slotCount: 10,
+    progressKey: 'vnova-showcase-v1',
     startLabel: 'start',
+    gallery: {
+        title: 'VNova Archive',
+        cgs: [
+            {
+                id: 'cg-canals',
+                title: 'Canal District',
+                description: 'A quiet insertion through the old water lanes.',
+                src: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1400&q=80',
+            },
+            {
+                id: 'cg-relay',
+                title: 'Relay Core',
+                description: 'Redlining the relay before it melts.',
+                src: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1400&q=80',
+            },
+            {
+                id: 'cg-observatory',
+                title: 'Signal Observatory',
+                description: 'Reading the storm in the packet telemetry.',
+                src: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1400&q=80',
+            },
+            {
+                id: 'cg-dawn',
+                title: 'Dawn Over the City',
+                description: 'The city wakes up changed.',
+                src: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1400&q=80',
+            },
+        ],
+        endings: [
+            {
+                id: 'ending-open',
+                title: 'Open Channel',
+                description: 'You told the whole city the truth.',
+            },
+            {
+                id: 'ending-shield',
+                title: 'Encrypted Channel',
+                description: 'You protected the team and let the data speak.',
+            },
+        ],
+        achievements: [
+            {
+                id: 'first-contact',
+                title: 'First Contact',
+                description: 'Identified yourself and chose a comm mode.',
+            },
+            {
+                id: 'pattern-seeker',
+                title: 'Pattern Seeker',
+                description: 'Found the jammer through telemetry.',
+            },
+            {
+                id: 'above-noise',
+                title: 'Above the Noise',
+                description: 'Reached the relay tower.',
+            },
+        ],
+        chapters: [
+            {
+                id: 'chapter-1',
+                title: 'Chapter 1 — The Relay',
+                description: 'Control room, first decision.',
+                label: 'start',
+            },
+            {
+                id: 'chapter-2',
+                title: 'Chapter 2 — The Tower',
+                description: 'The final broadcast.',
+                label: 'checkpoint',
+            },
+        ],
+    },
     // Multi-language: selects the active language on startup.
     // Switch via Settings → Language / Idioma at runtime.
     defaultLanguage: 'en',

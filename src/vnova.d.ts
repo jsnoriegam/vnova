@@ -38,6 +38,49 @@ export type BgTransition = 'fade' | 'dissolve' | 'cut' | 'slide-left' | 'slide-r
 export type SpritePosition = 'left' | 'center' | 'right' | 'left-far' | 'right-far'
 export type ImageFit = 'width' | 'height' | 'both' | 'x' | 'y'
 export type ModalSize = 'small' | 'medium' | 'large' | 'xlarge' | 'fullscreen' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
+
+export type ConditionOperator =
+  | 'eq' | 'neq' | 'ne'
+  | 'gt' | 'gte' | 'lt' | 'lte'
+  | 'in' | 'notIn' | 'nin'
+  | 'contains' | 'matches'
+  | 'exists' | 'truthy' | 'falsy'
+
+/**
+ * Declarative condition used by `if`, conditional `jump`, `choice.condition`
+ * and `choice.disabled`.
+ *
+ * Every operator can also be written as a var/operator/value object:
+ * `{ var: 'stats.courage', gte: 3 }`. Shorthand maps such as
+ * `{ 'flags.metHana': true }` are combined with AND.
+ */
+export type Condition =
+  | boolean
+  | ((ctx: QuestContext) => boolean)
+  | Condition[]
+  | ({
+      var?: string
+      path?: string
+      all?: Condition[]
+      any?: Condition[]
+      not?: Condition
+      eq?: unknown
+      neq?: unknown
+      ne?: unknown
+      gt?: number
+      gte?: number
+      lt?: number
+      lte?: number
+      in?: unknown[]
+      notIn?: unknown[]
+      nin?: unknown[]
+      contains?: unknown
+      matches?: string
+      exists?: boolean
+      truthy?: boolean
+      falsy?: boolean
+    } & Record<string, unknown>)
+
 export interface LabelStep {
   type: 'label'
   id: string
@@ -111,26 +154,37 @@ export interface HideStep {
 }
 export interface SayStep {
   type: 'say'
+  /** Optional stable id used by read/skip tracking. */
+  id?: string
   character: string
   text: string
   expression?: string
   variant?: string
+  /** Voice asset id (from `assets.voices`) or direct URL. */
   voice?: Url
+  /** Per-line voice volume multiplier. Default: 1. */
+  voiceVolume?: number
   /** Auto-advance after typewriter finishes. `true` = immediately, number = delay in ms. */
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
 export interface ThinkStep {
   type: 'think'
+  id?: string
   character: string
   text: string
   expression?: string
+  voice?: Url
+  voiceVolume?: number
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
 export interface NarrateStep {
   type: 'narrate'
+  id?: string
   text: string
+  voice?: Url
+  voiceVolume?: number
   advance?: boolean | Milliseconds
   continue?: boolean | Milliseconds
 }
@@ -139,8 +193,8 @@ export interface ChoiceOption {
   jump?: string
   set?: Record<string, unknown>
   inc?: Record<string, number>
-  condition?: boolean | ((store: QuestContext) => boolean)
-  disabled?: boolean | ((store: QuestContext) => boolean)
+  condition?: Condition
+  disabled?: Condition
   disabledText?: string
   [key: string]: unknown
 }
@@ -192,6 +246,69 @@ export interface SelectStep {
 export interface JumpStep {
   type: 'jump'
   target: string
+  /** Jump only when this condition is true. */
+  if?: Condition
+  condition?: Condition
+  when?: Condition
+}
+export interface SetStep {
+  type: 'set'
+  /** Variables to assign. Supports dot paths. */
+  vars?: Record<string, unknown>
+  /** Numeric increments. Supports dot paths. */
+  inc?: Record<string, number>
+  /** Dot paths to delete. */
+  unset?: string[]
+}
+export interface IfStep {
+  type: 'if'
+  condition: Condition
+  /** Steps executed when the condition is true. */
+  then?: ScriptStep[]
+  /** Alias of `then`. */
+  steps?: ScriptStep[]
+  /** Steps executed when the condition is false. */
+  else?: ScriptStep[]
+}
+export interface OnceStep {
+  type: 'once'
+  /** Unique id, scoped to the current save. */
+  id: string
+  steps?: ScriptStep[]
+  /** Alias of `steps`. */
+  then?: ScriptStep[]
+}
+export interface RandomOption {
+  /** Relative probability. Default: 1. */
+  weight?: number
+  steps?: ScriptStep[]
+  /** Alias of `steps`. */
+  then?: ScriptStep[]
+}
+export interface RandomStep {
+  type: 'random'
+  options: [RandomOption, ...RandomOption[]]
+}
+export type ProgressKind = 'cg' | 'ending' | 'achievement' | 'chapter'
+export interface UnlockTarget {
+  kind: ProgressKind
+  id: string
+}
+export interface UnlockStep {
+  type: 'unlock'
+  cg?: string | string[]
+  cgs?: string | string[]
+  ending?: string | string[]
+  endings?: string | string[]
+  achievement?: string | string[]
+  achievements?: string | string[]
+  chapter?: string | string[]
+  chapters?: string | string[]
+  /** Generic form: `{ kind: 'cg', id: 'cg-01' }`. */
+  kind?: ProgressKind
+  id?: string
+  /** Multiple targets in one step. */
+  targets?: UnlockTarget[]
 }
 export interface BgmStep {
   type: 'bgm'
@@ -307,7 +424,9 @@ export type ScriptStep =
   | ShowStep  | HideStep
   | SayStep   | ThinkStep | NarrateStep
   | ChoiceStep | ModalStep | InputStep | SelectStep | JumpStep
+  | SetStep    | IfStep    | OnceStep   | RandomStep
   | BgmStep   | SfxStep   | VideoStep | ParticlesStep | StopStep | EffectStep | WaitStep | NotifyStep
+  | UnlockStep
   | EndStep   | CallStep
 // ─── Character registry ───────────────────────────────────────────────────────
 export interface CharacterDef {
@@ -327,6 +446,7 @@ export interface AssetRegistry {
   scenes?: Record<string, Url>
   music?:  Record<string, Url>
   sounds?: Record<string, Url>
+  voices?: Record<string, Url>
   images?: Record<string, Url>
   videos?: Record<string, Url>
 }
@@ -363,6 +483,7 @@ export interface EngineSettings {
   typewriterSpeed: Milliseconds
   bgmVolume:       number
   sfxVolume:       number
+  voiceVolume:     number
   textSize:        'small' | 'medium' | 'large'
   spacebarFastForward: 'fullspeed' | 'throttled' | 'off'
   theme:           string
@@ -380,6 +501,7 @@ export interface QuestState {
 export interface VNovaState {
   cursor:         number
   current:        ScriptStep | null
+  lastLabel:      string | null
   stage:          Record<string, StageCharacter>
   background:     BackgroundState
   image:          ImageState
@@ -475,10 +597,11 @@ export interface QuestEngine {
 }
 // ─── Audio event ─────────────────────────────────────────────────────────────
 export interface AudioEvent {
-  type:   'bgm' | 'sfx'
+  type:   'bgm' | 'sfx' | 'voice'
   track:  Url | null
   volume: number
   loop:   boolean
+  character?: string | null
 }
 export interface VideoEvent {
   action: 'play' | 'stop'
@@ -522,6 +645,7 @@ export interface CreateEngineOptions {
   onVideo?:          (event: VideoEvent) => void
   onNotify?:         (event: NotifyEvent) => void
   onEffect?:         (event: EffectEvent) => void
+  onUnlock?:         (target: UnlockTarget) => void
   onEnd?:            (payload: { reason: string; toTitle: boolean }) => void
   autoAdvanceDelay?: Milliseconds
   /** External Pinia instance. When omitted, a fresh one is created. */
@@ -555,6 +679,11 @@ export interface EngineHandle {
   setVar(key: string, value: unknown): void
   getSetting(key: keyof EngineSettings): unknown
   setSetting(key: keyof EngineSettings, value: unknown): void
+  unlock(kind: ProgressKind, id: string): boolean
+  getSaveAnchor(cursor?: number): SaveAnchor | null
+  resolveSaveAnchor(anchor: SaveAnchor | null | undefined): number | null
+  resolveSaveSnapshot(snapshot: SaveSnapshot): SaveSnapshot
+  getCurrentLabel(): string | null
   pinia:          import('pinia').Pinia
 }
 export interface AuthorEngineHandle {
@@ -605,6 +734,16 @@ export interface UseVNovaOptions extends CreateEngineOptions {
   choiceDisabledTextColor?: CssColor
   /** localStorage key for save/load. Required to enable save functionality. */
   saveKey?:           string
+  /** Enable automatic saves when a label is entered. Default: true. */
+  autosave?:          boolean
+  /** Debounce before writing the autosave slot, in ms. Default: 600. */
+  autosaveDelay?:     Milliseconds
+  /** Storage namespace for read/skip progress. Defaults to `saveKey`. */
+  readKey?:           string
+  /** Storage namespace for meta-progress. Defaults to `readKey`/`saveKey`. */
+  progressKey?:       string
+  /** Base delay for auto mode after text completes, in ms. Default: 1200. */
+  autoDelay?:         Milliseconds
   /** sessionStorage key for session persistence. When provided, engine state is restored on page reload. */
   sessionKey?:        string
 }
@@ -647,10 +786,24 @@ export interface VNovaComposable {
   exitMenu():        void
   skipTypewriter():  void
   resumeTypewriter(): void
+  autoMode:          Ref<boolean>
+  skipMode:          Ref<boolean>
+  skipHeld:          Ref<boolean>
+  skipActive:        ComputedRef<boolean>
+  currentLineRead:   Ref<boolean>
+  toggleAuto():      boolean
+  toggleSkip():      boolean
+  setAutoMode(enabled: boolean): void
+  setSkipMode(enabled: boolean): void
+  isLineRead(step: ScriptStep): boolean
+  clearReadState():  void
+  readCount:         Ref<number>
   getVar(key: string): unknown
   setVar(key: string, value: unknown): void
   getSetting(key: keyof EngineSettings): unknown
   setSetting(key: keyof EngineSettings, value: unknown): void
+  /** Meta-progress: unlocked CGs, endings, achievements and chapters. */
+  progress:          VNovaProgressHandle
   /** The underlying engine handle for advanced use. */
   engine:            EngineHandle
 }
@@ -665,6 +818,7 @@ export declare function useUserStorage(
 export interface UseVNovaAudioOptions {
   bgmVolume?:    number
   sfxVolume?:    number
+  voiceVolume?:  number
   fadeDuration?: Milliseconds
 }
 export interface VNovaAudioHandle {
@@ -672,9 +826,12 @@ export interface VNovaAudioHandle {
   onAudio:       (event: AudioEvent) => void
   bgmVolume:     Ref<number>
   sfxVolume:     Ref<number>
+  voiceVolume:   Ref<number>
   setBgmVolume:  (v: number) => void
   setSfxVolume:  (v: number) => void
+  setVoiceVolume:(v: number) => void
   stopBgm():     void
+  stopVoice():   void
   stopAll():     void
 }
 export declare function useVNovaAudio(
@@ -780,10 +937,16 @@ export interface VNovaRuntimeContext {
   hasSave: ComputedRef<boolean>
   history: ComputedRef<ScriptStep[]>
   audioLog: Ref<string>
+  autoMode: ComputedRef<boolean>
+  skipMode: ComputedRef<boolean>
+  skipActive: ComputedRef<boolean>
+  currentLineRead: ComputedRef<boolean>
+  hasGallery: ComputedRef<boolean>
   ui: {
     titleOpen: Ref<boolean>
     settingsOpen: Ref<boolean>
     backlogOpen: Ref<boolean>
+    galleryOpen: Ref<boolean>
     creditsOpen: Ref<boolean>
     saveOpen: Ref<boolean>
     saveMode: Ref<'save' | 'load'>
@@ -801,10 +964,17 @@ export interface VNovaRuntimeContext {
     openSave(): void
     openLoad(): void
     openBacklog(): void
+    openGallery(): void
+    closeGallery(): void
+    selectChapter(chapter: GalleryItem): boolean
     openCredits(): void
     openSettings(): void
     closeAllModals(): void
     setSetting(key: keyof EngineSettings, value: unknown): void
+    toggleAuto(): void
+    toggleSkip(): void
+    setAutoMode(enabled: boolean): void
+    setSkipMode(enabled: boolean): void
   }
   registerStageApi(api: Partial<VNovaStageExposed> | null): void
 }
@@ -812,6 +982,7 @@ export interface GuiTranslations {
   titleScreen?: {
     newGame?: string
     loadGame?: string
+    gallery?: string
     credits?: string
     settings?: string
   }
@@ -819,6 +990,9 @@ export interface GuiTranslations {
     ariaLabel?: string
     back?: string
     log?: string
+    gallery?: string
+    auto?: string
+    skip?: string
     save?: string
     load?: string
     settings?: string
@@ -830,6 +1004,7 @@ export interface GuiTranslations {
     title?: string
     bgmVolume?: string
     sfxVolume?: string
+    voiceVolume?: string
     typewriterSpeed?: string
     spacebarFastForward?: string
     spacebarAriaLabel?: string
@@ -879,6 +1054,18 @@ export interface GuiTranslations {
     fileLoaded?: string
     loadCancelledOrFailed?: string
   }
+  gallery?: {
+    title?: string
+    ariaLabel?: string
+    cgs?: string
+    endings?: string
+    achievements?: string
+    chapters?: string
+    locked?: string
+    empty?: string
+    close?: string
+    jumpToChapter?: string
+  }
   backlog?: {
     title?: string
     noHistory?: string
@@ -907,6 +1094,20 @@ export interface VNovaRuntimeConfig {
   creditsTitle?: string
   saveKey?: string
   slotCount?: number
+  /** Enable automatic saves when a label is entered. Default: true. */
+  autosave?: boolean
+  /** Debounce before writing the autosave slot, in ms. Default: 600. */
+  autosaveDelay?: Milliseconds
+  /** Storage namespace for read/skip progress. Defaults to `saveKey`. */
+  readKey?: string
+  /** Storage namespace for meta-progress. Defaults to `readKey`/`saveKey`. */
+  progressKey?: string
+  /** Base delay for auto mode after text completes, in ms. Default: 1200. */
+  autoDelay?: Milliseconds
+  /** Meta-progress gallery definitions (CGs, endings, achievements, chapters). */
+  gallery?: GalleryDefinitions
+  /** Called after an `unlock` step records meta-progress. */
+  onUnlock?: (target: UnlockTarget) => void
   startLabel?: string
   stage?: UseVNovaOptions
   /** Custom themes to register. Merged with built-in themes. */
@@ -994,16 +1195,32 @@ export interface VNovaStageExposed {
   restart():    void
   save():       true | undefined
   load():       boolean
+  saveAuto():   Promise<boolean>
+  loadAuto():   Promise<boolean>
   clearSave():  void
   openSave():   void
   openLoad():   void
   closeSave():  void
   saveOpen:     Ref<boolean>
   saveMode:     Ref<'save' | 'load'>
+  currentLineRead?: Ref<boolean>
+  autoMode?:      Ref<boolean>
+  skipMode?:      Ref<boolean>
+  skipActive?:    ComputedRef<boolean>
+  toggleAuto():   boolean
+  toggleSkip():   boolean
+  setAutoMode(enabled: boolean): void
+  setSkipMode(enabled: boolean): void
+  isLineRead(step: ScriptStep): boolean
+  clearReadState(): void
+  readCount: Ref<number>
+  progress: VNovaProgressHandle
   exitMenu():   void
   resumeTypewriter(): void
   canBack:      ComputedRef<boolean>
   hasSave:      Ref<boolean>
+  hasAuto:      ComputedRef<boolean>
+  autoSlot:     Ref<SlotMeta | null>
   history:      ComputedRef<ScriptStep[]>
   listQuests(): QuestState[]
   getQuest(id: string): QuestState | null
@@ -1016,10 +1233,80 @@ export interface VNovaStageExposed {
   storage: UserStorageHandle
   state: VNovaState
 }
+// ─── meta-progress / gallery ──────────────────────────────────────────────────
+export interface VNovaProgressState {
+  cgs: string[]
+  endings: string[]
+  achievements: string[]
+  chapters: string[]
+}
+export interface VNovaProgressHandle {
+  key: string
+  state: Readonly<Ref<VNovaProgressState>>
+  counts: ComputedRef<{ cg: number; ending: number; achievement: number; chapter: number }>
+  has(kind: ProgressKind | string, id: string): boolean
+  unlock(kind: ProgressKind | string, id: string): boolean
+  unlockMany(entries: UnlockTarget[]): number
+  reset(kind?: ProgressKind | string | null): void
+  flush(): void
+}
+export interface GalleryItem {
+  id: string
+  title?: string
+  description?: string
+  /** CG/screenshot URL. */
+  src?: Url
+  thumbnail?: Url
+  /** Hide the real title while locked. */
+  hidden?: boolean
+  /** Chapter label to jump to. */
+  label?: string
+}
+export interface GalleryDefinitions {
+  title?: string
+  cgs?: GalleryItem[]
+  endings?: GalleryItem[]
+  achievements?: GalleryItem[]
+  chapters?: GalleryItem[]
+}
+export declare function useVNovaProgress(key?: string): VNovaProgressHandle
+export declare function resetAllProgress(): void
+export declare function normalizeProgressKind(kind: string): string | null
+
 // ─── useVNovaSaves ────────────────────────────────────────────────────────────
+export interface SaveAnchor {
+  /** Nearest authored label before the saved cursor, or null. */
+  label:  string | null
+  /** Steps between the label and the saved line. */
+  offset: number
+  /** Raw runtime cursor at save time (legacy fallback). */
+  cursor: number
+}
+export interface SaveSnapshot {
+  cursor:         number
+  current:        ScriptStep | null
+  anchor?:        SaveAnchor | null
+  lastLabel?:     string | null
+  stage:          Record<string, StageCharacter>
+  background:     BackgroundState
+  image:          ImageState
+  video:          VideoEvent | null
+  bgm:            Url | null
+  particles:      { action: 'play' | 'stop'; id: string | null; config: ParticlePreset | null } | null
+  vars:           Record<string, unknown>
+  quests:         Record<string, QuestState>
+  awaitingChoice: boolean
+  ended:          boolean
+  history:        ScriptStep[]
+  backStack:      StateDiff[][]
+  settings:       EngineSettings
+}
 export interface SlotMeta {
-  slot:          number
-  label:         string
+  slot:          number | 'auto'
+  kind:          'slot' | 'auto'
+  label:         string | null
+  chapter:       string | null
+  preview:       string | null
   savedAt:       number | null
   formattedDate: string | null
   thumbnail:     string | null   // base64 data URL
@@ -1034,18 +1321,24 @@ export interface UseVNovaSavesOptions {
 }
 export interface VNovaSavesHandle {
   slots:        Ref<(SlotMeta | null)[]>
+  autoSlot:     Ref<SlotMeta | null>
   hasSave:      ComputedRef<boolean>
+  hasAuto:      ComputedRef<boolean>
   saving:       Ref<boolean>
+  autosaving:   Ref<boolean>
   lastFileError: Ref<{ code: string; message: string } | null>
   saveSlot:     (slot: number) => Promise<boolean>
-  loadSlot:     (slot: number) => boolean
+  saveAuto:     () => Promise<boolean>
+  loadSlot:     (slot: number) => Promise<boolean>
+  loadAuto:     () => Promise<boolean>
   deleteSlot:   (slot: number) => void
+  deleteAuto:   () => void
   clearAll:     () => void
   exportSaves:  () => Promise<boolean>
   importSaves:  () => Promise<boolean>
   saveToDisk:   () => Promise<boolean>
   loadFromDisk: () => Promise<boolean>
-  refresh:      () => void
+  refresh:      () => Promise<void>
 }
 export declare function useVNovaSaves(options?: UseVNovaSavesOptions): VNovaSavesHandle
 // ─── VNovaSaveModal ───────────────────────────────────────────────────────────
@@ -1060,19 +1353,19 @@ export interface VNovaSaveModalProps {
 export interface VNovaSaveModalEmits {
   close:   []
   saved:   [slot: number]
-  loaded:  [slot: number]
+  loaded:  [slot: number | 'auto']
   deleted: [slot: number]
 }
 export declare const VNovaSaveModal: DefineComponent<VNovaSaveModalProps, Record<string, never>, VNovaSaveModalEmits>
 export declare const VNOVA_RUNTIME_CONTEXT_KEY: 'vnova-runtime'
 export declare const VNovaRuntime: DefineComponent<VNovaRuntimeProps>
 export declare const VNovaStage:      DefineComponent<VNovaStageProps, VNovaStageExposed, VNovaStageEmits>
-export declare const VNovaTitleScreen: DefineComponent<Record<string, never>>
+export declare const VNovaTitleScreen: DefineComponent<{ visible?: boolean; hasSave?: boolean; hasCredits?: boolean; hasGallery?: boolean; title?: string; subtitle?: string; meta?: string; background?: string }>
 export declare const VNovaCreditsScreen: DefineComponent<{ open?: boolean; title?: string; credits?: CreditsRegistry }>
 export declare const VNovaHud: DefineComponent<
-  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showCredits?: boolean },
+  { canBack?: boolean; audioLog?: string; visible?: boolean; showBacklog?: boolean; showGallery?: boolean; showCredits?: boolean },
   Record<string, never>,
-  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
+  { back: []; 'open-save': []; 'open-load': []; 'open-backlog': []; 'open-gallery': []; 'open-credits': []; 'open-settings': []; restart: []; 'exit-menu': [] }
 >
 export declare const VNovaTopHud: DefineComponent<
   { opacity?: number; floating?: boolean; customClass?: string | string[] | Record<string, boolean> | null }
@@ -1081,6 +1374,7 @@ export declare const VNovaSettingsModal: DefineComponent<{
   open?: boolean
   bgmVolume?: number
   sfxVolume?: number
+  voiceVolume?: number
   typewriterSpeed?: number
   spacebarFastForward?: 'fullspeed' | 'throttled' | 'off'
   textSize?: 'small' | 'medium' | 'large'
@@ -1094,6 +1388,11 @@ export declare const VNovaSettingsModal: DefineComponent<{
   currentTheme?: string
 }>
 export declare const VNovaBacklogModal:  DefineComponent<{ history?: ScriptStep[] }>
+export declare const VNovaGalleryModal: DefineComponent<
+  { open?: boolean; title?: string; progressKey?: string; gallery?: GalleryDefinitions },
+  Record<string, never>,
+  { close: []; 'select-chapter': [chapter: GalleryItem] }
+>
 // ─── VNovaLoadingScreen ───────────────────────────────────────────────────────
 export declare const VNovaLoadingScreen: DefineComponent<{
   /** Preload progress from 0 to 1. */
@@ -1101,3 +1400,18 @@ export declare const VNovaLoadingScreen: DefineComponent<{
   /** URL or name of the asset currently being loaded (for display). */
   currentAsset?: string
 }>
+// ─── read tracker / voice bus ────────────────────────────────────────────────
+export interface VNovaReadTracker {
+  key: string
+  size: Ref<number>
+  isRead(step: ScriptStep): boolean
+  markRead(step: ScriptStep): boolean
+  reset(): void
+  flush(): void
+}
+export declare function lineReadKey(step: ScriptStep): string | null
+export declare function useVNovaReadTracker(key?: string): VNovaReadTracker
+export declare function resetAllReadTrackers(): void
+export declare const voicePlaying: Ref<boolean>
+export declare const voiceTrack: Ref<Url | null>
+export declare const voiceDuration: Ref<number>

@@ -47,6 +47,7 @@ export default [
           { label: 'Silent observer mode', value: 'silent', inc: { trust: 0, risk: -1 } },
         ],
       },
+      { type: 'unlock', chapter: 'chapter-1', achievement: 'first-contact' },
       { type: 'narrate', text: 'Operator {{player.name}} online. Comm profile: {{player.commMode}}.' },
 
       {
@@ -85,6 +86,7 @@ export default [
     type: 'label',
     id: 'route-steady',
     steps: [
+      { type: 'unlock', cg: 'cg-canals' },
       {
         type: 'notify',
         status: 'success',
@@ -102,6 +104,7 @@ export default [
     type: 'label',
     id: 'route-risky',
     steps: [
+      { type: 'unlock', cg: 'cg-relay' },
       {
         type: 'notify',
         status: 'error',
@@ -126,6 +129,7 @@ export default [
     type: 'label',
     id: 'route-analyst',
     steps: [
+      { type: 'unlock', cg: 'cg-observatory', achievement: 'pattern-seeker' },
       { type: 'image', id: 'diagnostic-overlay', transition: 'dissolve', fit: 'both' },
       { type: 'effect', name: 'pulse', target: 'image', duration: 1000, config: { cycles: 2, opacity: 0.6 }, wait: true },
       {
@@ -146,6 +150,7 @@ export default [
     type: 'label',
     id: 'checkpoint',
     steps: [
+      { type: 'unlock', chapter: 'chapter-2', achievement: 'above-noise' },
       {
         type: 'call',
         fn: () => {
@@ -176,6 +181,7 @@ export default [
     type: 'label',
     id: 'ending-open',
     steps: [
+      { type: 'unlock', ending: 'ending-open' },
       { type: 'say', character: 'hana', text: 'No more secrets. We transmit everything.' },
       {
         type: 'notify',
@@ -194,6 +200,7 @@ export default [
     type: 'label',
     id: 'ending-shield',
     steps: [
+      { type: 'unlock', ending: 'ending-shield' },
       { type: 'say', character: 'hana', text: 'We keep identities sealed. Data out, names protected.' },
       {
         type: 'notify',
@@ -211,6 +218,7 @@ export default [
     type: 'label',
     id: 'epilogue',
     steps: [
+      { type: 'unlock', cg: 'cg-dawn' },
       { type: 'hide', particles: true },
       { type: 'scene', id: 'sunrise', transition: 'fade', stopMusic: true },
       { type: 'narrate', text: 'By sunrise, the city is [b]different[/b]. Not [i]healed[/i], but [color=#98c379]awake[/color].' },

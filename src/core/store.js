@@ -16,6 +16,7 @@ const defaultSettings   = () => ({
   typewriterSpeed: 30,
   bgmVolume: 0.5,
   sfxVolume: 0.5,
+  voiceVolume: 0.8,
   textSize: 'medium',
   spacebarFastForward: 'fullspeed',
   theme: 'default',
@@ -33,6 +34,7 @@ export const useVNovaStore = defineStore('vnova', {
   state: () => ({
     cursor:         0,
     current:        null,
+    lastLabel:      null,
     stage:          {},
     background:     defaultBackground(),
     image:          defaultImage(),
@@ -73,6 +75,7 @@ export const useVNovaStore = defineStore('vnova', {
     resetEngine() {
       this.cursor         = 0
       this.current        = null
+      this.lastLabel      = null
       this.stage          = {}
       this.background     = defaultBackground()
       this.image          = defaultImage()
@@ -91,6 +94,7 @@ export const useVNovaStore = defineStore('vnova', {
       if (!snapshot || typeof snapshot !== 'object') return
       this.cursor         = snapshot.cursor         ?? 0
       this.current        = snapshot.current        ?? null
+      this.lastLabel      = snapshot.lastLabel      ?? snapshot.anchor?.label ?? null
       this.stage          = snapshot.stage          ?? {}
       this.background     = snapshot.background     ?? defaultBackground()
       this.image          = snapshot.image          ?? defaultImage()
@@ -113,6 +117,7 @@ export const useVNovaStore = defineStore('vnova', {
     // ── Navigation ───────────────────────────────────────────────────────────
     setCursor(cursor)           { this.cursor = cursor },
     setCurrent(current)         { this.current = current },
+    setLastLabel(label)         { this.lastLabel = label ?? null },
     setAwaitingChoice(value)    { this.awaitingChoice = value },
     setEnded(value)             { this.ended = value },
 

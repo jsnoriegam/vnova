@@ -225,6 +225,11 @@ body,
   color: #ffffff;
 }
 
+.vnova-hud-link.is-active {
+  color: var(--vnova-color-primary, #c084fc);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--vnova-color-primary, #c084fc) 55%, transparent);
+}
+
 .vnova-hud-link:disabled {
   opacity: 0.45;
   cursor: not-allowed;

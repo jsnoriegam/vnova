@@ -25,9 +25,12 @@
  */
 
 import { ref, watch, onUnmounted } from 'vue'
+import { beginVoice, endVoice, updateVoiceDuration, stopVoiceState } from '../core/voiceBus.js'
 
 const FADE_DURATION = 800   // ms — BGM crossfade duration
 const SFX_POOL_SIZE = 4     // max simultaneous instances per SFX track
+const VOICE_DUCK_RATIO = 0.35
+const VOICE_DUCK_DURATION = 250
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,12 +66,14 @@ export function useVNovaAudio(initialOptions = {}) {
   const {
     bgmVolume: initBgmVolume = 0.6,
     sfxVolume: initSfxVolume = 0.8,
+    voiceVolume: initVoiceVolume = 0.8,
     fadeDuration = FADE_DURATION,
   } = initialOptions
 
   // ── reactive volume state ────────────────────────────────────────────────
   const bgmVolume = ref(clamp(initBgmVolume))
   const sfxVolume = ref(clamp(initSfxVolume))
+  const voiceVolume = ref(clamp(initVoiceVolume))
 
   // ── Web Audio context (lazy-initialized on first interaction) ────────────
   let _ctx = null
@@ -94,6 +99,11 @@ export function useVNovaAudio(initialOptions = {}) {
   let _bgmCurrent = null   // { el, gainNode, src }
   let _bgmNext    = null
   let _bgmMaster  = null   // master GainNode for BGM (volume control)
+
+  // ── Voice state ──────────────────────────────────────────────────────────
+  let _voiceEl         = null
+  let _voiceToken      = 0
+  let _voiceBaseVolume = 1
 
   function _ensureBgmMaster(ctx) {
     if (_bgmMaster) return _bgmMaster
@@ -184,9 +194,9 @@ export function useVNovaAudio(initialOptions = {}) {
   watch(bgmVolume, (v) => {
     const ctx = _getCtx()
     if (ctx && _bgmMaster) {
-      _bgmMaster.gain.value = clamp(v)
+      _bgmMaster.gain.value = clamp(v * (_voiceEl ? VOICE_DUCK_RATIO : 1))
     } else if (_fallbackBgm) {
-      _fallbackBgm.volume = clamp(v)
+      _fallbackBgm.volume = clamp(v * (_voiceEl ? VOICE_DUCK_RATIO : 1))
     }
   })
 
@@ -248,8 +258,67 @@ export function useVNovaAudio(initialOptions = {}) {
     if (ctx && _sfxMaster) _sfxMaster.gain.value = clamp(v)
   })
 
+  // ── Voice state ──────────────────────────────────────────────────────────
+  function _duckBgm(ducked) {
+    const ctx = _getCtx()
+    const target = clamp(bgmVolume.value * (ducked ? VOICE_DUCK_RATIO : 1))
+    if (ctx && _bgmMaster) {
+      rampGain(_bgmMaster, target, VOICE_DUCK_DURATION, ctx)
+    } else if (_fallbackBgm) {
+      _fallbackBgm.volume = target
+    }
+  }
+
+  function _finishVoice(token) {
+    if (token !== _voiceToken) return
+    endVoice(token)
+    _voiceEl = null
+    _voiceToken = 0
+    _duckBgm(false)
+  }
+
+  function _stopVoice({ silent = false, keepDuck = false } = {}) {
+    if (_voiceEl) {
+      _voiceEl.pause()
+      _voiceEl.src = ''
+      _voiceEl = null
+    }
+    _voiceToken = 0
+    if (!silent) stopVoiceState()
+    if (!keepDuck) _duckBgm(false)
+  }
+
+  function _playVoice(src, volume = 1) {
+    _stopVoice({ silent: true, keepDuck: true })
+    if (!src) return
+
+    _voiceBaseVolume = clamp(volume)
+    const token = beginVoice(src)
+    _voiceToken = token
+
+    const el = new Audio()
+    el.src = src
+    el.crossOrigin = 'anonymous'
+    el.volume = clamp(_voiceBaseVolume * voiceVolume.value)
+    _voiceEl = el
+
+    el.addEventListener('loadedmetadata', () => {
+      updateVoiceDuration(token, el.duration)
+    })
+    el.addEventListener('ended', () => _finishVoice(token))
+    el.addEventListener('error', () => _finishVoice(token))
+    el.play().catch(() => _finishVoice(token))
+
+    _duckBgm(true)
+  }
+
+  watch(voiceVolume, (v) => {
+    if (_voiceEl) _voiceEl.volume = clamp(_voiceBaseVolume * v)
+  })
+
   // ── cleanup ──────────────────────────────────────────────────────────────
   function stopAll() {
+    _stopVoice()
     _stopBgm(true)
     _stopBgmFallback()
     _sfxPools.forEach((pool) => pool.forEach(el => { el.pause(); el.currentTime = 0 }))
@@ -268,6 +337,10 @@ export function useVNovaAudio(initialOptions = {}) {
       if (!track) return
       _playSfx(track, clamp(volume * sfxVolume.value))
     }
+    if (type === 'voice') {
+      if (!track) { _stopVoice(); return }
+      _playVoice(track, volume)
+    }
   }
 
   // ── public API ────────────────────────────────────────────────────────────
@@ -275,9 +348,12 @@ export function useVNovaAudio(initialOptions = {}) {
     onAudio,
     bgmVolume,
     sfxVolume,
+    voiceVolume,
     setBgmVolume: (v) => { bgmVolume.value = clamp(v) },
     setSfxVolume: (v) => { sfxVolume.value = clamp(v) },
+    setVoiceVolume: (v) => { voiceVolume.value = clamp(v) },
     stopBgm:  () => _stopBgm(),
+    stopVoice: () => _stopVoice(),
     stopAll,
   }
 }

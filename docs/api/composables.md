@@ -31,6 +31,17 @@ const vn = useVNovaEngine(script, options)
 - `skipTypewriter()` — Skip typewriter animation
 - `resumeTypewriter()` — Resume typewriter animation
 
+**Auto / skip / read progress:**
+- `autoMode` — Auto-advance enabled
+- `skipMode` — Skip toggled on
+- `skipHeld` — Ctrl is currently held
+- `skipActive` — Either skip mode or hold is active
+- `currentLineRead` — Whether the current line was read before this display
+- `toggleAuto()`, `toggleSkip()`, `setAutoMode(v)`, `setSkipMode(v)`
+- `isLineRead(step)` — Check any dialogue step
+- `clearReadState()` — Reset the persisted read registry
+- `readCount` — Number of lines registered as read
+
 **Layers:**
 - `bgLayers` — Background layer refs
 - `bgLayerStyle` — Style function for bg layers
@@ -58,6 +69,9 @@ const vn = useVNovaEngine(script, options)
 - `setVar(key, value)` — Set variable
 - `getSetting(key)` — Get setting
 - `setSetting(key, value)` — Set setting
+
+**Meta-progress:**
+- `progress` — `useVNovaProgress()` handle with `has()`, `unlock()`, `state`, `counts`
 
 **Internal:**
 - `engine` — Underlying engine handle
@@ -112,6 +126,7 @@ import { useVNovaAudio } from 'vnova-engine'
 const audio = useVNovaAudio({
   bgmVolume: 0.5,
   sfxVolume: 0.5,
+  voiceVolume: 0.8,
   fadeDuration: 800,
 })
 ```
@@ -121,10 +136,62 @@ const audio = useVNovaAudio({
 - `onAudio` — Pass to `useVNova` as `options.onAudio`
 - `bgmVolume` — BGM volume ref
 - `sfxVolume` — SFX volume ref
+- `voiceVolume` — Voice volume ref
 - `setBgmVolume(v)` — Set BGM volume
 - `setSfxVolume(v)` — Set SFX volume
+- `setVoiceVolume(v)` — Set voice volume
 - `stopBgm()` — Stop BGM
+- `stopVoice()` — Stop the current voice line
 - `stopAll()` — Stop all audio
+
+Voice events (`{ type: 'voice', track, volume, character }`) are handled by the
+built-in player: previous lines are stopped, BGM is ducked while speaking, and
+auto mode waits for playback to finish.
+
+## useVNovaReadTracker
+
+Shared, persistent registry of dialogue lines the player has already read.
+Used internally by skip mode and exposed for custom UIs.
+
+```js
+import { useVNovaReadTracker } from 'vnova-engine'
+
+const tracker = useVNovaReadTracker('my-novel-v1') // defaults to 'vnova'
+
+tracker.isRead(step)
+tracker.markRead(step)
+tracker.size.value      // number of read lines
+tracker.reset()         // clear persisted progress
+```
+
+Lines are keyed by `step.id` when present, otherwise by a hash of
+`type + character + text`. Moving a line keeps its read status; editing its text
+marks it unread again. `lineReadKey(step)` returns the raw key and
+`resetAllReadTrackers()` clears every tracker in the session.
+
+## useVNovaProgress
+
+Persistent meta-progress shared across playthroughs (CGs, endings, achievements
+and chapters). Used by `VNovaGalleryModal` and the `unlock` step.
+
+```js
+import { useVNovaProgress } from 'vnova-engine'
+
+const progress = useVNovaProgress('my-novel-v1')
+
+progress.unlock('cg', 'cg-01')
+progress.unlock('ending', 'true-end')
+progress.has('achievement', 'first-choice')
+progress.state.value   // { cgs, endings, achievements, chapters }
+progress.counts.value  // { cg, ending, achievement, chapter }
+progress.reset()       // clear all meta-progress
+```
+
+- `kind` accepts `cg`/`cgs`, `ending`/`endings`, `achievement`/`achievements`
+  and `chapter`/`chapters`.
+- `unlockMany([{ kind, id }, ...])` records several entries at once.
+- `reset(kind?)` clears one category or everything.
+- Stored in `localStorage` under `<key>:progress`, separate from save slots.
 
 ## useVNovaSaves
 
@@ -143,18 +210,28 @@ const saves = useVNovaSaves({
 ### Return Values
 
 - `slots` — Save slot metadata
-- `hasSave` — Whether any save exists
-- `saving` — Whether currently saving
+- `autoSlot` — Autosave metadata (or `null`)
+- `hasSave` — Whether any manual or autosave exists
+- `hasAuto` — Whether an autosave exists
+- `saving` — Whether currently saving manually
+- `autosaving` — Whether an autosave is being written
 - `lastFileError` — Last file operation error
 - `saveSlot(slot)` — Save to slot
+- `saveAuto()` — Write the autosave slot
 - `loadSlot(slot)` — Load from slot
+- `loadAuto()` — Load the autosave slot
 - `deleteSlot(slot)` — Delete slot
-- `clearAll()` — Clear all saves
+- `deleteAuto()` — Delete the autosave
+- `clearAll()` — Clear all saves (including autosave)
 - `exportSaves()` — Export saves to file
 - `importSaves()` — Import saves from file
 - `saveToDisk()` — Save to disk
 - `loadFromDisk()` — Load from disk
 - `refresh()` — Refresh slot metadata
+
+Saved snapshots include an `anchor: { label, offset }`, so loading a save
+re-resolves its position against the current script. Older saves that only
+contain `cursor` keep working through the fallback.
 
 ## useQuestEngine
 

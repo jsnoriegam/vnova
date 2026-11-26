@@ -9,6 +9,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   bgmVolume: { type: Number, default: 0.5 },
   sfxVolume: { type: Number, default: 0.5 },
+  voiceVolume: { type: Number, default: 0.8 },
   typewriterSpeed: { type: Number, default: 30 },
   spacebarFastForward: {
     type: String,
@@ -30,6 +31,7 @@ const emit = defineEmits([
   'close',
   'update:bgm-volume',
   'update:sfx-volume',
+  'update:voice-volume',
   'update:typewriter-speed',
   'update:spacebar-fast-forward',
   'update:text-size',
@@ -53,6 +55,10 @@ function onBgmInput(event) {
 
 function onSfxInput(event) {
   emit('update:sfx-volume', Number(event.target.value))
+}
+
+function onVoiceInput(event) {
+  emit('update:voice-volume', Number(event.target.value))
 }
 
 function onTypewriterInput(event) {
@@ -94,6 +100,11 @@ function onThemeSelect(themeId) {
           <div class="vnova-setting-group">
             <label>{{ t('settings.sfxVolume') }} ({{ (props.sfxVolume * 100).toFixed(0) }}%)</label>
             <input type="range" min="0" max="1" step="0.1" :value="props.sfxVolume" @input="onSfxInput" />
+          </div>
+
+          <div class="vnova-setting-group">
+            <label>{{ t('settings.voiceVolume') }} ({{ (props.voiceVolume * 100).toFixed(0) }}%)</label>
+            <input type="range" min="0" max="1" step="0.1" :value="props.voiceVolume" @input="onVoiceInput" />
           </div>
 
           <div class="vnova-setting-group">

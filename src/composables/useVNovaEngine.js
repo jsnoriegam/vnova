@@ -30,6 +30,9 @@ import { ref, computed, watch, onMounted, onUnmounted, unref, nextTick } from 'v
 import { createEngine } from '../core/engine.js'
 import { plainText, sliceRichText } from '../utils/richText.js'
 import { normalizeSpacebarFastForward } from '../utils/normalize.js'
+import { useVNovaReadTracker } from '../core/readTracker.js'
+import { useVNovaProgress } from '../core/progress.js'
+import { voicePlaying } from '../core/voiceBus.js'
 import {
   createCrossfadeTransition,
   createSpriteEnter,
@@ -58,6 +61,7 @@ export function useVNovaEngine(script, options = {}) {
     keyboardEnabled  = true,
     spacebarFastForward = 'fullspeed',
     autoAdvanceDelay = 0,
+    autoDelay         = 1200,
     deferStart       = false,
     onAudio          = noop,
     onParticles      = noop,
@@ -67,6 +71,10 @@ export function useVNovaEngine(script, options = {}) {
     onEnd            = noop,
     pinia            = null,
     sessionKey       = null,
+    saveKey          = 'vnova',
+    readKey          = null,
+    progressKey      = null,
+    onUnlock         = null,
   } = options
 
   // ── Effect targets registry ─────────────────────────────────────────────
@@ -105,6 +113,14 @@ export function useVNovaEngine(script, options = {}) {
 
   const handleEffect = onEffect || applyEffect
 
+  // ── Meta-progress ─────────────────────────────────────────────────────────
+  const progress = useVNovaProgress(progressKey ?? readKey ?? saveKey)
+
+  function handleUnlock(event) {
+    if (event?.kind && event?.id) progress.unlock(event.kind, event.id)
+    if (typeof onUnlock === 'function') onUnlock(event)
+  }
+
   // ── Engine ────────────────────────────────────────────────────────────────
   const engine = createEngine(script, {
     characters,
@@ -120,6 +136,7 @@ export function useVNovaEngine(script, options = {}) {
     onVideo,
     onNotify,
     onEffect: handleEffect,
+    onUnlock: handleUnlock,
     onEnd,
     pinia,
   })
@@ -156,6 +173,7 @@ export function useVNovaEngine(script, options = {}) {
     }
     try {
       const { characters, credits, ...snapshot } = store.$state
+      snapshot.anchor = engine.getSaveAnchor(store.cursor)
       sessionStorage.setItem(sessionKey, JSON.stringify(snapshot))
     } catch (e) {
       // sessionStorage might be full or disabled
@@ -184,7 +202,9 @@ export function useVNovaEngine(script, options = {}) {
       if (!raw) return false
       const snapshot = JSON.parse(raw)
       if (!snapshot || typeof snapshot !== 'object' || typeof snapshot.cursor !== 'number') return false
-      store.loadSnapshot(snapshot)
+      const prepared = engine.resolveSaveSnapshot(snapshot)
+      store.loadSnapshot(prepared)
+      engine.syncRuntimeState()
       return true
     } catch (e) {
       return false
@@ -225,7 +245,61 @@ export function useVNovaEngine(script, options = {}) {
   let _twTimer            = null
   let _twRunId            = 0
   let _autoContinueTimer  = null
+  let _skipTimer          = null
   let _suspendNextAuto    = restoredFromSession
+
+  // ── Auto / skip / read tracking ───────────────────────────────────────────
+  const readTracker = useVNovaReadTracker(readKey ?? saveKey)
+  const autoMode = ref(false)
+  const skipMode = ref(false)
+  const skipHeld = ref(false)
+  const currentLineRead = ref(false)
+  const skipActive = computed(() => skipMode.value || skipHeld.value)
+
+  function _isDialogueStep(step) {
+    return step?.type === 'say' || step?.type === 'think' || step?.type === 'narrate'
+  }
+
+  function _clearSkipTimer() {
+    if (_skipTimer !== null) {
+      clearTimeout(_skipTimer)
+      _skipTimer = null
+    }
+  }
+
+  function setAutoMode(enabled) {
+    autoMode.value = Boolean(enabled)
+  }
+
+  function toggleAuto() {
+    autoMode.value = !autoMode.value
+    return autoMode.value
+  }
+
+  function setSkipMode(enabled) {
+    skipMode.value = Boolean(enabled)
+  }
+
+  function toggleSkip() {
+    skipMode.value = !skipMode.value
+    return skipMode.value
+  }
+
+  function stopAutoAndSkip() {
+    autoMode.value = false
+    skipMode.value = false
+    skipHeld.value = false
+    _clearSkipTimer()
+  }
+
+  function isLineRead(step) {
+    return readTracker.isRead(step)
+  }
+
+  function clearReadState() {
+    readTracker.reset()
+    currentLineRead.value = false
+  }
 
   function _clearTw() {
     _twRunId += 1
@@ -243,7 +317,6 @@ export function useVNovaEngine(script, options = {}) {
 
   function _runTypewriter(fullText, startIndex = 0) {
     _clearTw()
-    _clearAutoContinue()
     const runId = _twRunId
     if (!typewriterEnabled || !fullText) {
       displayedText.value = fullText ?? ''
@@ -300,14 +373,27 @@ export function useVNovaEngine(script, options = {}) {
     return Number.isFinite(n) ? Math.max(0, n) : null
   }
 
+  function _autoDelayFor(step) {
+    const explicit = _autoContinueDelay(step)
+    if (explicit !== null) return explicit
+    if (!autoMode.value) return null
+
+    const base = Number(autoDelay)
+    const safeBase = Number.isFinite(base) ? Math.max(0, base) : 1200
+    const length = [...plainText(step?.text ?? '')].length
+    return safeBase + Math.min(4000, length * 25)
+  }
+
   watch(() => store.current, (step) => {
-    _clearAutoContinue()
     if (!step) {
       displayedText.value = ''
       textComplete.value = true
+      currentLineRead.value = false
       return
     }
-    if (step.type === 'say' || step.type === 'think' || step.type === 'narrate') {
+    if (_isDialogueStep(step)) {
+      currentLineRead.value = readTracker.isRead(step)
+      readTracker.markRead(step)
       if (restoredFromSession) {
         displayedText.value = step.text ?? ''
         textComplete.value = true
@@ -315,6 +401,7 @@ export function useVNovaEngine(script, options = {}) {
         _runTypewriter(step.text ?? '')
       }
     } else {
+      currentLineRead.value = false
       // Non-dialogue steps should never block interact() waiting for typewriter.
       _clearTw()
       displayedText.value = ''
@@ -324,18 +411,70 @@ export function useVNovaEngine(script, options = {}) {
     if (restoredFromSession) restoredFromSession = false
   }, { immediate: true })
 
-  watch([() => store.current, () => store.cursor, () => textComplete.value], ([step, cursor, done]) => {
-    _clearAutoContinue()
-    if (_suspendNextAuto || !done || !step) return
-    if (step.type !== 'say' && step.type !== 'think' && step.type !== 'narrate') return
-    const delay = _autoContinueDelay(step)
-    if (delay === null) return
-    _autoContinueTimer = setTimeout(() => {
-      _autoContinueTimer = null
-      if (_suspendNextAuto || store.ended || store.awaitingChoice) return
-      if (store.cursor !== cursor || store.current !== step) return
-      advance()
-    }, delay)
+  watch(
+    [() => store.current, () => store.cursor, () => textComplete.value, () => voicePlaying.value, autoMode, skipActive],
+    ([step, cursor, done, voiceBusy, , skip]) => {
+      _clearAutoContinue()
+      if (_suspendNextAuto || !done || !step || skip) return
+      if (!_isDialogueStep(step)) return
+      if (voiceBusy) return
+
+      const delay = _autoDelayFor(step)
+      if (delay === null) return
+      _autoContinueTimer = setTimeout(() => {
+        _autoContinueTimer = null
+        if (_suspendNextAuto || store.ended || store.awaitingChoice) return
+        if (!textComplete.value || voicePlaying.value) return
+        if (store.cursor !== cursor || store.current !== step) return
+        advance()
+      }, delay)
+    }
+  )
+
+  watch(
+    [() => store.current, () => store.cursor, () => textComplete.value, skipActive, currentLineRead],
+    ([step, cursor, done, skip]) => {
+      _clearSkipTimer()
+      if (!skip || !step || store.ended || store.awaitingChoice) return
+
+      if (!_isDialogueStep(step)) {
+        skipMode.value = false
+        return
+      }
+
+      if (!done) {
+        skipTypewriter()
+        return
+      }
+
+      _skipTimer = setTimeout(() => {
+        _skipTimer = null
+        if (!skipActive.value || store.ended || store.awaitingChoice) return
+        if (store.cursor !== cursor || store.current !== step) return
+
+        // Evaluated after Vue flushes watchers, so this reflects the line that
+        // is actually on screen (not the previous one).
+        if (!currentLineRead.value) {
+          skipMode.value = false
+          return
+        }
+        advance()
+      }, 20)
+    }
+  )
+
+  watch(currentLineRead, (read) => {
+    if (!read && skipMode.value) skipMode.value = false
+  })
+
+  watch(() => store.ended, (ended) => {
+    if (ended) {
+      _clearSkipTimer()
+      _clearAutoContinue()
+      autoMode.value = false
+      skipMode.value = false
+      skipHeld.value = false
+    }
   })
 
   // ── Layers de fondo con crossfade (animejs) ───────────────────────────────
@@ -520,6 +659,7 @@ export function useVNovaEngine(script, options = {}) {
   function interact() {
     const step = store.current
     if (store.ended || store.awaitingChoice) return
+    if (autoMode.value || skipMode.value) stopAutoAndSkip()
     const isDialogueStep =
       step?.type === 'say' ||
       step?.type === 'think' ||
@@ -529,18 +669,67 @@ export function useVNovaEngine(script, options = {}) {
   }
 
   function backWithGuards() {
-    _clearTw(); _clearAutoContinue(); _suspendNextAuto = true
+    _clearTw(); _clearAutoContinue(); _clearSkipTimer(); stopAutoAndSkip(); _suspendNextAuto = true
     return back()
   }
 
   function restartWithGuards() {
-    _clearTw(); _clearAutoContinue(); _suspendNextAuto = true
+    _clearTw(); _clearAutoContinue(); _clearSkipTimer(); stopAutoAndSkip(); _suspendNextAuto = true
     return restartWithSessionClear()
   }
 
+  function chooseWithGuards(option) {
+    stopAutoAndSkip()
+    return choose(option)
+  }
+
+  function submitInputWithGuards(value) {
+    stopAutoAndSkip()
+    return submitInput(value)
+  }
+
+  function submitSelectWithGuards(option) {
+    stopAutoAndSkip()
+    return submitSelect(option)
+  }
+
+  function closeModalWithGuards() {
+    stopAutoAndSkip()
+    return closeModal()
+  }
+
   // ── Teclado ───────────────────────────────────────────────────────────────
+  function _isEditableTarget(target) {
+    if (!target || typeof target !== 'object') return false
+    const tag = String(target.tagName ?? '').toUpperCase()
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true
+  }
+
   function handleKeydown(e) {
     if (!unref(keyboardEnabled)) return
+    if (_isEditableTarget(e.target)) return
+
+    if (e.key === 'Control') {
+      if (!skipHeld.value) skipHeld.value = true
+      return
+    }
+    if (e.key === 'Escape') {
+      if (autoMode.value || skipMode.value || skipHeld.value) {
+        e.preventDefault()
+        stopAutoAndSkip()
+      }
+      return
+    }
+    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault()
+      toggleAuto()
+      return
+    }
+    if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault()
+      toggleSkip()
+      return
+    }
     if (e.key === ' ') {
       e.preventDefault()
       const mode = normalizeSpacebarFastForward(getSetting('spacebarFastForward') ?? spacebarFastForward)
@@ -553,10 +742,26 @@ export function useVNovaEngine(script, options = {}) {
     if (e.key === 'ArrowLeft') { e.preventDefault(); backWithGuards() }
   }
 
-  onMounted  (() => { if (keyboardEnabled) window.addEventListener('keydown', handleKeydown) })
+  function handleKeyup(e) {
+    if (e.key === 'Control') skipHeld.value = false
+  }
+
+  function handleWindowBlur() {
+    skipHeld.value = false
+  }
+
+  onMounted(() => {
+    if (keyboardEnabled) {
+      window.addEventListener('keydown', handleKeydown)
+      window.addEventListener('keyup', handleKeyup)
+      window.addEventListener('blur', handleWindowBlur)
+    }
+  })
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown)
-    _clearTw(); _clearAutoContinue()
+    window.removeEventListener('keyup', handleKeyup)
+    window.removeEventListener('blur', handleWindowBlur)
+    _clearTw(); _clearAutoContinue(); _clearSkipTimer()
     if (_sessionSaveTimer !== null) clearTimeout(_sessionSaveTimer)
     stopAnimation(_bgAnimation)
     stopAnimation(_imageAnimation)
@@ -585,6 +790,20 @@ export function useVNovaEngine(script, options = {}) {
     skipTypewriter,
     resumeTypewriter,
 
+    // Auto, skip y progreso de lectura
+    autoMode,
+    skipMode,
+    skipHeld,
+    skipActive,
+    currentLineRead,
+    toggleAuto,
+    toggleSkip,
+    setAutoMode,
+    setSkipMode,
+    isLineRead,
+    clearReadState,
+    readCount: readTracker.size,
+
     // Fondo e imagen
     bgLayers,
     bgLayerStyle,
@@ -597,10 +816,10 @@ export function useVNovaEngine(script, options = {}) {
 
     // Acciones del autor
     interact,
-    choose,
-    submitInput,
-    submitSelect,
-    closeModal,
+    choose:  chooseWithGuards,
+    submitInput: submitInputWithGuards,
+    submitSelect: submitSelectWithGuards,
+    closeModal: closeModalWithGuards,
     back:    backWithGuards,
     jump,
     restart: restartWithGuards,
@@ -612,6 +831,9 @@ export function useVNovaEngine(script, options = {}) {
     setVar,
     getSetting,
     setSetting,
+
+    // Meta-progreso (CGs, finales, logros, capítulos)
+    progress,
 
     // Motor interno (para casos avanzados)
     engine,

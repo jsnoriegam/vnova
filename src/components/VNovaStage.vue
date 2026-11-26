@@ -44,7 +44,7 @@ import VNovaRichText from './VNovaRichText.vue'
  * Config acepta:
  *   assets, credits, particles, quests,
  *   typewriterSpeed, typewriterEnabled, keyboardEnabled,
- *   autoAdvanceDelay, saveKey, slotCount,
+ *   autoAdvanceDelay, saveKey, slotCount, autosave, autosaveDelay,
  *   onAudio, onParticles, onVideo, onNotify, onEnd
  */
 const props = defineProps({
@@ -73,6 +73,10 @@ const {
   restart, exitMenu,
   getVar, setVar, getSetting, setSetting,
   resumeTypewriter,
+  autoMode, skipMode, skipActive, currentLineRead,
+  toggleAuto, toggleSkip, setAutoMode, setSkipMode,
+  isLineRead, clearReadState, readCount,
+  progress,
 } = vn
 
 const state = store
@@ -84,6 +88,8 @@ const imageLayerRefs = ref({ a: null, b: null })
 const activeBgLayer = computed(() => bgLayers.value.find(l => l.active))
 const activeImageLayer = computed(() => imageLayers.value.find(l => l.active))
 
+let autosaveTimer = null
+
 onMounted(() => {
   if (stageEl.value) {
     registerEffectTarget('stage', stageEl.value)
@@ -91,6 +97,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer)
+    autosaveTimer = null
+  }
   registerEffectTarget('stage', null)
   registerEffectTarget('bg', null)
   registerEffectTarget('image', null)
@@ -143,7 +153,39 @@ const saveSlots = useVNovaSaves({
   store,
 })
 
-const { hasSave, saveSlot: save, loadSlot: load, clearAll: clearSave } = saveSlots
+const {
+  hasSave, hasAuto, autoSlot,
+  saveSlot: save, loadSlot: load, clearAll: clearSave,
+  saveAuto, loadAuto,
+} = saveSlots
+
+const autosaveEnabled = computed(() => props.config?.autosave !== false)
+const autosaveDelay = computed(() => Math.max(0, Number(props.config?.autosaveDelay ?? 600)))
+let autosaveCursor = store.cursor
+
+watch(() => store.lastLabel, (label, previous) => {
+  const cursor = store.cursor
+  const movingForward = cursor >= autosaveCursor
+  autosaveCursor = cursor
+
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer)
+    autosaveTimer = null
+  }
+
+  if (!autosaveEnabled.value || !label || label === previous || store.ended || !movingForward) return
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null
+    if (!store.ended) void saveAuto()
+  }, autosaveDelay.value)
+})
+
+// A finished run (or returning to the title) starts fresh next time: allow the
+// first label of the new run to write the autosave.
+watch(() => store.ended, (ended) => {
+  if (ended) autosaveCursor = -1
+})
+
 const saveOpen = ref(false)
 const saveMode = ref('save')
 const inputDraft = ref('')
@@ -322,6 +364,8 @@ defineExpose({
   restart,
   save: handleSave,
   load: handleLoad,
+  saveAuto,
+  loadAuto,
   clearSave: handleClearSave,
   openSave,
   openLoad,
@@ -331,6 +375,8 @@ defineExpose({
   exitMenu: handleExitMenu,
   canBack,
   hasSave,
+  hasAuto,
+  autoSlot,
   history,
   quests,
   storage,
@@ -339,6 +385,18 @@ defineExpose({
   getSetting,
   setSetting,
   resumeTypewriter,
+  autoMode,
+  skipMode,
+  skipActive,
+  currentLineRead,
+  toggleAuto,
+  toggleSkip,
+  setAutoMode,
+  setSkipMode,
+  isLineRead,
+  clearReadState,
+  readCount,
+  progress,
   state,
 })
 </script>
